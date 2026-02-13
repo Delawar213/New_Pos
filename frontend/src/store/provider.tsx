@@ -1,0 +1,12 @@
+"use client";
+
+// ============================================
+// Redux Provider - Client Component Wrapper
+// ============================================
+
+import { Provider } from "react-redux";
+import { store } from "./index";
+
+export function StoreProvider({ children }: { children: React.ReactNode }) {
+  return <Provider store={store}>{children}</Provider>;
+}
