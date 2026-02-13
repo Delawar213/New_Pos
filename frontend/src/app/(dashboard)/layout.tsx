@@ -1,10 +1,7 @@
 "use client";
 
 // ============================================
-// Dashboard Layout - Sidebar + Header wrapper
-// ============================================
-// This layout wraps all authenticated pages
-// inside the dashboard group.
+// Dashboard Layout - Modern Sidebar + Header
 // ============================================
 
 import React from "react";
@@ -20,7 +17,7 @@ export default function DashboardLayout({
   const { sidebarCollapsed } = useAppSelector((s) => s.ui);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f8f9fb]">
+    <div className="flex h-screen overflow-hidden bg-mesh">
       {/* Sidebar */}
       <Sidebar />
 
@@ -29,7 +26,7 @@ export default function DashboardLayout({
         <Header />
         <main
           className={cn(
-            "flex-1 overflow-y-auto p-4 lg:p-6",
+            "flex-1 overflow-y-auto p-6 scrollbar-thin",
             "transition-all duration-300"
           )}
         >
