@@ -12,6 +12,7 @@ import type {
 } from "@/types";
 
 export const dashboardApi = baseApi.injectEndpoints({
+  overrideExisting: false,
   endpoints: (builder) => ({
     getDashboardStats: builder.query<DashboardStats, void>({
       query: () => "/dashboard/stats",

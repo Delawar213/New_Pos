@@ -18,16 +18,12 @@ import {
   HelpCircle,
   Command,
 } from "lucide-react";
-import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { toggleSidebar, setTheme } from "@/store/slices/uiSlice";
-import { logout } from "@/store/slices/authSlice";
+import { useApp } from "@/contexts/AppContext";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
 export default function Header() {
-  const dispatch = useAppDispatch();
-  const { theme } = useAppSelector((s) => s.ui);
-  const { user } = useAppSelector((s) => s.auth);
+  const { theme, user, toggleSidebar, setTheme, logout } = useApp();
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
@@ -62,7 +58,7 @@ export default function Header() {
       {/* Left side */}
       <div className="flex items-center gap-4">
         <button
-          onClick={() => dispatch(toggleSidebar())}
+          onClick={() => toggleSidebar()}
           className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors lg:hidden"
         >
           <Menu className="h-5 w-5" />
@@ -109,7 +105,7 @@ export default function Header() {
 
         {/* Theme toggle */}
         <button
-          onClick={() => dispatch(setTheme(theme === "light" ? "dark" : "light"))}
+          onClick={() => setTheme(theme === "light" ? "dark" : "light")}
           className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
         >
           {theme === "light" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
@@ -196,13 +192,13 @@ export default function Header() {
           >
             <div className="relative">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 text-sm font-bold text-white shadow-lg shadow-blue-500/20">
-                {user?.fullName?.charAt(0) || "A"}
+                {user?.name?.charAt(0) || "A"}
               </div>
               <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />
             </div>
             <div className="hidden text-left md:block">
               <p className="text-sm font-semibold text-slate-700">
-                {user?.fullName || "Admin User"}
+                {user?.name || "Admin User"}
               </p>
               <p className="text-[11px] text-slate-400">{user?.role || "Administrator"}</p>
             </div>
@@ -217,8 +213,8 @@ export default function Header() {
             <div className="absolute right-0 top-full mt-2 w-56 rounded-2xl border border-slate-200 bg-white py-2 shadow-xl shadow-slate-200/50 animate-slideDown">
               {/* User info header */}
               <div className="px-4 py-3 border-b border-slate-100">
-                <p className="font-semibold text-slate-800">{user?.fullName || "Admin User"}</p>
-                <p className="text-xs text-slate-500">{user?.email || "admin@flexpro.com"}</p>
+                <p className="font-semibold text-slate-800">{user?.name || "Admin User"}</p>
+                <p className="text-xs text-slate-500">{user?.email || "admin@flexpos.com"}</p>
               </div>
               
               <div className="py-1">
@@ -244,7 +240,7 @@ export default function Header() {
               
               <div className="border-t border-slate-100 pt-1">
                 <button
-                  onClick={() => dispatch(logout())}
+                  onClick={() => logout()}
                   className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-rose-600 hover:bg-rose-50 transition-colors"
                 >
                   <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-100 text-rose-500">

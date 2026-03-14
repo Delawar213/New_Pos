@@ -3,6 +3,7 @@
 // ============================================
 
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { configureSlice } from "@/lib/utils";
 
 interface UIState {
   sidebarOpen: boolean;
@@ -86,5 +87,7 @@ export const {
   addToast,
   removeToast,
 } = uiSlice.actions;
+
+export const uiSliceConfig = configureSlice(uiSlice, false);
 
 export default uiSlice.reducer;

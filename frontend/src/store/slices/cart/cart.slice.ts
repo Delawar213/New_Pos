@@ -3,6 +3,7 @@
 // ============================================
 
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { configureSlice } from "@/lib/utils";
 
 export interface CartItem {
   productId: number;
@@ -174,5 +175,7 @@ export const {
   setNote,
   clearCart,
 } = cartSlice.actions;
+
+export const cartSliceConfig = configureSlice(cartSlice, true);
 
 export default cartSlice.reducer;

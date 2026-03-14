@@ -26,24 +26,9 @@ import {
   Receipt,
   Sparkles,
 } from "lucide-react";
-import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import {
-  addToCart,
-  removeFromCart,
-  updateQuantity,
-  setCustomer,
-  setPaymentMethod,
-  setPaidAmount,
-  clearCart,
-  selectCartItems,
-  selectCartSubtotal,
-  selectCartTax,
-  selectCartTotal,
-  selectCartItemCount,
-} from "@/store/slices/cartSlice";
+import { useApp } from "@/contexts/AppContext";
 import { formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
-import type { CartItem } from "@/store/slices/cartSlice";
 
 // Demo products for POS
 const availableProducts = [
@@ -68,13 +53,30 @@ const paymentMethods = [
 const categories = ["All", "Paints", "Varnish", "Primer", "Spray", "Tools", "Chemicals", "Filler"];
 
 export default function POSPage() {
-  const dispatch = useAppDispatch();
-  const items = useAppSelector(selectCartItems);
-  const subtotal = useAppSelector(selectCartSubtotal);
-  const tax = useAppSelector(selectCartTax);
-  const total = useAppSelector(selectCartTotal);
-  const itemCount = useAppSelector(selectCartItemCount);
-  const { customerName, paymentMethod, paidAmount } = useAppSelector((s) => s.cart);
+  const {
+    cartItems,
+    customerName,
+    paymentMethod,
+    paidAmount,
+    addToCart,
+    removeFromCart,
+    updateQuantity,
+    setCustomer,
+    setPaymentMethod,
+    setPaidAmount,
+    clearCart,
+    getCartSubtotal,
+    getCartTax,
+    getCartTotal,
+    getCartItemCount,
+  } = useApp();
+  
+  const items = cartItems;
+  const subtotal = getCartSubtotal();
+  const tax = getCartTax();
+  const total = getCartTotal();
+  const itemCount = getCartItemCount();
+  
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
@@ -87,7 +89,7 @@ export default function POSPage() {
   });
 
   const handleAddProduct = (product: typeof availableProducts[0]) => {
-    dispatch(addToCart({ ...product, quantity: 1 } as CartItem));
+    addToCart({ ...product, quantity: 1 });
   };
 
   const change = paidAmount > total ? paidAmount - total : 0;
@@ -255,7 +257,7 @@ export default function POSPage() {
             </div>
             {items.length > 0 && (
               <button
-                onClick={() => dispatch(clearCart())}
+                onClick={() => clearCart()}
                 className="flex items-center gap-1.5 rounded-lg bg-rose-100 px-3 py-1.5 text-xs font-semibold text-rose-600 transition-colors hover:bg-rose-200"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -316,10 +318,7 @@ export default function POSPage() {
                   <div className="mt-3 flex items-center justify-between">
                     <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1">
                       <button
-                        onClick={() => dispatch(updateQuantity({
-                          productId: item.productId,
-                          quantity: item.quantity - 1,
-                        }))}
+                        onClick={() => updateQuantity(item.productId, item.quantity - 1)}
                         className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:bg-white hover:text-slate-700 transition-colors"
                       >
                         <Minus className="h-3.5 w-3.5" />
@@ -328,10 +327,7 @@ export default function POSPage() {
                         {item.quantity}
                       </span>
                       <button
-                        onClick={() => dispatch(updateQuantity({
-                          productId: item.productId,
-                          quantity: item.quantity + 1,
-                        }))}
+                        onClick={() => updateQuantity(item.productId, item.quantity + 1)}
                         className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:bg-white hover:text-slate-700 transition-colors"
                       >
                         <Plus className="h-3.5 w-3.5" />
@@ -343,7 +339,7 @@ export default function POSPage() {
                         <Percent className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() => dispatch(removeFromCart(item.productId))}
+                        onClick={() => removeFromCart(item.productId)}
                         className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -387,7 +383,7 @@ export default function POSPage() {
                 return (
                   <button
                     key={pm.value}
-                    onClick={() => dispatch(setPaymentMethod(pm.value))}
+                    onClick={() => setPaymentMethod(pm.value)}
                     className={cn(
                       "flex flex-col items-center gap-1.5 rounded-xl border-2 py-3 text-xs font-semibold transition-all",
                       paymentMethod === pm.value
@@ -411,7 +407,7 @@ export default function POSPage() {
             <input
               type="number"
               value={paidAmount || ""}
-              onChange={(e) => dispatch(setPaidAmount(Number(e.target.value)))}
+              onChange={(e) => setPaidAmount(Number(e.target.value))}
               className="h-14 w-full rounded-xl border-2 border-slate-200 bg-white px-4 text-right text-2xl font-bold text-slate-800 outline-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
               placeholder="0.00"
             />

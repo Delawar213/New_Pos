@@ -9,14 +9,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown, ChevronLeft, X, Sparkles } from "lucide-react";
 import { sidebarNavigation } from "@/config/navigation";
-import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { toggleSidebarCollapse, setSidebarOpen } from "@/store/slices/uiSlice";
+import { useApp } from "@/contexts/AppContext";
 import { cn } from "@/lib/utils";
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const dispatch = useAppDispatch();
-  const { sidebarOpen, sidebarCollapsed } = useAppSelector((s) => s.ui);
+  const { sidebarOpen, sidebarCollapsed, setSidebarOpen, toggleSidebarCollapse } = useApp();
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
 
   const toggleMenu = (label: string) => {
@@ -33,7 +31,7 @@ export default function Sidebar() {
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm lg:hidden animate-fadeIn"
-          onClick={() => dispatch(setSidebarOpen(false))}
+          onClick={() => setSidebarOpen(false)}
         />
       )}
 
@@ -66,7 +64,7 @@ export default function Sidebar() {
             )}
           </Link>
           <button
-            onClick={() => dispatch(setSidebarOpen(false))}
+            onClick={() => setSidebarOpen(false)}
             className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors lg:hidden"
           >
             <X className="h-5 w-5" />
@@ -206,7 +204,7 @@ export default function Sidebar() {
 
           {/* Collapse toggle (desktop) */}
           <button
-            onClick={() => dispatch(toggleSidebarCollapse())}
+            onClick={() => toggleSidebarCollapse()}
             className={cn(
               "hidden w-full items-center justify-center rounded-xl p-2.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all duration-200 lg:flex",
               sidebarCollapsed && "mx-auto"

@@ -13,6 +13,7 @@ import type {
 } from "@/types";
 
 export const bankAccountsApi = baseApi.injectEndpoints({
+  overrideExisting: false,
   endpoints: (builder) => ({
     getBankAccounts: builder.query<PaginatedResponse<BankAccount>, PaginationParams>({
       query: (params) => ({ url: "/bank-accounts", params }),

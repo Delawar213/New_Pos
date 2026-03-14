@@ -13,6 +13,7 @@ import type {
 } from "@/types";
 
 export const expenseCategoriesApi = baseApi.injectEndpoints({
+  overrideExisting: false,
   endpoints: (builder) => ({
     getExpenseCategories: builder.query<PaginatedResponse<ExpenseCategory>, PaginationParams>({
       query: (params) => ({ url: "/expense-categories", params }),

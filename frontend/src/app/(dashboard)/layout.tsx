@@ -6,7 +6,7 @@
 
 import React from "react";
 import { Sidebar, Header } from "@/components/layout";
-import { useAppSelector } from "@/store/hooks";
+import { useApp } from "@/contexts/AppContext";
 import { cn } from "@/lib/utils";
 
 export default function DashboardLayout({
@@ -14,7 +14,7 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { sidebarCollapsed } = useAppSelector((s) => s.ui);
+  const { sidebarCollapsed } = useApp();
 
   return (
     <div className="flex h-screen overflow-hidden bg-mesh">

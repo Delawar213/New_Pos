@@ -3,6 +3,21 @@
 // ============================================
 
 import { type ClassValue, clsx } from "clsx";
+import { Slice, SliceCaseReducers } from '@reduxjs/toolkit';
+
+/**
+ * Configure Redux Toolkit slice with persist option
+ */
+export function configureSlice<
+  State,
+  CaseReducers extends SliceCaseReducers<State>,
+>(slice: Slice<State, CaseReducers, string>, persist: boolean) {
+  return {
+    reducer: slice.reducer,
+    actions: slice.actions, // if you want to export the actions too
+    persist,
+  };
+}
 
 /**
  * Merge Tailwind classes conditionally (lightweight version)

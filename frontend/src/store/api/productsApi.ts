@@ -13,6 +13,7 @@ import type {
 } from "@/types";
 
 export const productsApi = baseApi.injectEndpoints({
+  overrideExisting: false,
   endpoints: (builder) => ({
     getProducts: builder.query<PaginatedResponse<Product>, PaginationParams>({
       query: (params) => ({ url: "/products", params }),

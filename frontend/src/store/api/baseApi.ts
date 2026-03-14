@@ -20,43 +20,18 @@ const baseQuery = fetchBaseQuery({
   },
 });
 
-// Wrapper to handle 401 and auto-refresh tokens
+// Wrapper to handle 401 responses
 const baseQueryWithReauth: typeof baseQuery = async (args, api, extraOptions) => {
-  let result = await baseQuery(args, api, extraOptions);
+  const result = await baseQuery(args, api, extraOptions);
 
   if (result.error && result.error.status === 401) {
-    // Try to refresh token
-    const state = api.getState() as RootState;
-    const refreshToken = state.auth.refreshToken;
-
-    if (refreshToken) {
-      const refreshResult = await baseQuery(
-        {
-          url: "/auth/refresh",
-          method: "POST",
-          body: {
-            token: state.auth.token,
-            refreshToken: refreshToken,
-          },
-        },
-        api,
-        extraOptions
-      );
-
-      if (refreshResult.data) {
-        // Store the new tokens
-        api.dispatch({
-          type: "auth/tokenRefreshed",
-          payload: refreshResult.data,
-        });
-        // Retry original request
-        result = await baseQuery(args, api, extraOptions);
-      } else {
-        // Refresh failed — logout
-        api.dispatch({ type: "auth/logout" });
-      }
-    } else {
-      api.dispatch({ type: "auth/logout" });
+    // Token is invalid or expired - clear auth state
+    // You can implement token refresh logic here if your API supports it
+    api.dispatch({ type: 'auth/clearAuthState' });
+    
+    // Optionally redirect to login
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
     }
   }
 

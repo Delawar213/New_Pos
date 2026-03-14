@@ -2,24 +2,36 @@
 // Category Types
 // ============================================
 
-export interface Category {
-  id: number;
-  name: string;
-  description?: string;
-  parentCategoryId?: number;
-  parentCategoryName?: string;
+export interface SubCategory {
+  subCategoryId: number;
+  subCategoryName: string;
+  displayOrder: number;
   isActive: boolean;
-  createdAt: string;
-  updatedAt?: string;
+}
+
+export interface Category {
+  categoryId: number;
+  categoryName: string;
+  description?: string;
+  parentCategoryId?: number | null;
+  displayOrder: number;
+  vatRate: number;
+  isActive: boolean;
+  createdDatetime: string;
+  subCategories: SubCategory[];
 }
 
 export interface CreateCategoryRequest {
-  name: string;
+  categoryName: string;
   description?: string;
-  parentCategoryId?: number;
+  parentCategoryId?: number | null;
   isActive: boolean;
 }
 
-export interface UpdateCategoryRequest extends CreateCategoryRequest {
-  id: number;
+export interface UpdateCategoryRequest {
+  categoryId: number;
+  categoryName: string;
+  description?: string;
+  parentCategoryId?: number | null;
+  isActive: boolean;
 }

@@ -6,6 +6,7 @@ import { baseApi } from "./baseApi";
 import type { LoginRequest, LoginResponse, ApiResponse } from "@/types";
 
 export const authApi = baseApi.injectEndpoints({
+  overrideExisting: false,
   endpoints: (builder) => ({
     login: builder.mutation<ApiResponse<LoginResponse>, LoginRequest>({
       query: (credentials) => ({

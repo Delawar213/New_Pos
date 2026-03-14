@@ -8,64 +8,69 @@ import type {
   CreateCategoryRequest,
   UpdateCategoryRequest,
   ApiResponse,
-  PaginatedResponse,
   PaginationParams,
 } from "@/types";
 
 export const categoriesApi = baseApi.injectEndpoints({
+  overrideExisting: false,
   endpoints: (builder) => ({
-    // GET /categories
-    getCategories: builder.query<PaginatedResponse<Category>, PaginationParams>({
+    // GET /categories?pageNumber=1&pageSize=10
+    getCategories: builder.query<Category[], PaginationParams>({
       query: (params) => ({
         url: "/categories",
         params,
       }),
+      transformResponse: (response: ApiResponse<Category[]>) => response.data,
       providesTags: (result) =>
         result
           ? [
-              ...result.items.map(({ id }) => ({ type: "Categories" as const, id })),
+              ...result.map(({ categoryId }) => ({ type: "Categories" as const, id: categoryId })),
               { type: "Categories", id: "LIST" },
             ]
           : [{ type: "Categories", id: "LIST" }],
     }),
 
-    // GET /categories/all (dropdown)
-    getAllCategories: builder.query<Category[], void>({
-      query: () => "/categories/all",
+    // GET /categories/active
+    getActiveCategories: builder.query<Category[], void>({
+      query: () => "/categories/active",
+      transformResponse: (response: ApiResponse<Category[]>) => response.data,
       providesTags: [{ type: "Categories", id: "LIST" }],
     }),
 
     // GET /categories/:id
     getCategoryById: builder.query<Category, number>({
       query: (id) => `/categories/${id}`,
+      transformResponse: (response: ApiResponse<Category>) => response.data,
       providesTags: (_result, _error, id) => [{ type: "Categories", id }],
     }),
 
     // POST /categories
-    createCategory: builder.mutation<ApiResponse<Category>, CreateCategoryRequest>({
+    createCategory: builder.mutation<Category, CreateCategoryRequest>({
       query: (body) => ({
         url: "/categories",
         method: "POST",
         body,
       }),
+      transformResponse: (response: ApiResponse<Category>) => response.data,
       invalidatesTags: [{ type: "Categories", id: "LIST" }],
     }),
 
     // PUT /categories/:id
-    updateCategory: builder.mutation<ApiResponse<Category>, UpdateCategoryRequest>({
-      query: ({ id, ...body }) => ({
-        url: `/categories/${id}`,
+    updateCategory: builder.mutation<Category, UpdateCategoryRequest>({
+      query: ({ categoryId, ...body }) => ({
+        url: `/categories/${categoryId}`,
         method: "PUT",
-        body,
+        body: { categoryId, ...body },
       }),
-      invalidatesTags: (_result, _error, { id }) => [
-        { type: "Categories", id },
+      transformResponse: (response: ApiResponse<Category>) => response.data,
+      invalidatesTags: (_result, _error, { categoryId }) => [
+        { type: "Categories", id: categoryId },
         { type: "Categories", id: "LIST" },
       ],
     }),
 
     // DELETE /categories/:id
-    deleteCategory: builder.mutation<ApiResponse<null>, number>({
+    deleteCategory: builder.mutation<void, number>({
       query: (id) => ({
         url: `/categories/${id}`,
         method: "DELETE",
@@ -77,7 +82,7 @@ export const categoriesApi = baseApi.injectEndpoints({
 
 export const {
   useGetCategoriesQuery,
-  useGetAllCategoriesQuery,
+  useGetActiveCategoriesQuery,
   useGetCategoryByIdQuery,
   useCreateCategoryMutation,
   useUpdateCategoryMutation,

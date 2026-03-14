@@ -13,6 +13,7 @@ import type {
 } from "@/types";
 
 export const employeesApi = baseApi.injectEndpoints({
+  overrideExisting: false,
   endpoints: (builder) => ({
     getEmployees: builder.query<PaginatedResponse<Employee>, PaginationParams>({
       query: (params) => ({ url: "/employees", params }),

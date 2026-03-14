@@ -13,6 +13,7 @@ import type {
 } from "@/types";
 
 export const customersApi = baseApi.injectEndpoints({
+  overrideExisting: false,
   endpoints: (builder) => ({
     getCustomers: builder.query<PaginatedResponse<Customer>, PaginationParams>({
       query: (params) => ({ url: "/customers", params }),

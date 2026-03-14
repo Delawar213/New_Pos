@@ -7,7 +7,7 @@
 
 export { baseApi } from "./baseApi";
 export { authApi, useLoginMutation, useLogoutMutation, useGetProfileQuery } from "./authApi";
-export { categoriesApi, useGetCategoriesQuery, useGetAllCategoriesQuery, useGetCategoryByIdQuery, useCreateCategoryMutation, useUpdateCategoryMutation, useDeleteCategoryMutation } from "./categoriesApi";
+export { categoriesApi, useGetCategoriesQuery, useGetActiveCategoriesQuery, useGetCategoryByIdQuery, useCreateCategoryMutation, useUpdateCategoryMutation, useDeleteCategoryMutation } from "./categoriesApi";
 export { brandsApi, useGetBrandsQuery, useGetAllBrandsQuery, useGetBrandByIdQuery, useCreateBrandMutation, useUpdateBrandMutation, useDeleteBrandMutation } from "./brandsApi";
 export { productsApi, useGetProductsQuery, useSearchProductsQuery, useGetProductByIdQuery, useCreateProductMutation, useUpdateProductMutation, useDeleteProductMutation } from "./productsApi";
 export { suppliersApi, useGetSuppliersQuery, useGetAllSuppliersQuery, useGetSupplierByIdQuery, useCreateSupplierMutation, useUpdateSupplierMutation, useDeleteSupplierMutation } from "./suppliersApi";
