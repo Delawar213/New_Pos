@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { AlertTriangle } from "lucide-react";
 import { PageHeader, DataTable, StatusBadge, Modal } from "@/components/ui";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
@@ -28,6 +29,8 @@ export default function CategoriesPage() {
   } = useAppSelector((state) => state.category);
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [form, setForm] = useState<CreateCategoryRequest>({
     categoryName: "",
@@ -115,16 +118,26 @@ export default function CategoriesPage() {
     setModalOpen(true);
   };
 
-  const handleDelete = async (categoryId: number) => {
-    if (!confirm("Are you sure you want to delete this category?")) {
-      return;
-    }
+  const handleDeleteClick = (category: Category) => {
+    setCategoryToDelete(category);
+    setDeleteConfirmOpen(true);
+  };
 
-    const result = await dispatch(deleteCategory(categoryId));
+  const handleDeleteConfirm = async () => {
+    if (!categoryToDelete) return;
+    
+    const result = await dispatch(deleteCategory(categoryToDelete.categoryId));
     
     if (deleteCategory.fulfilled.match(result)) {
+      setDeleteConfirmOpen(false);
+      setCategoryToDelete(null);
       dispatch(fetchCategories({ pageNumber: currentPage, pageSize }));
     }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteConfirmOpen(false);
+    setCategoryToDelete(null);
   };
 
   const handleClose = () => {
@@ -173,7 +186,7 @@ export default function CategoriesPage() {
             Edit
           </button>
           <button
-            onClick={() => handleDelete(item.categoryId)}
+            onClick={() => handleDeleteClick(item)}
             disabled={actionLoading}
             className="text-xs text-red-600 hover:text-red-800 disabled:opacity-50"
           >
@@ -279,6 +292,51 @@ export default function CategoriesPage() {
               className="rounded border-gray-300"
             />
             <label htmlFor="isActive" className="text-sm text-gray-700">Active</label>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        open={deleteConfirmOpen}
+        onClose={handleDeleteCancel}
+        title="Delete Category"
+        description="This action cannot be undone"
+        size="sm"
+      >
+        <div className="py-4">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-50 mb-4">
+            <AlertTriangle className="h-8 w-8 text-red-600" />
+          </div>
+          <div className="text-center">
+            <h3 className="text-lg font-semibold text-slate-800 mb-2">
+              Are you sure you want to delete?
+            </h3>
+            <p className="text-sm text-slate-600 mb-1">
+              You are about to delete the category:
+            </p>
+            <p className="text-base font-semibold text-slate-800 mb-4">
+              &quot;{categoryToDelete?.categoryName}&quot;
+            </p>
+            <p className="text-sm text-slate-500">
+              This action cannot be undone and may affect related products.
+            </p>
+          </div>
+          <div className="mt-6 flex gap-3">
+            <button
+              onClick={handleDeleteCancel}
+              disabled={actionLoading}
+              className="flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleDeleteConfirm}
+              disabled={actionLoading}
+              className="flex-1 rounded-lg bg-gradient-to-r from-red-500 to-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:from-red-600 hover:to-red-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-red-500/25 transition-all"
+            >
+              {actionLoading ? "Deleting..." : "Yes, Delete"}
+            </button>
           </div>
         </div>
       </Modal>

@@ -3,22 +3,36 @@
 // ============================================
 
 export interface Brand {
-  id: number;
-  name: string;
-  description?: string;
-  logo?: string;
+  brandId: number;
+  brandName: string;
   isActive: boolean;
-  createdAt: string;
-  updatedAt?: string;
+  createdDatetime: string;
 }
 
 export interface CreateBrandRequest {
-  name: string;
+  brandName: string;
   description?: string;
-  logo?: string;
   isActive: boolean;
 }
 
-export interface UpdateBrandRequest extends CreateBrandRequest {
-  id: number;
+export interface UpdateBrandRequest {
+  brandId: number;
+  brandName: string;
+  description?: string;
+  isActive: boolean;
+}
+
+export interface BrandDropdown {
+  brandId: number;
+  brandName: string;
+}
+
+export interface PaginatedBrandResponse {
+  data: Brand[];
+  totalRecords: number;
+  pageNumber: number;
+  pageSize: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
 }

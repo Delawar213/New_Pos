@@ -4,7 +4,6 @@ import axios from 'axios';
 import { configureSlice } from '@/lib/utils';
 import type { 
   Category, 
-  SubCategory, 
   CreateCategoryRequest, 
   UpdateCategoryRequest 
 } from '@/types/category';
@@ -17,8 +16,10 @@ import type { RootState } from '@/store';
 // Create axios instance with auth token
 const createAuthenticatedRequest = (token?: string) => {
   return axios.create({
-    baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || '',
-    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    },
   });
 };
 
@@ -246,13 +247,11 @@ const categorySlice = createSlice({
     builder.addCase(fetchCategories.fulfilled, (state, { payload }) => {
       state.loading = false;
       state.categories = payload.data;
-      state.success = true;
-      state.message = payload.message;
+      // Don't show toast for fetch operations
     });
-    builder.addCase(fetchCategories.rejected, (state, { payload }) => {
+    builder.addCase(fetchCategories.rejected, (state) => {
       state.loading = false;
-      state.error = payload || 'Failed to fetch categories';
-      state.success = false;
+      // Don't set error for fetch operations to avoid unwanted toasts
     });
 
     // Fetch category by ID
@@ -263,12 +262,11 @@ const categorySlice = createSlice({
     builder.addCase(fetchCategoryById.fulfilled, (state, { payload }) => {
       state.loading = false;
       state.selectedCategory = payload.data;
-      state.success = true;
+      // Don't show toast for fetch operations
     });
-    builder.addCase(fetchCategoryById.rejected, (state, { payload }) => {
+    builder.addCase(fetchCategoryById.rejected, (state) => {
       state.loading = false;
-      state.error = payload || 'Failed to fetch category';
-      state.success = false;
+      // Don't set error for fetch operations to avoid unwanted toasts
     });
 
     // Fetch active categories
@@ -279,12 +277,11 @@ const categorySlice = createSlice({
     builder.addCase(fetchActiveCategories.fulfilled, (state, { payload }) => {
       state.loading = false;
       state.activeCategories = payload.data;
-      state.success = true;
+      // Don't show toast for fetch operations
     });
-    builder.addCase(fetchActiveCategories.rejected, (state, { payload }) => {
+    builder.addCase(fetchActiveCategories.rejected, (state) => {
       state.loading = false;
-      state.error = payload || 'Failed to fetch active categories';
-      state.success = false;
+      // Don't set error for fetch operations to avoid unwanted toasts
     });
 
     // Fetch categories dropdown
@@ -295,12 +292,11 @@ const categorySlice = createSlice({
     builder.addCase(fetchCategoriesDropdown.fulfilled, (state, { payload }) => {
       state.loading = false;
       state.dropdownCategories = payload.data;
-      state.success = true;
+      // Don't show toast for fetch operations
     });
-    builder.addCase(fetchCategoriesDropdown.rejected, (state, { payload }) => {
+    builder.addCase(fetchCategoriesDropdown.rejected, (state) => {
       state.loading = false;
-      state.error = payload || 'Failed to fetch categories dropdown';
-      state.success = false;
+      // Don't set error for fetch operations to avoid unwanted toasts
     });
 
     // Create category
@@ -318,7 +314,6 @@ const categorySlice = createSlice({
       state.actionLoading = false;
       state.error = payload || 'Failed to create category';
       state.success = false;
-      state.message = payload || 'Failed to create category';
     });
 
     // Update category
@@ -340,7 +335,6 @@ const categorySlice = createSlice({
       state.actionLoading = false;
       state.error = payload || 'Failed to update category';
       state.success = false;
-      state.message = payload || 'Failed to update category';
     });
 
     // Delete category
@@ -358,7 +352,6 @@ const categorySlice = createSlice({
       state.actionLoading = false;
       state.error = payload || 'Failed to delete category';
       state.success = false;
-      state.message = payload || 'Failed to delete category';
     });
   },
 });

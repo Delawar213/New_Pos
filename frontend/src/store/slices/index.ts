@@ -3,12 +3,14 @@ import { authSliceConfig } from './auth/auth.slice';
 import { cartSliceConfig } from './cart/cart.slice';
 import { uiSliceConfig } from './ui/ui.slice';
 import { categorySliceConfig } from './category/category.slice';
+import { brandSliceConfig } from './brand/brand.slice';
 
 export const slices = {
   auth: authSliceConfig,
   cart: cartSliceConfig,
   ui: uiSliceConfig,
   category: categorySliceConfig,
+  brand: brandSliceConfig,
 };
 
 export const reducers = {
@@ -17,4 +19,5 @@ export const reducers = {
   cart: cartSliceConfig.reducer,
   ui: uiSliceConfig.reducer,
   category: categorySliceConfig.reducer,
+  brand: brandSliceConfig.reducer,
 };
