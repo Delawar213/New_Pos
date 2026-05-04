@@ -20,7 +20,7 @@ export const brandsApi = baseApi.injectEndpoints({
       providesTags: (result) =>
         result
           ? [
-              ...result.items.map(({ id }) => ({ type: "Brands" as const, id })),
+              ...result.items.map(({ brandId }) => ({ type: "Brands" as const, id: brandId })),
               { type: "Brands", id: "LIST" },
             ]
           : [{ type: "Brands", id: "LIST" }],
@@ -42,9 +42,9 @@ export const brandsApi = baseApi.injectEndpoints({
     }),
 
     updateBrand: builder.mutation<ApiResponse<Brand>, UpdateBrandRequest>({
-      query: ({ id, ...body }) => ({ url: `/brands/${id}`, method: "PUT", body }),
-      invalidatesTags: (_r, _e, { id }) => [
-        { type: "Brands", id },
+      query: ({ brandId, ...body }) => ({ url: `/brands/${brandId}`, method: "PUT", body }),
+      invalidatesTags: (_r, _e, { brandId }) => [
+        { type: "Brands", id: brandId },
         { type: "Brands", id: "LIST" },
       ],
     }),
