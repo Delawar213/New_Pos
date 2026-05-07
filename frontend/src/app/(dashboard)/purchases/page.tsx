@@ -8,6 +8,7 @@ import { formatCurrency } from "@/lib/utils";
 import {
   useCreatePurchaseMutation,
   useGetPurchasesQuery,
+  useGetSuppliersQuery,
   useGetSuppliersDropdownQuery,
 } from "@/store/api";
 
@@ -59,9 +60,27 @@ const columns: Column<Purchase>[] = [
 export default function PurchasesPage() {
   const { data, isLoading } = useGetPurchasesQuery({ pageNumber: 1, pageSize: 10 });
   const [createPurchase, { isLoading: creating }] = useCreatePurchaseMutation();
-  const { data: suppliers = [] } = useGetSuppliersDropdownQuery();
+  const {
+    data: suppliersDropdown = [],
+    isError: isSuppliersDropdownError,
+  } = useGetSuppliersDropdownQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+  });
+  const { data: suppliersListResponse } = useGetSuppliersQuery(
+    { pageNumber: 1, pageSize: 100 },
+    { refetchOnMountOrArgChange: true }
+  );
   const purchases = data?.data.data || [];
   const totalCount = data?.data.totalRecords || 0;
+  const suppliers =
+    suppliersDropdown.length > 0
+      ? suppliersDropdown
+      : (suppliersListResponse?.data.data || []).map((s) => ({
+          supplierId: s.supplierId,
+          supplierCode: s.supplierCode,
+          supplierName: s.supplierName,
+          currentBalance: s.currentBalance ?? 0,
+        }));
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState<CreatePurchaseRequest>({
     supplierId: 1,
@@ -210,6 +229,11 @@ export default function PurchasesPage() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Supplier *</label>
+              {isSuppliersDropdownError && suppliers.length > 0 && (
+                <p className="mb-1 text-xs text-amber-600">
+                  Dropdown endpoint timeout, showing supplier list fallback.
+                </p>
+              )}
               <select
                 value={form.supplierId}
                 onChange={(e) => setForm({ ...form, supplierId: Number(e.target.value) || 0 })}
