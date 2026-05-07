@@ -3,40 +3,76 @@
 // ============================================
 
 export interface Customer {
-  id: number;
-  name: string;
+  customerId: number;
+  customerCode: string;
+  customerTypeId: number;
+  customerTypeName?: string;
+  customerName: string;
+  contactNo?: string;
   email?: string;
-  phone?: string;
   address?: string;
   city?: string;
-  state?: string;
-  country?: string;
-  zipCode?: string;
-  companyName?: string;
-  taxNumber?: string;
-  openingBalance: number;
-  currentBalance: number;
-  loyaltyPoints: number;
+  postcode?: string;
+  vatNumber?: string;
+  isVatRegistered?: boolean;
+  openingBalance?: number;
+  currentBalance?: number;
+  creditLimit: number;
+  creditDays: number;
+  loyaltyPoints?: number;
   isActive: boolean;
-  createdAt: string;
-  updatedAt?: string;
+  createdDatetime: string;
 }
 
 export interface CreateCustomerRequest {
-  name: string;
+  customerCode: string;
+  customerName: string;
+  customerTypeId: number;
+  contactNo?: string;
   email?: string;
-  phone?: string;
   address?: string;
   city?: string;
-  state?: string;
-  country?: string;
-  zipCode?: string;
-  companyName?: string;
-  taxNumber?: string;
-  openingBalance: number;
+  postcode?: string;
+  vatNumber?: string;
+  creditLimit: number;
+  creditDays: number;
   isActive: boolean;
 }
 
 export interface UpdateCustomerRequest extends CreateCustomerRequest {
-  id: number;
+  customerId: number;
+}
+
+export interface CustomerType {
+  customerTypeId: number;
+  typeName: string;
+  description?: string;
+  isActive: boolean;
+}
+
+export interface CustomerDropdown {
+  customerId: number;
+  customerCode: string;
+  customerName: string;
+  customerTypeName: string;
+  currentBalance: number;
+  creditLimit: number;
+}
+
+export interface CustomerLedgerEntry {
+  [key: string]: unknown;
+}
+
+export interface PaginatedCustomerResponse {
+  data: Customer[];
+  totalRecords: number;
+  pageNumber: number;
+  pageSize: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+}
+
+export interface CustomerLoyaltyRequest {
+  points: number;
 }

@@ -2,54 +2,55 @@
 // Purchase Types
 // ============================================
 
-export type PurchaseStatus = "pending" | "received" | "partial" | "cancelled";
-
 export interface Purchase {
-  id: number;
-  referenceNo: string;
+  purchaseId: number;
+  purchaseCode: string;
   supplierId: number;
   supplierName?: string;
   purchaseDate: string;
-  status: PurchaseStatus;
-  subtotal: number;
-  taxAmount: number;
-  discountAmount: number;
-  shippingCost: number;
-  grandTotal: number;
-  paidAmount: number;
-  dueAmount: number;
-  paymentMethod: string;
-  note?: string;
-  items: PurchaseItem[];
-  createdAt: string;
-  updatedAt?: string;
+  invoiceNumber?: string;
+  discountPercentage: number;
+  description?: string;
+  notes?: string;
+  createdBy?: string;
+  createdDatetime: string;
+  purchaseDetails: PurchaseDetail[];
 }
 
-export interface PurchaseItem {
-  id: number;
+export interface PurchaseDetail {
+  detailId?: number;
   productId: number;
-  productName?: string;
-  sku?: string;
-  quantity: number;
-  unitCost: number;
-  taxPercentage: number;
-  taxAmount: number;
-  discount: number;
-  total: number;
+  barcode?: string;
+  batchNumber?: string;
+  expiryDate?: string | null;
+  purchasePriceExVat: number;
+  discountPerUnit: number;
+  vatRate: number;
+  sellingPriceExVat: number;
+  purchaseQuantity: number;
 }
 
 export interface CreatePurchaseRequest {
   supplierId: number;
   purchaseDate: string;
-  status: PurchaseStatus;
-  shippingCost: number;
-  discountAmount: number;
-  paymentMethod: string;
-  paidAmount: number;
-  note?: string;
-  items: Omit<PurchaseItem, "id" | "productName" | "sku" | "taxAmount" | "total">[];
+  invoiceNumber: string;
+  discountPercentage: number;
+  description?: string;
+  notes?: string;
+  createdBy?: string;
+  purchaseDetails: PurchaseDetail[];
 }
 
 export interface UpdatePurchaseRequest extends CreatePurchaseRequest {
-  id: number;
+  purchaseId: number;
+}
+
+export interface PaginatedPurchaseResponse {
+  data: Purchase[];
+  totalRecords: number;
+  pageNumber: number;
+  pageSize: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
 }

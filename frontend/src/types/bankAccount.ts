@@ -3,29 +3,48 @@
 // ============================================
 
 export interface BankAccount {
-  id: number;
+  bankAccountId: number;
+  accountName: string;
+  accountType: string;
   bankName: string;
   accountNumber: string;
-  accountHolder: string;
-  branch?: string;
+  sortCode?: string;
   openingBalance: number;
   currentBalance: number;
-  isDefault: boolean;
+  lastTransactionDate?: string;
   isActive: boolean;
-  createdAt: string;
-  updatedAt?: string;
+  createdDatetime: string;
+}
+
+export interface CashAccount {
+  bankAccountId: number;
+  accountName: string;
+  accountType: string;
+  currentBalance: number;
+}
+
+export interface BankAccountDropdown {
+  bankAccountId: number;
+  accountName: string;
+  accountType: string;
+  currentBalance: number;
 }
 
 export interface CreateBankAccountRequest {
-  bankName: string;
+  accountName: string;
+  accountType: string;
+  bankName?: string | null;
+  branchName?: string | null;
   accountNumber: string;
-  accountHolder: string;
-  branch?: string;
+  sortCode?: string;
   openingBalance: number;
-  isDefault: boolean;
   isActive: boolean;
 }
 
 export interface UpdateBankAccountRequest extends CreateBankAccountRequest {
-  id: number;
+  bankAccountId: number;
+}
+
+export interface BankAccountsByTypeParams {
+  accountType: "Cash" | "Bank";
 }

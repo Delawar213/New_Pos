@@ -5,34 +5,35 @@
 import { baseApi } from "./baseApi";
 import type {
   Purchase,
+  PaginatedPurchaseResponse,
   CreatePurchaseRequest,
   UpdatePurchaseRequest,
   ApiResponse,
-  PaginatedResponse,
   PaginationParams,
 } from "@/types";
 
 export const purchasesApi = baseApi.injectEndpoints({
   overrideExisting: false,
   endpoints: (builder) => ({
-    getPurchases: builder.query<PaginatedResponse<Purchase>, PaginationParams & { status?: string }>({
-      query: (params) => ({ url: "/purchases", params }),
+    getPurchases: builder.query<ApiResponse<PaginatedPurchaseResponse>, PaginationParams>({
+      query: (params) => ({ url: "/proxy/purchases", params }),
       providesTags: (result) =>
         result
           ? [
-              ...result.items.map(({ id }) => ({ type: "Purchases" as const, id })),
+              ...result.data.data.map(({ purchaseId }) => ({ type: "Purchases" as const, id: purchaseId })),
               { type: "Purchases", id: "LIST" },
             ]
           : [{ type: "Purchases", id: "LIST" }],
     }),
 
     getPurchaseById: builder.query<Purchase, number>({
-      query: (id) => `/purchases/${id}`,
+      query: (id) => `/proxy/purchases/${id}`,
+      transformResponse: (response: ApiResponse<Purchase>) => response.data,
       providesTags: (_r, _e, id) => [{ type: "Purchases", id }],
     }),
 
     createPurchase: builder.mutation<ApiResponse<Purchase>, CreatePurchaseRequest>({
-      query: (body) => ({ url: "/purchases", method: "POST", body }),
+      query: (body) => ({ url: "/proxy/purchases", method: "POST", body }),
       invalidatesTags: [
         { type: "Purchases", id: "LIST" },
         { type: "Products", id: "LIST" },
@@ -42,9 +43,9 @@ export const purchasesApi = baseApi.injectEndpoints({
     }),
 
     updatePurchase: builder.mutation<ApiResponse<Purchase>, UpdatePurchaseRequest>({
-      query: ({ id, ...body }) => ({ url: `/purchases/${id}`, method: "PUT", body }),
-      invalidatesTags: (_r, _e, { id }) => [
-        { type: "Purchases", id },
+      query: ({ purchaseId, ...body }) => ({ url: `/proxy/purchases/${purchaseId}`, method: "PUT", body: { purchaseId, ...body } }),
+      invalidatesTags: (_r, _e, { purchaseId }) => [
+        { type: "Purchases", id: purchaseId },
         { type: "Purchases", id: "LIST" },
         { type: "Products", id: "LIST" },
         { type: "Dashboard" },
@@ -52,7 +53,7 @@ export const purchasesApi = baseApi.injectEndpoints({
     }),
 
     deletePurchase: builder.mutation<ApiResponse<null>, number>({
-      query: (id) => ({ url: `/purchases/${id}`, method: "DELETE" }),
+      query: (id) => ({ url: `/proxy/purchases/${id}`, method: "DELETE" }),
       invalidatesTags: [
         { type: "Purchases", id: "LIST" },
         { type: "Products", id: "LIST" },

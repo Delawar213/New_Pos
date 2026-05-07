@@ -5,34 +5,38 @@
 import { baseApi } from "./baseApi";
 import type {
   Transaction,
+  PaginatedTransactionResponse,
   CreateTransactionRequest,
   UpdateTransactionRequest,
   ApiResponse,
-  PaginatedResponse,
   PaginationParams,
 } from "@/types";
 
 export const transactionsApi = baseApi.injectEndpoints({
   overrideExisting: false,
   endpoints: (builder) => ({
-    getTransactions: builder.query<PaginatedResponse<Transaction>, PaginationParams & { type?: string }>({
-      query: (params) => ({ url: "/transactions", params }),
+    getTransactions: builder.query<
+      ApiResponse<PaginatedTransactionResponse>,
+      PaginationParams
+    >({
+      query: (params) => ({ url: "/proxy/transactions", params }),
       providesTags: (result) =>
         result
           ? [
-              ...result.items.map(({ id }) => ({ type: "Transactions" as const, id })),
+              ...result.data.data.map(({ transactionId }) => ({ type: "Transactions" as const, id: transactionId })),
               { type: "Transactions", id: "LIST" },
             ]
           : [{ type: "Transactions", id: "LIST" }],
     }),
 
     getTransactionById: builder.query<Transaction, number>({
-      query: (id) => `/transactions/${id}`,
+      query: (id) => `/proxy/transactions/${id}`,
+      transformResponse: (response: ApiResponse<Transaction>) => response.data,
       providesTags: (_r, _e, id) => [{ type: "Transactions", id }],
     }),
 
     createTransaction: builder.mutation<ApiResponse<Transaction>, CreateTransactionRequest>({
-      query: (body) => ({ url: "/transactions", method: "POST", body }),
+      query: (body) => ({ url: "/proxy/transactions", method: "POST", body }),
       invalidatesTags: [
         { type: "Transactions", id: "LIST" },
         { type: "BankAccounts", id: "LIST" },
@@ -41,9 +45,9 @@ export const transactionsApi = baseApi.injectEndpoints({
     }),
 
     updateTransaction: builder.mutation<ApiResponse<Transaction>, UpdateTransactionRequest>({
-      query: ({ id, ...body }) => ({ url: `/transactions/${id}`, method: "PUT", body }),
-      invalidatesTags: (_r, _e, { id }) => [
-        { type: "Transactions", id },
+      query: ({ transactionId, ...body }) => ({ url: `/proxy/transactions/${transactionId}`, method: "PUT", body: { transactionId, ...body } }),
+      invalidatesTags: (_r, _e, { transactionId }) => [
+        { type: "Transactions", id: transactionId },
         { type: "Transactions", id: "LIST" },
         { type: "BankAccounts", id: "LIST" },
         { type: "Dashboard" },
@@ -51,7 +55,7 @@ export const transactionsApi = baseApi.injectEndpoints({
     }),
 
     deleteTransaction: builder.mutation<ApiResponse<null>, number>({
-      query: (id) => ({ url: `/transactions/${id}`, method: "DELETE" }),
+      query: (id) => ({ url: `/proxy/transactions/${id}`, method: "DELETE" }),
       invalidatesTags: [
         { type: "Transactions", id: "LIST" },
         { type: "BankAccounts", id: "LIST" },

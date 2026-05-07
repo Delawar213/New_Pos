@@ -187,21 +187,6 @@ export default function Sidebar() {
 
         {/* User card & collapse toggle */}
         <div className="border-t border-slate-100 p-3">
-          {/* Upgrade card - only when expanded */}
-          {!sidebarCollapsed && (
-            <div className="mb-3 rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 p-4 text-white animate-fadeIn">
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="h-4 w-4 text-amber-400" />
-                <span className="text-xs font-semibold text-amber-400">PRO</span>
-              </div>
-              <p className="text-sm font-medium">Upgrade to Pro</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Unlock advanced features</p>
-              <button className="mt-3 w-full rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/20 transition-colors">
-                Learn More
-              </button>
-            </div>
-          )}
-
           {/* Collapse toggle (desktop) */}
           <button
             onClick={() => toggleSidebarCollapse()}

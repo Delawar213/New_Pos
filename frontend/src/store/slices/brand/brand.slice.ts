@@ -88,7 +88,7 @@ export const fetchBrands = createAsyncThunk<
       const token = getState().auth?.token;
       const api = createAuthenticatedRequest(token);
       const response = await api.get<ApiResponse<PaginatedBrandResponse>>(
-        `/api/brands?pageNumber=${pageNumber}&pageSize=${pageSize}`
+        `/proxy/brands?pageNumber=${pageNumber}&pageSize=${pageSize}`
       );
       return response.data;
     } catch (error: unknown) {
@@ -109,7 +109,7 @@ export const fetchBrandById = createAsyncThunk<
     try {
       const token = getState().auth?.token;
       const api = createAuthenticatedRequest(token);
-      const response = await api.get<ApiResponse<Brand>>(`/api/brands/${id}`);
+      const response = await api.get<ApiResponse<Brand>>(`/proxy/brands/${id}`);
       return response.data;
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -129,7 +129,7 @@ export const fetchActiveBrands = createAsyncThunk<
     try {
       const token = getState().auth?.token;
       const api = createAuthenticatedRequest(token);
-      const response = await api.get<ApiResponse<Brand[]>>('/api/brands/active');
+      const response = await api.get<ApiResponse<Brand[]>>('/proxy/brands/active');
       return response.data;
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -149,7 +149,7 @@ export const fetchBrandsDropdown = createAsyncThunk<
     try {
       const token = getState().auth?.token;
       const api = createAuthenticatedRequest(token);
-      const response = await api.get<ApiResponse<BrandDropdown[]>>('/api/brands/dropdown');
+      const response = await api.get<ApiResponse<BrandDropdown[]>>('/proxy/brands/dropdown');
       return response.data;
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -169,7 +169,7 @@ export const createBrand = createAsyncThunk<
     try {
       const token = getState().auth?.token;
       const api = createAuthenticatedRequest(token);
-      const response = await api.post<ApiResponse<Brand>>('/api/brands', brandData);
+      const response = await api.post<ApiResponse<Brand>>('/proxy/brands', brandData);
       return response.data;
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -190,7 +190,7 @@ export const updateBrand = createAsyncThunk<
       const token = getState().auth?.token;
       const api = createAuthenticatedRequest(token);
       const response = await api.put<ApiResponse<Brand>>(
-        `/api/brands/${brandData.brandId}`,
+        `/proxy/brands/${brandData.brandId}`,
         brandData
       );
       return response.data;
@@ -212,7 +212,7 @@ export const deleteBrand = createAsyncThunk<
     try {
       const token = getState().auth?.token;
       const api = createAuthenticatedRequest(token);
-      const response = await api.delete<ApiResponse<unknown>>(`/api/brands/${id}`);
+      const response = await api.delete<ApiResponse<unknown>>(`/proxy/brands/${id}`);
       return { id, message: response.data.message || 'Brand deleted successfully' };
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -257,8 +257,9 @@ const brandSlice = createSlice({
       state.hasPreviousPage = payload.data.hasPreviousPage;
       state.hasNextPage = payload.data.hasNextPage;
     });
-    builder.addCase(fetchBrands.rejected, (state) => {
+    builder.addCase(fetchBrands.rejected, (state, { payload }) => {
       state.loading = false;
+      state.error = payload || 'Failed to fetch brands';
     });
 
     // Fetch brand by ID
@@ -270,8 +271,9 @@ const brandSlice = createSlice({
       state.loading = false;
       state.selectedBrand = payload.data;
     });
-    builder.addCase(fetchBrandById.rejected, (state) => {
+    builder.addCase(fetchBrandById.rejected, (state, { payload }) => {
       state.loading = false;
+      state.error = payload || 'Failed to fetch brand';
     });
 
     // Fetch active brands
@@ -283,8 +285,9 @@ const brandSlice = createSlice({
       state.loading = false;
       state.activeBrands = payload.data;
     });
-    builder.addCase(fetchActiveBrands.rejected, (state) => {
+    builder.addCase(fetchActiveBrands.rejected, (state, { payload }) => {
       state.loading = false;
+      state.error = payload || 'Failed to fetch active brands';
     });
 
     // Fetch brands dropdown
@@ -296,8 +299,9 @@ const brandSlice = createSlice({
       state.loading = false;
       state.dropdownBrands = payload.data;
     });
-    builder.addCase(fetchBrandsDropdown.rejected, (state) => {
+    builder.addCase(fetchBrandsDropdown.rejected, (state, { payload }) => {
       state.loading = false;
+      state.error = payload || 'Failed to fetch brands dropdown';
     });
 
     // Create brand

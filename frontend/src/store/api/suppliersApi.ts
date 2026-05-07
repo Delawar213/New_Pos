@@ -7,50 +7,77 @@ import type {
   Supplier,
   CreateSupplierRequest,
   UpdateSupplierRequest,
+  SupplierDropdown,
   ApiResponse,
-  PaginatedResponse,
   PaginationParams,
 } from "@/types";
 
 export const suppliersApi = baseApi.injectEndpoints({
   overrideExisting: false,
   endpoints: (builder) => ({
-    getSuppliers: builder.query<PaginatedResponse<Supplier>, PaginationParams>({
-      query: (params) => ({ url: "/suppliers", params }),
+    getSuppliers: builder.query<ApiResponse<{ data: Supplier[]; totalRecords: number; pageNumber: number; pageSize: number; totalPages: number; hasPreviousPage: boolean; hasNextPage: boolean }>, PaginationParams>({
+      query: (params) => ({ url: "/proxy/suppliers", params }),
       providesTags: (result) =>
         result
           ? [
-              ...result.items.map(({ id }) => ({ type: "Suppliers" as const, id })),
+              ...result.data.data.map(({ supplierId }) => ({ type: "Suppliers" as const, id: supplierId })),
               { type: "Suppliers", id: "LIST" },
             ]
           : [{ type: "Suppliers", id: "LIST" }],
     }),
 
-    getAllSuppliers: builder.query<Supplier[], void>({
-      query: () => "/suppliers/all",
+    getActiveSuppliers: builder.query<Supplier[], void>({
+      query: () => "/proxy/suppliers/active",
+      transformResponse: (response: ApiResponse<Supplier[]>) => response.data,
+      providesTags: [{ type: "Suppliers", id: "LIST" }],
+    }),
+
+    getSuppliersDropdown: builder.query<SupplierDropdown[], void>({
+      query: () => "/proxy/suppliers/dropdown",
+      transformResponse: (response: ApiResponse<SupplierDropdown[]>) => response.data,
       providesTags: [{ type: "Suppliers", id: "LIST" }],
     }),
 
     getSupplierById: builder.query<Supplier, number>({
-      query: (id) => `/suppliers/${id}`,
+      query: (id) => `/proxy/suppliers/${id}`,
+      transformResponse: (response: ApiResponse<Supplier>) => response.data,
       providesTags: (_r, _e, id) => [{ type: "Suppliers", id }],
     }),
 
+    getSupplierByCode: builder.query<Supplier, string>({
+      query: (code) => `/proxy/suppliers/code/${code}`,
+      transformResponse: (response: ApiResponse<Supplier>) => response.data,
+      providesTags: (_r, _e, code) => [{ type: "Suppliers", id: code }],
+    }),
+
+    getSupplierLedger: builder.query<unknown[], { supplierId: number; fromDate: string; toDate: string }>({
+      query: ({ supplierId, fromDate, toDate }) =>
+        `/proxy/suppliers/${supplierId}/ledger?fromDate=${fromDate}&toDate=${toDate}`,
+      transformResponse: (response: ApiResponse<unknown[]>) => response.data,
+      providesTags: (_r, _e, { supplierId }) => [{ type: "Suppliers", id: `LEDGER-${supplierId}` }],
+    }),
+
+    getSupplierBalance: builder.query<number, number>({
+      query: (supplierId) => `/proxy/suppliers/${supplierId}/balance`,
+      transformResponse: (response: ApiResponse<number>) => response.data,
+      providesTags: (_r, _e, supplierId) => [{ type: "Suppliers", id: `BALANCE-${supplierId}` }],
+    }),
+
     createSupplier: builder.mutation<ApiResponse<Supplier>, CreateSupplierRequest>({
-      query: (body) => ({ url: "/suppliers", method: "POST", body }),
+      query: (body) => ({ url: "/proxy/suppliers", method: "POST", body }),
       invalidatesTags: [{ type: "Suppliers", id: "LIST" }],
     }),
 
     updateSupplier: builder.mutation<ApiResponse<Supplier>, UpdateSupplierRequest>({
-      query: ({ id, ...body }) => ({ url: `/suppliers/${id}`, method: "PUT", body }),
-      invalidatesTags: (_r, _e, { id }) => [
-        { type: "Suppliers", id },
+      query: ({ supplierId, ...body }) => ({ url: `/proxy/suppliers/${supplierId}`, method: "PUT", body: { supplierId, ...body } }),
+      invalidatesTags: (_r, _e, { supplierId }) => [
+        { type: "Suppliers", id: supplierId },
         { type: "Suppliers", id: "LIST" },
       ],
     }),
 
     deleteSupplier: builder.mutation<ApiResponse<null>, number>({
-      query: (id) => ({ url: `/suppliers/${id}`, method: "DELETE" }),
+      query: (id) => ({ url: `/proxy/suppliers/${id}`, method: "DELETE" }),
       invalidatesTags: [{ type: "Suppliers", id: "LIST" }],
     }),
   }),
@@ -58,8 +85,12 @@ export const suppliersApi = baseApi.injectEndpoints({
 
 export const {
   useGetSuppliersQuery,
-  useGetAllSuppliersQuery,
+  useGetActiveSuppliersQuery,
+  useGetSuppliersDropdownQuery,
   useGetSupplierByIdQuery,
+  useGetSupplierByCodeQuery,
+  useGetSupplierLedgerQuery,
+  useGetSupplierBalanceQuery,
   useCreateSupplierMutation,
   useUpdateSupplierMutation,
   useDeleteSupplierMutation,

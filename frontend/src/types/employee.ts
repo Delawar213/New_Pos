@@ -3,46 +3,61 @@
 // ============================================
 
 export interface Employee {
-  id: number;
-  fullName: string;
-  email: string;
-  phone?: string;
-  role: string;
-  branchId?: number;
-  branchName?: string;
-  salary: number;
+  employeeId: number;
+  employeeCode: string;
+  employeeName: string;
+  contactNo?: string;
+  email?: string;
   address?: string;
-  joiningDate: string;
-  avatar?: string;
+  postcode?: string;
+  nationalInsuranceNumber?: string;
+  dateOfJoining: string;
+  isDaily: boolean;
+  monthlySalary?: number | null;
+  dailyRate?: number | null;
   isActive: boolean;
-  createdAt: string;
-  updatedAt?: string;
+  createdDatetime: string;
 }
 
 export interface CreateEmployeeRequest {
-  fullName: string;
-  email: string;
-  password: string;
-  phone?: string;
-  role: string;
-  branchId?: number;
-  salary: number;
+  employeeCode: string;
+  employeeName: string;
+  contactNo?: string;
+  email?: string;
   address?: string;
-  joiningDate: string;
-  avatar?: string;
+  postcode?: string;
+  nationalInsuranceNumber?: string;
+  dateOfJoining: string;
+  isDaily: boolean;
+  monthlySalary?: number | null;
+  dailyRate?: number | null;
   isActive: boolean;
+  createdBy?: string;
 }
 
 export interface UpdateEmployeeRequest {
-  id: number;
-  fullName: string;
-  email: string;
-  phone?: string;
-  role: string;
-  branchId?: number;
-  salary: number;
+  employeeId: number;
+  employeeCode: string;
+  employeeName: string;
+  contactNo?: string;
+  email?: string;
   address?: string;
-  joiningDate: string;
-  avatar?: string;
+  postcode?: string;
+  nationalInsuranceNumber?: string;
+  dateOfJoining: string;
+  isDaily: boolean;
+  monthlySalary?: number | null;
+  dailyRate?: number | null;
   isActive: boolean;
+  updatedBy?: string;
+}
+
+export interface PaginatedEmployeeResponse {
+  data: Employee[];
+  totalRecords: number;
+  pageNumber: number;
+  pageSize: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
 }

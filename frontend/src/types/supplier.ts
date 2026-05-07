@@ -3,39 +3,58 @@
 // ============================================
 
 export interface Supplier {
-  id: number;
-  name: string;
+  supplierId: number;
+  supplierCode: string;
+  supplierName: string;
+  contactPerson?: string;
+  contactNo?: string;
   email?: string;
-  phone?: string;
   address?: string;
   city?: string;
-  state?: string;
-  country?: string;
-  zipCode?: string;
-  companyName?: string;
-  taxNumber?: string;
-  openingBalance: number;
-  currentBalance: number;
+  postcode?: string;
+  vatNumber?: string;
+  openingBalance?: number;
+  currentBalance?: number;
+  creditDays: number;
   isActive: boolean;
-  createdAt: string;
-  updatedAt?: string;
+  createdDatetime: string;
 }
 
 export interface CreateSupplierRequest {
-  name: string;
+  supplierCode: string;
+  supplierName: string;
+  contactPerson?: string;
+  contactNo?: string;
   email?: string;
-  phone?: string;
   address?: string;
   city?: string;
-  state?: string;
-  country?: string;
-  zipCode?: string;
-  companyName?: string;
-  taxNumber?: string;
-  openingBalance: number;
+  postcode?: string;
+  vatNumber?: string;
+  creditDays: number;
   isActive: boolean;
 }
 
 export interface UpdateSupplierRequest extends CreateSupplierRequest {
-  id: number;
+  supplierId: number;
+}
+
+export interface SupplierDropdown {
+  supplierId: number;
+  supplierCode: string;
+  supplierName: string;
+  currentBalance: number;
+}
+
+export interface SupplierLedgerEntry {
+  [key: string]: unknown;
+}
+
+export interface PaginatedSupplierResponse {
+  data: Supplier[];
+  totalRecords: number;
+  pageNumber: number;
+  pageSize: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
 }

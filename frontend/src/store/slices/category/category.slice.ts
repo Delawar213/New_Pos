@@ -85,7 +85,7 @@ export const fetchCategories = createAsyncThunk<
       const token = getState().auth?.token;
       const api = createAuthenticatedRequest(token);
       const response = await api.get<ApiResponse<Category[]>>(
-        `/api/categories?pageNumber=${pageNumber}&pageSize=${pageSize}`
+        `/proxy/categories?pageNumber=${pageNumber}&pageSize=${pageSize}`
       );
       return response.data;
     } catch (error: unknown) {
@@ -106,7 +106,7 @@ export const fetchCategoryById = createAsyncThunk<
     try {
       const token = getState().auth?.token;
       const api = createAuthenticatedRequest(token);
-      const response = await api.get<ApiResponse<Category>>(`/api/categories/${id}`);
+      const response = await api.get<ApiResponse<Category>>(`/proxy/categories/${id}`);
       return response.data;
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -126,7 +126,7 @@ export const fetchActiveCategories = createAsyncThunk<
     try {
       const token = getState().auth?.token;
       const api = createAuthenticatedRequest(token);
-      const response = await api.get<ApiResponse<Category[]>>('/api/categories/active');
+      const response = await api.get<ApiResponse<Category[]>>('/proxy/categories/active');
       return response.data;
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -146,7 +146,7 @@ export const fetchCategoriesDropdown = createAsyncThunk<
     try {
       const token = getState().auth?.token;
       const api = createAuthenticatedRequest(token);
-      const response = await api.get<ApiResponse<CategoryDropdown[]>>('/api/categories/dropdown');
+      const response = await api.get<ApiResponse<CategoryDropdown[]>>('/proxy/categories/dropdown');
       return response.data;
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -166,7 +166,7 @@ export const createCategory = createAsyncThunk<
     try {
       const token = getState().auth?.token;
       const api = createAuthenticatedRequest(token);
-      const response = await api.post<ApiResponse<Category>>('/api/categories', categoryData);
+      const response = await api.post<ApiResponse<Category>>('/proxy/categories', categoryData);
       return response.data;
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -187,7 +187,7 @@ export const updateCategory = createAsyncThunk<
       const token = getState().auth?.token;
       const api = createAuthenticatedRequest(token);
       const response = await api.put<ApiResponse<Category>>(
-        `/api/categories/${categoryData.categoryId}`,
+        `/proxy/categories/${categoryData.categoryId}`,
         categoryData
       );
       return response.data;
@@ -209,7 +209,7 @@ export const deleteCategory = createAsyncThunk<
     try {
       const token = getState().auth?.token;
       const api = createAuthenticatedRequest(token);
-      const response = await api.delete<ApiResponse<unknown>>(`/api/categories/${id}`);
+      const response = await api.delete<ApiResponse<unknown>>(`/proxy/categories/${id}`);
       return { id, message: response.data.message || 'Category deleted successfully' };
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -249,9 +249,9 @@ const categorySlice = createSlice({
       state.categories = payload.data;
       // Don't show toast for fetch operations
     });
-    builder.addCase(fetchCategories.rejected, (state) => {
+    builder.addCase(fetchCategories.rejected, (state, { payload }) => {
       state.loading = false;
-      // Don't set error for fetch operations to avoid unwanted toasts
+      state.error = payload || 'Failed to fetch categories';
     });
 
     // Fetch category by ID
@@ -264,9 +264,9 @@ const categorySlice = createSlice({
       state.selectedCategory = payload.data;
       // Don't show toast for fetch operations
     });
-    builder.addCase(fetchCategoryById.rejected, (state) => {
+    builder.addCase(fetchCategoryById.rejected, (state, { payload }) => {
       state.loading = false;
-      // Don't set error for fetch operations to avoid unwanted toasts
+      state.error = payload || 'Failed to fetch category';
     });
 
     // Fetch active categories
@@ -279,9 +279,9 @@ const categorySlice = createSlice({
       state.activeCategories = payload.data;
       // Don't show toast for fetch operations
     });
-    builder.addCase(fetchActiveCategories.rejected, (state) => {
+    builder.addCase(fetchActiveCategories.rejected, (state, { payload }) => {
       state.loading = false;
-      // Don't set error for fetch operations to avoid unwanted toasts
+      state.error = payload || 'Failed to fetch active categories';
     });
 
     // Fetch categories dropdown
@@ -294,9 +294,9 @@ const categorySlice = createSlice({
       state.dropdownCategories = payload.data;
       // Don't show toast for fetch operations
     });
-    builder.addCase(fetchCategoriesDropdown.rejected, (state) => {
+    builder.addCase(fetchCategoriesDropdown.rejected, (state, { payload }) => {
       state.loading = false;
-      // Don't set error for fetch operations to avoid unwanted toasts
+      state.error = payload || 'Failed to fetch categories dropdown';
     });
 
     // Create category

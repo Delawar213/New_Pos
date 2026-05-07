@@ -3,20 +3,24 @@
 // ============================================
 
 export interface ExpenseCategory {
-  id: number;
-  name: string;
+  expenseCategoryId: number;
+  categoryName: string;
+  expenseType: string;
+  isVatApplicable: boolean;
+  defaultVatRate: number;
   description?: string;
   isActive: boolean;
-  createdAt: string;
-  updatedAt?: string;
 }
 
 export interface CreateExpenseCategoryRequest {
-  name: string;
+  categoryName: string;
+  expenseType: string;
+  isVatApplicable: boolean;
+  defaultVatRate: number;
   description?: string;
   isActive: boolean;
 }
 
 export interface UpdateExpenseCategoryRequest extends CreateExpenseCategoryRequest {
-  id: number;
+  expenseCategoryId: number;
 }

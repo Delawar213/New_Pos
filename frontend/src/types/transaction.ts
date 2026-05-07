@@ -2,37 +2,50 @@
 // Transaction Types
 // ============================================
 
-export type TransactionType = "income" | "expense" | "transfer";
-export type PaymentMethod = "cash" | "card" | "bank" | "cheque" | "online";
-
-export interface Transaction {
-  id: number;
-  type: TransactionType;
-  amount: number;
-  paymentMethod: PaymentMethod;
+export interface TransactionDetail {
+  detailId: number;
+  accountType: string;
+  accountName: string;
+  refTable?: string;
+  refId?: number;
   bankAccountId?: number;
   bankAccountName?: string;
-  expenseCategoryId?: number;
-  expenseCategoryName?: string;
-  referenceNo?: string;
+  debit: number;
+  credit: number;
   description?: string;
-  date: string;
-  createdBy: string;
-  createdAt: string;
-  updatedAt?: string;
+}
+
+export interface Transaction {
+  transactionId: number;
+  transactionCode: string;
+  transactionDate: string;
+  title: string;
+  description?: string;
+  referenceNo?: string;
+  status: string;
+  createdDatetime: string;
+  transactionDetails: TransactionDetail[];
+}
+
+export interface PaginatedTransactionResponse {
+  data: Transaction[];
+  totalRecords: number;
+  pageNumber: number;
+  pageSize: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
 }
 
 export interface CreateTransactionRequest {
-  type: TransactionType;
-  amount: number;
-  paymentMethod: PaymentMethod;
-  bankAccountId?: number;
-  expenseCategoryId?: number;
+  transactionDate: string;
+  title: string;
   referenceNo?: string;
   description?: string;
-  date: string;
+  status?: string;
+  transactionDetails: Omit<TransactionDetail, "detailId">[];
 }
 
 export interface UpdateTransactionRequest extends CreateTransactionRequest {
-  id: number;
+  transactionId: number;
 }

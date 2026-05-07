@@ -3,9 +3,10 @@ import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'ax
 const APIInstances: { [key: string]: AxiosInstance } = {};
 
 // Function to get the store dynamically to avoid circular dependency
-let getStore: (() => any) | null = null;
+type StoreLike = { getState: () => { auth?: { token?: string } } };
+let getStore: (() => StoreLike) | null = null;
 
-export const setStoreGetter = (fn: () => any) => {
+export const setStoreGetter = (fn: () => StoreLike) => {
     getStore = fn;
 };
 
@@ -22,9 +23,11 @@ const createAPIInstance = (key: string, baseURL: string, prefix?: string) => {
                 if (getStore) {
                     const state = getStore().getState();
                     const token = state.auth?.token;
+                    const normalizedToken = token?.startsWith('Bearer ') ? token.slice(7) : token;
 
-                    if (token && config.headers) {
-                        config.headers['Authorization'] = `Bearer ${token}`;
+                    if (normalizedToken && config.headers) {
+                        config.headers['Authorization'] = `Bearer ${normalizedToken}`;
+                        config.headers['X-Access-Token'] = normalizedToken;
                     }
                 }
 

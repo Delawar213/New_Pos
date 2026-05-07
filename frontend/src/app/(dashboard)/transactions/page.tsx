@@ -5,39 +5,39 @@ import { PageHeader, DataTable, StatusBadge } from "@/components/ui";
 import type { Column } from "@/components/ui/DataTable";
 import type { Transaction } from "@/types";
 import { formatCurrency } from "@/lib/utils";
-
-const demoData: Transaction[] = [
-  {
-    id: 1, type: "income", amount: 5000, paymentMethod: "cash", referenceNo: "TRX-001",
-    description: "Product sales", date: "2026-02-13", createdBy: "Admin", createdAt: "2026-02-13",
-  },
-  {
-    id: 2, type: "expense", amount: 1200, paymentMethod: "bank", bankAccountId: 1,
-    bankAccountName: "Emirates NBD", expenseCategoryId: 1, expenseCategoryName: "Rent",
-    referenceNo: "TRX-002", description: "Office rent Feb", date: "2026-02-01", createdBy: "Admin",
-    createdAt: "2026-02-01",
-  },
-];
+import { useGetTransactionsQuery } from "@/store/api";
 
 const columns: Column<Transaction>[] = [
-  { key: "referenceNo", label: "Reference" },
+  { key: "transactionCode", label: "Code" },
+  { key: "title", label: "Title" },
   {
-    key: "type",
-    label: "Type",
-    render: (item) => <StatusBadge status={item.type} />,
+    key: "status",
+    label: "Status",
+    render: (item) => <StatusBadge status={item.status} />,
   },
   {
-    key: "amount",
+    key: "transactionDetails",
     label: "Amount",
     render: (item) => (
-      <span className={`font-semibold ${item.type === "income" ? "text-green-700" : "text-red-700"}`}>
-        {item.type === "expense" ? "-" : "+"}{formatCurrency(item.amount)}
+      <span className="font-semibold">
+        {formatCurrency(
+          item.transactionDetails.reduce((sum, detail) => sum + Number(detail.debit || 0), 0)
+        )}
       </span>
     ),
   },
-  { key: "paymentMethod", label: "Method", render: (item) => <span className="capitalize">{item.paymentMethod}</span> },
+  {
+    key: "transactionDetails",
+    label: "Method/Account",
+    render: (item) => <span>{item.transactionDetails[0]?.accountType || "-"}</span>,
+  },
+  { key: "referenceNo", label: "Reference" },
   { key: "description", label: "Description" },
-  { key: "date", label: "Date" },
+  {
+    key: "transactionDate",
+    label: "Date",
+    render: (item) => <span>{new Date(item.transactionDate).toLocaleDateString()}</span>,
+  },
   {
     key: "actions",
     label: "Actions",
@@ -51,6 +51,10 @@ const columns: Column<Transaction>[] = [
 ];
 
 export default function TransactionsPage() {
+  const { data, isLoading } = useGetTransactionsQuery({ pageNumber: 1, pageSize: 10 });
+  const transactions = data?.data.data || [];
+  const totalCount = data?.data.totalRecords || 0;
+
   return (
     <div>
       <PageHeader
@@ -61,9 +65,19 @@ export default function TransactionsPage() {
           { label: "Transactions" },
         ]}
       />
-      <DataTable columns={columns} data={demoData} rowKey="id" title="All Transactions"
-        totalCount={demoData.length} onSearch={(term) => console.log("Search:", term)}
-        onAdd={() => {}} addLabel="Add Transaction" onFilter={() => {}} onExport={() => {}} />
+      <DataTable
+        columns={columns}
+        data={transactions}
+        rowKey="transactionId"
+        title="All Transactions"
+        totalCount={totalCount}
+        onSearch={(term) => console.log("Search:", term)}
+        onAdd={() => {}}
+        addLabel="Add Transaction"
+        onFilter={() => {}}
+        onExport={() => {}}
+        loading={isLoading}
+      />
     </div>
   );
 }

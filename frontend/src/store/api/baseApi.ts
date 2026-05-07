@@ -8,21 +8,35 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import type { RootState } from "../index";
 
-const baseQuery = fetchBaseQuery({
+const prepareAuthHeaders = (headers: Headers, getState: () => unknown) => {
+  const token = (getState() as RootState).auth.token;
+  const normalizedToken = token?.startsWith("Bearer ") ? token.slice(7) : token;
+  if (normalizedToken) {
+    headers.set("Authorization", `Bearer ${normalizedToken}`);
+    headers.set("X-Access-Token", normalizedToken);
+  }
+  headers.set("Content-Type", "application/json");
+  return headers;
+};
+
+const remoteBaseQuery = fetchBaseQuery({
   baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || "https://localhost:7001/api",
-  prepareHeaders: (headers, { getState }) => {
-    const token = (getState() as RootState).auth.token;
-    if (token) {
-      headers.set("Authorization", `Bearer ${token}`);
-    }
-    headers.set("Content-Type", "application/json");
-    return headers;
-  },
+  prepareHeaders: (headers, { getState }) => prepareAuthHeaders(headers, getState),
+});
+
+// Use same-origin for local proxy routes to avoid browser CORS issues.
+const localProxyBaseQuery = fetchBaseQuery({
+  baseUrl: "",
+  prepareHeaders: (headers, { getState }) => prepareAuthHeaders(headers, getState),
 });
 
 // Wrapper to handle 401 responses
-const baseQueryWithReauth: typeof baseQuery = async (args, api, extraOptions) => {
-  const result = await baseQuery(args, api, extraOptions);
+const baseQueryWithReauth: typeof remoteBaseQuery = async (args, api, extraOptions) => {
+  const url = typeof args === "string" ? args : args.url;
+  const useLocalProxy = typeof url === "string" && url.startsWith("/proxy/");
+  const result = useLocalProxy
+    ? await localProxyBaseQuery(args, api, extraOptions)
+    : await remoteBaseQuery(args, api, extraOptions);
 
   if (result.error && result.error.status === 401) {
     // Token is invalid or expired - clear auth state
