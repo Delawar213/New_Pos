@@ -42,7 +42,7 @@ export const brandsApi = baseApi.injectEndpoints({
     }),
 
     updateBrand: builder.mutation<ApiResponse<Brand>, UpdateBrandRequest>({
-      query: ({ brandId, ...body }) => ({ url: `/brands/${brandId}`, method: "PUT", body }),
+      query: ({ brandId, ...body }) => ({ url: `/brands/${brandId}`, method: "POST", body }),
       invalidatesTags: (_r, _e, { brandId }) => [
         { type: "Brands", id: brandId },
         { type: "Brands", id: "LIST" },
@@ -50,7 +50,7 @@ export const brandsApi = baseApi.injectEndpoints({
     }),
 
     deleteBrand: builder.mutation<ApiResponse<null>, number>({
-      query: (id) => ({ url: `/brands/${id}`, method: "DELETE" }),
+      query: (id) => ({ url: `/brands/delete/${id}`, method: "POST", body: { id } }),
       invalidatesTags: [{ type: "Brands", id: "LIST" }],
     }),
   }),

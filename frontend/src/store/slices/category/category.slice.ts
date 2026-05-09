@@ -186,7 +186,7 @@ export const updateCategory = createAsyncThunk<
     try {
       const token = getState().auth?.token;
       const api = createAuthenticatedRequest(token);
-      const response = await api.put<ApiResponse<Category>>(
+      const response = await api.post<ApiResponse<Category>>(
         `/proxy/categories/${categoryData.categoryId}`,
         categoryData
       );
@@ -209,11 +209,15 @@ export const deleteCategory = createAsyncThunk<
     try {
       const token = getState().auth?.token;
       const api = createAuthenticatedRequest(token);
-      const response = await api.delete<ApiResponse<unknown>>(`/proxy/categories/${id}`);
+      const response = await api.post<ApiResponse<unknown>>(`/proxy/categories/delete${id}`, { id });
       return { id, message: response.data.message || 'Category deleted successfully' };
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } }; message?: string };
-      return rejectWithValue(err.response?.data?.message || err.message || 'Failed to delete category');
+      return rejectWithValue(
+        err.response?.data?.message ||
+          err.message ||
+          'Category cannot be deleted because it is linked to subcategories'
+      );
     }
   }
 );

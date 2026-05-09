@@ -51,6 +51,35 @@ export const sidebarNavigation: NavGroup[] = [
     ],
   },
   {
+    title: "System",
+    items: [
+      {
+        label: "Settings",
+        href: "/settings",
+        icon: Settings,
+        children: [
+          { label: "Categories", href: "/categories", icon: Tags },
+          { label: "Subcategories", href: "/subcategories", icon: Tags },
+          { label: "Brands", href: "/brands", icon: Award },
+          { label: "Expense Categories", href: "/expense-categories", icon: Receipt },
+          { label: "Customer Type", href: "/customer-types", icon: Users },
+        ],
+      },
+      {
+        label: "Customer",
+        href: "/settings/customer",
+        icon: Users,
+        children: [{ label: "Customer List", href: "/customers", icon: Users }],
+      },
+      {
+        label: "Products",
+        href: "/settings/products",
+        icon: Package,
+        children: [{ label: "Product List", href: "/products", icon: Package }],
+      },
+    ],
+  },
+  {
     title: "Inventory",
     items: [
       {
@@ -99,11 +128,6 @@ export const sidebarNavigation: NavGroup[] = [
         icon: Landmark,
       },
       {
-        label: "Expense Categories",
-        href: "/expense-categories",
-        icon: Receipt,
-      },
-      {
         label: "Transactions",
         href: "/transactions",
         icon: ArrowLeftRight,
@@ -140,16 +164,6 @@ export const sidebarNavigation: NavGroup[] = [
           { label: "Stock Reports", href: "/reports/stock", icon: BarChart3 },
           { label: "Profit & Loss", href: "/reports/profit-loss", icon: BarChart3 },
         ],
-      },
-    ],
-  },
-  {
-    title: "System",
-    items: [
-      {
-        label: "Settings",
-        href: "/settings",
-        icon: Settings,
       },
     ],
   },

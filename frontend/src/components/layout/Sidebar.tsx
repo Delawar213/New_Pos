@@ -161,20 +161,50 @@ export default function Sidebar() {
                       {/* Children */}
                       {hasChildren && expanded && !sidebarCollapsed && (
                         <div className="ml-5 mt-1 space-y-0.5 border-l-2 border-slate-100 pl-4 animate-slideDown">
-                          {item.children!.map((child) => (
-                            <Link
-                              key={child.href}
-                              href={child.href}
-                              className={cn(
-                                "block rounded-lg px-3 py-2 text-[13px] transition-all duration-200",
-                                isActive(child.href)
-                                  ? "font-semibold text-blue-600 bg-blue-50/50"
-                                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
-                              )}
-                            >
-                              {child.label}
-                            </Link>
-                          ))}
+                          {item.children!.map((child) => {
+                            const childHasChildren = child.children && child.children.length > 0;
+
+                            if (childHasChildren) {
+                              return (
+                                <div key={child.label} className="py-1">
+                                  <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                                    {child.label}
+                                  </p>
+                                  <div className="space-y-0.5">
+                                    {child.children!.map((nestedChild) => (
+                                      <Link
+                                        key={nestedChild.href}
+                                        href={nestedChild.href}
+                                        className={cn(
+                                          "block rounded-lg px-3 py-2 text-[13px] transition-all duration-200",
+                                          isActive(nestedChild.href)
+                                            ? "font-semibold text-blue-600 bg-blue-50/50"
+                                            : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                                        )}
+                                      >
+                                        {nestedChild.label}
+                                      </Link>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <Link
+                                key={child.href}
+                                href={child.href}
+                                className={cn(
+                                  "block rounded-lg px-3 py-2 text-[13px] transition-all duration-200",
+                                  isActive(child.href)
+                                    ? "font-semibold text-blue-600 bg-blue-50/50"
+                                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                                )}
+                              >
+                                {child.label}
+                              </Link>
+                            );
+                          })}
                         </div>
                       )}
                     </div>

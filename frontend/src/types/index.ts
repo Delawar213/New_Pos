@@ -3,6 +3,7 @@
 // ============================================
 
 export * from "./category";
+export * from "./subcategory";
 export * from "./brand";
 export * from "./product";
 export * from "./supplier";

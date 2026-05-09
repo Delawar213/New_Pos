@@ -189,8 +189,8 @@ export const updateBrand = createAsyncThunk<
     try {
       const token = getState().auth?.token;
       const api = createAuthenticatedRequest(token);
-      const response = await api.put<ApiResponse<Brand>>(
-        `/proxy/brands/${brandData.brandId}`,
+      const response = await api.post<ApiResponse<Brand>>(
+        `/proxy/brands/update/${brandData.brandId}`,
         brandData
       );
       return response.data;
@@ -212,7 +212,7 @@ export const deleteBrand = createAsyncThunk<
     try {
       const token = getState().auth?.token;
       const api = createAuthenticatedRequest(token);
-      const response = await api.delete<ApiResponse<unknown>>(`/proxy/brands/${id}`);
+      const response = await api.post<ApiResponse<unknown>>(`/proxy/brands/delete/${id}`, { id });
       return { id, message: response.data.message || 'Brand deleted successfully' };
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } }; message?: string };

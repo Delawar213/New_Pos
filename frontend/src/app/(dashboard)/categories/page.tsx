@@ -119,6 +119,16 @@ export default function CategoriesPage() {
   };
 
   const handleDeleteClick = (category: Category) => {
+    if (category.subCategories && category.subCategories.length > 0) {
+      dispatch(addToast({
+        type: 'error',
+        title: 'Cannot Delete Category',
+        message: 'This category is used in subcategories, so it cannot be deleted.',
+        duration: 5000,
+      }));
+      return;
+    }
+
     setCategoryToDelete(category);
     setDeleteConfirmOpen(true);
   };
@@ -265,23 +275,6 @@ export default function CategoriesPage() {
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               placeholder="e.g. Drinks and beverages"
             />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Parent Category</label>
-            <select
-              value={form.parentCategoryId ?? ""}
-              onChange={(e) =>
-                setForm({ ...form, parentCategoryId: e.target.value ? Number(e.target.value) : null })
-              }
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-            >
-              <option value="">None (Top Level)</option>
-              {categories.map((cat) => (
-                <option key={cat.categoryId} value={cat.categoryId}>
-                  {cat.categoryName}
-                </option>
-              ))}
-            </select>
           </div>
           <div className="flex items-center gap-2">
             <input

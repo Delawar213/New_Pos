@@ -120,7 +120,7 @@ export const deleteExpenseCategory = createAsyncThunk<
 >('expenseCategory/delete', async (id, { rejectWithValue, getState }) => {
   try {
     const api = createAuthenticatedRequest(getState().auth?.token);
-    const response = await api.delete<ApiResponse<unknown>>(`/proxy/expensecategories/${id}`);
+    const response = await api.post<ApiResponse<unknown>>(`/proxy/expensecategories/delete/${id}`, { id });
     return { id, message: response.data.message || 'Expense category deleted successfully' };
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string };

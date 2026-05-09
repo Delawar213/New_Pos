@@ -51,7 +51,7 @@ export const expenseCategoriesApi = baseApi.injectEndpoints({
     }),
 
     deleteExpenseCategory: builder.mutation<ApiResponse<null>, number>({
-      query: (id) => ({ url: `/proxy/expensecategories/${id}`, method: "DELETE" }),
+      query: (id) => ({ url: `/proxy/expensecategories/${id}`, method: "POST", body: { id } }),
       invalidatesTags: [{ type: "ExpenseCategories", id: "LIST" }],
     }),
   }),

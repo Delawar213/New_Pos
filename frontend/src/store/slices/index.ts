@@ -8,6 +8,7 @@ import { supplierSliceConfig } from './supplier/supplier.slice';
 import { customerSliceConfig } from './customer/customer.slice';
 import { employeeSliceConfig } from './employee/employee.slice';
 import { expenseCategorySliceConfig } from './expenseCategory/expenseCategory.slice';
+import { subCategorySliceConfig } from './subCategory/subCategory.slice';
 
 export const slices = {
   auth: authSliceConfig,
@@ -19,6 +20,7 @@ export const slices = {
   customer: customerSliceConfig,
   employee: employeeSliceConfig,
   expenseCategory: expenseCategorySliceConfig,
+  subCategory: subCategorySliceConfig,
 };
 
 export const reducers = {
@@ -32,4 +34,5 @@ export const reducers = {
   customer: customerSliceConfig.reducer,
   employee: employeeSliceConfig.reducer,
   expenseCategory: expenseCategorySliceConfig.reducer,
+  subCategory: subCategorySliceConfig.reducer,
 };
