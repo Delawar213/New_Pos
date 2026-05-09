@@ -69,7 +69,11 @@ export const suppliersApi = baseApi.injectEndpoints({
     }),
 
     updateSupplier: builder.mutation<ApiResponse<Supplier>, UpdateSupplierRequest>({
-      query: ({ supplierId, ...body }) => ({ url: `/proxy/suppliers/${supplierId}`, method: "PUT", body: { supplierId, ...body } }),
+      query: ({ supplierId, ...body }) => ({
+        url: `/proxy/suppliers/update/${supplierId}`,
+        method: "POST",
+        body: { supplierId, ...body },
+      }),
       invalidatesTags: (_r, _e, { supplierId }) => [
         { type: "Suppliers", id: supplierId },
         { type: "Suppliers", id: "LIST" },
@@ -77,7 +81,7 @@ export const suppliersApi = baseApi.injectEndpoints({
     }),
 
     deleteSupplier: builder.mutation<ApiResponse<null>, number>({
-      query: (id) => ({ url: `/proxy/suppliers/${id}`, method: "DELETE" }),
+      query: (id) => ({ url: `/proxy/suppliers/delete/${id}`, method: "POST", body: { id } }),
       invalidatesTags: [{ type: "Suppliers", id: "LIST" }],
     }),
   }),

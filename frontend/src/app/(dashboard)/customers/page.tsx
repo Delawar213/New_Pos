@@ -6,6 +6,7 @@ import { PageHeader, DataTable, StatusBadge, Modal } from "@/components/ui";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   fetchCustomers,
+  fetchCustomerTypes,
   createCustomer,
   updateCustomer,
   deleteCustomer,
@@ -16,9 +17,19 @@ import type { Column } from "@/components/ui/DataTable";
 import type { Customer, CreateCustomerRequest, UpdateCustomerRequest } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 
+function suggestNextCustomerCode(customers: Customer[]): string {
+  let maxNum = 0;
+  const re = /^CUST(\d+)$/i;
+  for (const c of customers) {
+    const m = c.customerCode?.trim().match(re);
+    if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+  }
+  return `CUST${String(maxNum + 1).padStart(3, "0")}`;
+}
+
 export default function CustomersPage() {
   const dispatch = useAppDispatch();
-  const { customers, loading, actionLoading, error, success, message, currentPage, pageSize, totalCount } =
+  const { customers, customerTypes, loading, actionLoading, error, success, message, currentPage, pageSize, totalCount } =
     useAppSelector((state) => state.customer);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -42,6 +53,7 @@ export default function CustomersPage() {
 
   useEffect(() => {
     dispatch(fetchCustomers({ pageNumber: 1, pageSize: 10 }));
+    dispatch(fetchCustomerTypes());
   }, [dispatch]);
 
   useEffect(() => {
@@ -130,6 +142,11 @@ export default function CustomersPage() {
   const columns: Column<Customer>[] = [
     { key: "customerId", label: "#", className: "w-16" },
     { key: "customerCode", label: "Code" },
+    {
+      key: "customerTypeName",
+      label: "Type",
+      render: (item) => <span>{item.customerTypeName ?? "—"}</span>,
+    },
     { key: "customerName", label: "Name" },
     { key: "contactNo", label: "Phone" },
     { key: "email", label: "Email" },
@@ -183,7 +200,21 @@ export default function CustomersPage() {
         totalCount={totalCount}
         onSearch={(term) => console.log("Search:", term)}
         onAdd={() => {
-          resetForm();
+          setEditingCustomer(null);
+          setForm({
+            customerCode: suggestNextCustomerCode(customers),
+            customerName: "",
+            customerTypeId: customerTypes[0]?.customerTypeId ?? 1,
+            contactNo: "",
+            email: "",
+            address: "",
+            city: "",
+            postcode: "",
+            vatNumber: "",
+            creditLimit: 0,
+            creditDays: 30,
+            isActive: true,
+          });
           setModalOpen(true);
         }}
         addLabel="Add Customer"
@@ -208,21 +239,163 @@ export default function CustomersPage() {
         }
       >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <input value={form.customerCode} onChange={(e) => setForm({ ...form, customerCode: e.target.value })} className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="Customer Code *" />
-          <input value={form.customerName} onChange={(e) => setForm({ ...form, customerName: e.target.value })} className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="Customer Name *" />
-          <input type="number" value={form.customerTypeId} onChange={(e) => setForm({ ...form, customerTypeId: Number(e.target.value) || 1 })} className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="Customer Type Id" />
-          <input value={form.contactNo || ""} onChange={(e) => setForm({ ...form, contactNo: e.target.value })} className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="Contact No" />
-          <input value={form.email || ""} onChange={(e) => setForm({ ...form, email: e.target.value })} className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="Email" />
-          <input value={form.city || ""} onChange={(e) => setForm({ ...form, city: e.target.value })} className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="City" />
-          <input value={form.postcode || ""} onChange={(e) => setForm({ ...form, postcode: e.target.value })} className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="Postcode" />
-          <input value={form.vatNumber || ""} onChange={(e) => setForm({ ...form, vatNumber: e.target.value })} className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="VAT Number" />
-          <input type="number" value={form.creditLimit} onChange={(e) => setForm({ ...form, creditLimit: Number(e.target.value) || 0 })} className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="Credit Limit" />
-          <input type="number" value={form.creditDays} onChange={(e) => setForm({ ...form, creditDays: Number(e.target.value) || 0 })} className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="Credit Days" />
-          <label className="flex items-center gap-2 text-sm text-gray-700">
-            <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} className="rounded border-gray-300" />
-            Active
-          </label>
-          <textarea value={form.address || ""} onChange={(e) => setForm({ ...form, address: e.target.value })} className="md:col-span-2 rounded-lg border border-gray-200 px-3 py-2 text-sm" rows={3} placeholder="Address" />
+          <div className="md:col-span-2">
+            <label htmlFor="customer-code" className="mb-1 block text-sm font-medium text-gray-700">
+              Customer code <span className="font-normal text-gray-500">(auto-suggested, editable)</span>
+            </label>
+            <input
+              id="customer-code"
+              value={form.customerCode}
+              onChange={(e) => setForm({ ...form, customerCode: e.target.value })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              placeholder="e.g. CUST004"
+            />
+          </div>
+          <div>
+            <label htmlFor="customer-name" className="mb-1 block text-sm font-medium text-gray-700">
+              Customer name <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="customer-name"
+              value={form.customerName}
+              onChange={(e) => setForm({ ...form, customerName: e.target.value })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              placeholder="Full name"
+            />
+          </div>
+          <div>
+            <label htmlFor="customer-type" className="mb-1 block text-sm font-medium text-gray-700">
+              Customer type <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="customer-type"
+              value={form.customerTypeId}
+              onChange={(e) => setForm({ ...form, customerTypeId: Number(e.target.value) || 1 })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+            >
+              {customerTypes.length === 0 ? (
+                <option value={1}>No customer types found</option>
+              ) : (
+                customerTypes.map((type) => (
+                  <option key={type.customerTypeId} value={type.customerTypeId}>
+                    {type.typeName}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="customer-phone" className="mb-1 block text-sm font-medium text-gray-700">
+              Contact number
+            </label>
+            <input
+              id="customer-phone"
+              value={form.contactNo || ""}
+              onChange={(e) => setForm({ ...form, contactNo: e.target.value })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              placeholder="Phone"
+            />
+          </div>
+          <div>
+            <label htmlFor="customer-email" className="mb-1 block text-sm font-medium text-gray-700">
+              Email
+            </label>
+            <input
+              id="customer-email"
+              type="email"
+              value={form.email || ""}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              placeholder="email@example.com"
+            />
+          </div>
+          <div>
+            <label htmlFor="customer-city" className="mb-1 block text-sm font-medium text-gray-700">
+              City
+            </label>
+            <input
+              id="customer-city"
+              value={form.city || ""}
+              onChange={(e) => setForm({ ...form, city: e.target.value })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              placeholder="City"
+            />
+          </div>
+          <div>
+            <label htmlFor="customer-postcode" className="mb-1 block text-sm font-medium text-gray-700">
+              Postcode
+            </label>
+            <input
+              id="customer-postcode"
+              value={form.postcode || ""}
+              onChange={(e) => setForm({ ...form, postcode: e.target.value })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              placeholder="Postcode"
+            />
+          </div>
+          <div>
+            <label htmlFor="customer-vat" className="mb-1 block text-sm font-medium text-gray-700">
+              VAT number
+            </label>
+            <input
+              id="customer-vat"
+              value={form.vatNumber || ""}
+              onChange={(e) => setForm({ ...form, vatNumber: e.target.value })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              placeholder="VAT / tax ID"
+            />
+          </div>
+          <div>
+            <label htmlFor="customer-credit-limit" className="mb-1 block text-sm font-medium text-gray-700">
+              Credit limit
+            </label>
+            <input
+              id="customer-credit-limit"
+              type="number"
+              value={form.creditLimit}
+              onChange={(e) => setForm({ ...form, creditLimit: Number(e.target.value) || 0 })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              placeholder="0"
+            />
+          </div>
+          <div>
+            <label htmlFor="customer-credit-days" className="mb-1 block text-sm font-medium text-gray-700">
+              Credit days
+            </label>
+            <input
+              id="customer-credit-days"
+              type="number"
+              value={form.creditDays}
+              onChange={(e) => setForm({ ...form, creditDays: Number(e.target.value) || 0 })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              placeholder="30"
+            />
+          </div>
+          <div className="flex items-end pb-2">
+            <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-700">
+              <input
+                id="customer-active"
+                type="checkbox"
+                checked={form.isActive}
+                onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+                className="rounded border-gray-300"
+              />
+              Active
+            </label>
+          </div>
+          <div className="md:col-span-2">
+            <label htmlFor="customer-address" className="mb-1 block text-sm font-medium text-gray-700">
+              Address
+            </label>
+            <textarea
+              id="customer-address"
+              value={form.address || ""}
+              onChange={(e) => setForm({ ...form, address: e.target.value })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              rows={3}
+              placeholder="Street address"
+            />
+          </div>
         </div>
       </Modal>
 

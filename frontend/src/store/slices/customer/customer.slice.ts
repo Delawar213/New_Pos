@@ -7,6 +7,8 @@ import type {
   UpdateCustomerRequest,
   CustomerDropdown,
   CustomerType,
+  CreateCustomerTypeRequest,
+  UpdateCustomerTypeRequest,
   CustomerLedgerEntry,
   PaginatedCustomerResponse,
   CustomerLoyaltyRequest,
@@ -168,6 +170,54 @@ export const fetchCustomerTypes = createAsyncThunk<ApiResponse<CustomerType[]>, 
   }
 );
 
+export const createCustomerType = createAsyncThunk<
+  ApiResponse<CustomerType>,
+  CreateCustomerTypeRequest,
+  { rejectValue: string; state: RootState }
+>('customer/createType', async (payload, { rejectWithValue, getState }) => {
+  try {
+    const api = createAuthenticatedRequest(getState().auth?.token);
+    const response = await api.post<ApiResponse<CustomerType>>('/proxy/customers/types', payload);
+    return response.data;
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string };
+    return rejectWithValue(err.response?.data?.message || err.message || 'Failed to create customer type');
+  }
+});
+
+export const updateCustomerType = createAsyncThunk<
+  ApiResponse<CustomerType>,
+  UpdateCustomerTypeRequest,
+  { rejectValue: string; state: RootState }
+>('customer/updateType', async (payload, { rejectWithValue, getState }) => {
+  try {
+    const api = createAuthenticatedRequest(getState().auth?.token);
+    const response = await api.post<ApiResponse<CustomerType>>(
+      `/proxy/customers/types/${payload.customerTypeId}`,
+      payload
+    );
+    return response.data;
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string };
+    return rejectWithValue(err.response?.data?.message || err.message || 'Failed to update customer type');
+  }
+});
+
+export const deleteCustomerType = createAsyncThunk<
+  { id: number; message: string },
+  number,
+  { rejectValue: string; state: RootState }
+>('customer/deleteType', async (id, { rejectWithValue, getState }) => {
+  try {
+    const api = createAuthenticatedRequest(getState().auth?.token);
+    const response = await api.post<ApiResponse<unknown>>(`/proxy/customers/types/${id}`, { customerTypeId: id });
+    return { id, message: response.data.message || 'Customer type deleted successfully' };
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string };
+    return rejectWithValue(err.response?.data?.message || err.message || 'Failed to delete customer type');
+  }
+});
+
 export const fetchCustomersDropdown = createAsyncThunk<ApiResponse<CustomerDropdown[]>, void, { rejectValue: string; state: RootState }>(
   'customer/fetchDropdown',
   async (_, { rejectWithValue, getState }) => {
@@ -276,7 +326,10 @@ export const updateCustomer = createAsyncThunk<ApiResponse<Customer>, UpdateCust
   async (customerData, { rejectWithValue, getState }) => {
     try {
       const api = createAuthenticatedRequest(getState().auth?.token);
-      const response = await api.put<ApiResponse<Customer>>(`/proxy/customers/${customerData.customerId}`, customerData);
+      const response = await api.post<ApiResponse<Customer>>(
+        `/proxy/customers/update/${customerData.customerId}`,
+        customerData
+      );
       return response.data;
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -290,7 +343,7 @@ export const deleteCustomer = createAsyncThunk<{ id: number; message: string }, 
   async (id, { rejectWithValue, getState }) => {
     try {
       const api = createAuthenticatedRequest(getState().auth?.token);
-      const response = await api.delete<ApiResponse<unknown>>(`/proxy/customers/${id}`);
+      const response = await api.post<ApiResponse<unknown>>(`/proxy/customers/delete/${id}`, { id });
       return { id, message: response.data.message || 'Customer deleted successfully' };
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -350,6 +403,52 @@ const customerSlice = createSlice({
     builder.addCase(fetchCustomerTypes.fulfilled, (state, { payload }) => {
       state.customerTypes = payload.data;
     });
+    builder.addCase(createCustomerType.pending, (state) => {
+      state.actionLoading = true;
+      state.error = null;
+    });
+    builder.addCase(createCustomerType.fulfilled, (state, { payload }) => {
+      state.actionLoading = false;
+      state.customerTypes.unshift(payload.data);
+      state.success = true;
+      state.message = payload.message || 'Customer type created successfully';
+    });
+    builder.addCase(createCustomerType.rejected, (state, { payload }) => {
+      state.actionLoading = false;
+      state.error = payload || 'Failed to create customer type';
+    });
+
+    builder.addCase(updateCustomerType.pending, (state) => {
+      state.actionLoading = true;
+      state.error = null;
+    });
+    builder.addCase(updateCustomerType.fulfilled, (state, { payload }) => {
+      state.actionLoading = false;
+      const index = state.customerTypes.findIndex((c) => c.customerTypeId === payload.data.customerTypeId);
+      if (index !== -1) state.customerTypes[index] = payload.data;
+      state.success = true;
+      state.message = payload.message || 'Customer type updated successfully';
+    });
+    builder.addCase(updateCustomerType.rejected, (state, { payload }) => {
+      state.actionLoading = false;
+      state.error = payload || 'Failed to update customer type';
+    });
+
+    builder.addCase(deleteCustomerType.pending, (state) => {
+      state.actionLoading = true;
+      state.error = null;
+    });
+    builder.addCase(deleteCustomerType.fulfilled, (state, { payload }) => {
+      state.actionLoading = false;
+      state.customerTypes = state.customerTypes.filter((c) => c.customerTypeId !== payload.id);
+      state.success = true;
+      state.message = payload.message || 'Customer type deleted successfully';
+    });
+    builder.addCase(deleteCustomerType.rejected, (state, { payload }) => {
+      state.actionLoading = false;
+      state.error = payload || 'Failed to delete customer type';
+    });
+
     builder.addCase(fetchCustomersDropdown.fulfilled, (state, { payload }) => {
       state.dropdownCustomers = payload.data;
     });

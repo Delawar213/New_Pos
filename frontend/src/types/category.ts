@@ -2,7 +2,8 @@
 // Category Types
 // ============================================
 
-export interface SubCategory {
+/** Subcategory summary embedded on `Category` (API list/detail). Distinct from `SubCategory` in `./subcategory`. */
+export interface CategorySubCategorySummary {
   subCategoryId: number;
   subCategoryName: string;
   displayOrder: number;
@@ -18,7 +19,7 @@ export interface Category {
   vatRate: number;
   isActive: boolean;
   createdDatetime: string;
-  subCategories: SubCategory[];
+  subCategories: CategorySubCategorySummary[];
 }
 
 export interface CreateCategoryRequest {

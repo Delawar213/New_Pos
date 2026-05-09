@@ -229,20 +229,141 @@ export default function SuppliersPage() {
         }
       >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <input value={form.supplierCode} onChange={(e) => setForm({ ...form, supplierCode: e.target.value })} className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="Supplier Code *" />
-          <input value={form.supplierName} onChange={(e) => setForm({ ...form, supplierName: e.target.value })} className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="Supplier Name *" />
-          <input value={form.contactPerson || ""} onChange={(e) => setForm({ ...form, contactPerson: e.target.value })} className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="Contact Person" />
-          <input value={form.contactNo || ""} onChange={(e) => setForm({ ...form, contactNo: e.target.value })} className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="Contact No" />
-          <input value={form.email || ""} onChange={(e) => setForm({ ...form, email: e.target.value })} className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="Email" />
-          <input value={form.city || ""} onChange={(e) => setForm({ ...form, city: e.target.value })} className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="City" />
-          <input value={form.postcode || ""} onChange={(e) => setForm({ ...form, postcode: e.target.value })} className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="Postcode" />
-          <input value={form.vatNumber || ""} onChange={(e) => setForm({ ...form, vatNumber: e.target.value })} className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="VAT Number" />
-          <input type="number" value={form.creditDays} onChange={(e) => setForm({ ...form, creditDays: Number(e.target.value) || 0 })} className="rounded-lg border border-gray-200 px-3 py-2 text-sm" placeholder="Credit Days" />
-          <label className="flex items-center gap-2 text-sm text-gray-700">
-            <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} className="rounded border-gray-300" />
-            Active
-          </label>
-          <textarea value={form.address || ""} onChange={(e) => setForm({ ...form, address: e.target.value })} className="md:col-span-2 rounded-lg border border-gray-200 px-3 py-2 text-sm" rows={3} placeholder="Address" />
+          <div>
+            <label htmlFor="supplier-code" className="mb-1 block text-sm font-medium text-gray-700">
+              Supplier code <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="supplier-code"
+              value={form.supplierCode}
+              onChange={(e) => setForm({ ...form, supplierCode: e.target.value })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              placeholder="e.g. SUP001"
+            />
+          </div>
+          <div>
+            <label htmlFor="supplier-name" className="mb-1 block text-sm font-medium text-gray-700">
+              Supplier name <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="supplier-name"
+              value={form.supplierName}
+              onChange={(e) => setForm({ ...form, supplierName: e.target.value })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              placeholder="Company name"
+            />
+          </div>
+          <div>
+            <label htmlFor="supplier-contact-person" className="mb-1 block text-sm font-medium text-gray-700">
+              Contact person
+            </label>
+            <input
+              id="supplier-contact-person"
+              value={form.contactPerson || ""}
+              onChange={(e) => setForm({ ...form, contactPerson: e.target.value })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              placeholder="Name"
+            />
+          </div>
+          <div>
+            <label htmlFor="supplier-phone" className="mb-1 block text-sm font-medium text-gray-700">
+              Contact number
+            </label>
+            <input
+              id="supplier-phone"
+              value={form.contactNo || ""}
+              onChange={(e) => setForm({ ...form, contactNo: e.target.value })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              placeholder="Phone"
+            />
+          </div>
+          <div>
+            <label htmlFor="supplier-email" className="mb-1 block text-sm font-medium text-gray-700">
+              Email
+            </label>
+            <input
+              id="supplier-email"
+              type="email"
+              value={form.email || ""}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              placeholder="email@example.com"
+            />
+          </div>
+          <div>
+            <label htmlFor="supplier-city" className="mb-1 block text-sm font-medium text-gray-700">
+              City
+            </label>
+            <input
+              id="supplier-city"
+              value={form.city || ""}
+              onChange={(e) => setForm({ ...form, city: e.target.value })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              placeholder="City"
+            />
+          </div>
+          <div>
+            <label htmlFor="supplier-postcode" className="mb-1 block text-sm font-medium text-gray-700">
+              Postcode
+            </label>
+            <input
+              id="supplier-postcode"
+              value={form.postcode || ""}
+              onChange={(e) => setForm({ ...form, postcode: e.target.value })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              placeholder="Postcode"
+            />
+          </div>
+          <div>
+            <label htmlFor="supplier-vat" className="mb-1 block text-sm font-medium text-gray-700">
+              VAT number
+            </label>
+            <input
+              id="supplier-vat"
+              value={form.vatNumber || ""}
+              onChange={(e) => setForm({ ...form, vatNumber: e.target.value })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              placeholder="VAT / tax ID"
+            />
+          </div>
+          <div>
+            <label htmlFor="supplier-credit-days" className="mb-1 block text-sm font-medium text-gray-700">
+              Credit days
+            </label>
+            <input
+              id="supplier-credit-days"
+              type="number"
+              value={form.creditDays}
+              onChange={(e) => setForm({ ...form, creditDays: Number(e.target.value) || 0 })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              placeholder="30"
+            />
+          </div>
+          <div className="flex items-end pb-2">
+            <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-700">
+              <input
+                id="supplier-active"
+                type="checkbox"
+                checked={form.isActive}
+                onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+                className="rounded border-gray-300"
+              />
+              Active
+            </label>
+          </div>
+          <div className="md:col-span-2">
+            <label htmlFor="supplier-address" className="mb-1 block text-sm font-medium text-gray-700">
+              Address
+            </label>
+            <textarea
+              id="supplier-address"
+              value={form.address || ""}
+              onChange={(e) => setForm({ ...form, address: e.target.value })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              rows={3}
+              placeholder="Street address"
+            />
+          </div>
         </div>
       </Modal>
 

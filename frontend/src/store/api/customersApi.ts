@@ -118,7 +118,11 @@ export const customersApi = baseApi.injectEndpoints({
     }),
 
     updateCustomer: builder.mutation<ApiResponse<Customer>, UpdateCustomerRequest>({
-      query: ({ customerId, ...body }) => ({ url: `/proxy/customers/${customerId}`, method: "PUT", body: { customerId, ...body } }),
+      query: ({ customerId, ...body }) => ({
+        url: `/proxy/customers/update/${customerId}`,
+        method: "POST",
+        body: { customerId, ...body },
+      }),
       invalidatesTags: (_r, _e, { customerId }) => [
         { type: "Customers", id: customerId },
         { type: "Customers", id: "LIST" },
@@ -126,7 +130,7 @@ export const customersApi = baseApi.injectEndpoints({
     }),
 
     deleteCustomer: builder.mutation<ApiResponse<null>, number>({
-      query: (id) => ({ url: `/proxy/customers/${id}`, method: "DELETE" }),
+      query: (id) => ({ url: `/proxy/customers/delete/${id}`, method: "POST", body: { id } }),
       invalidatesTags: [{ type: "Customers", id: "LIST" }],
     }),
   }),

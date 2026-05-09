@@ -4,145 +4,344 @@
 // Products Page - Modern Product Management
 // ============================================
 
-import React from "react";
-import { Package, Edit2, Trash2, Eye, MoreHorizontal, TrendingUp, AlertTriangle, Archive } from "lucide-react";
-import { PageHeader, DataTable, StatusBadge } from "@/components/ui";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  Package,
+  Edit2,
+  Trash2,
+  Eye,
+  TrendingUp,
+  AlertTriangle,
+  Archive,
+} from "lucide-react";
+import { PageHeader, DataTable, StatusBadge, Modal } from "@/components/ui";
 import type { Column } from "@/components/ui/DataTable";
-import type { Product } from "@/types";
-import { formatCurrency } from "@/lib/utils";
-import { cn } from "@/lib/utils";
+import type { Product, CreateProductRequest, UpdateProductRequest } from "@/types";
+import { formatCurrency, formatNumber, cn } from "@/lib/utils";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import {
+  fetchProducts,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  clearProductState,
+} from "@/store/slices/product/product.slice";
+import { fetchCategories } from "@/store/slices/category/category.slice";
+import { fetchBrands } from "@/store/slices/brand/brand.slice";
+import { fetchSubCategories } from "@/store/slices/subCategory/subCategory.slice";
+import { addToast } from "@/store/slices/ui/ui.slice";
 
-const demoProducts: Product[] = [
-  {
-    id: 1, name: "Premium Wall Paint - White", sku: "PWP-001", barcode: "1234567890", categoryId: 1,
-    categoryName: "Paints", brandId: 1, brandName: "Jotun", costPrice: 35, sellingPrice: 50,
-    quantity: 120, alertQuantity: 20, taxPercentage: 5, unit: "pcs", isActive: true, createdAt: "2026-01-15",
-  },
-  {
-    id: 2, name: "Wood Finish Varnish", sku: "WFV-002", categoryId: 1, categoryName: "Paints",
-    brandId: 2, brandName: "National Paints", costPrice: 25, sellingPrice: 40, quantity: 8,
-    alertQuantity: 15, taxPercentage: 5, unit: "pcs", isActive: true, createdAt: "2026-01-16",
-  },
-  {
-    id: 3, name: "Interior Satin Paint", sku: "ISP-003", categoryId: 1, categoryName: "Paints",
-    brandId: 1, brandName: "Jotun", costPrice: 40, sellingPrice: 55, quantity: 65,
-    alertQuantity: 20, taxPercentage: 5, unit: "pcs", isActive: true, createdAt: "2026-01-17",
-  },
-  {
-    id: 4, name: "Exterior Weather Coat", sku: "EWC-004", categoryId: 1, categoryName: "Paints",
-    brandId: 3, brandName: "Hempel", costPrice: 45, sellingPrice: 60, quantity: 45,
-    alertQuantity: 15, taxPercentage: 5, unit: "pcs", isActive: true, createdAt: "2026-01-18",
-  },
-  {
-    id: 5, name: "Metal Primer Grey", sku: "MPG-005", categoryId: 2, categoryName: "Primer",
-    brandId: 2, brandName: "National Paints", costPrice: 22, sellingPrice: 35, quantity: 90,
-    alertQuantity: 25, taxPercentage: 5, unit: "pcs", isActive: false, createdAt: "2026-01-19",
-  },
-];
+function suggestNextProductCode(products: Product[], totalRecords: number): string {
+  let maxNum = 0;
+  const re = /^PRD(\d+)$/i;
+  for (const p of products) {
+    const m = p.productCode?.trim().match(re);
+    if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+  }
+  maxNum = Math.max(maxNum, totalRecords);
+  return `PRD${String(maxNum + 1).padStart(3, "0")}`;
+}
 
-const columns: Column<Product>[] = [
-  {
-    key: "name",
-    label: "Product",
-    render: (item) => (
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-slate-100 to-slate-50 text-slate-400">
-          <Package className="h-5 w-5" />
-        </div>
-        <div>
-          <p className="font-semibold text-slate-800">{item.name}</p>
-          <p className="text-xs text-slate-400">{item.sku}</p>
-        </div>
-      </div>
-    ),
-  },
-  {
-    key: "categoryName",
-    label: "Category",
-    render: (item) => (
-      <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
-        {item.categoryName}
-      </span>
-    ),
-  },
-  {
-    key: "brandName",
-    label: "Brand",
-    render: (item) => (
-      <span className="text-sm text-slate-600">{item.brandName}</span>
-    ),
-  },
-  {
-    key: "costPrice",
-    label: "Cost",
-    render: (item) => (
-      <span className="text-sm text-slate-500">{formatCurrency(item.costPrice)}</span>
-    ),
-  },
-  {
-    key: "sellingPrice",
-    label: "Price",
-    render: (item) => (
-      <span className="text-sm font-bold text-slate-800">{formatCurrency(item.sellingPrice)}</span>
-    ),
-  },
-  {
-    key: "quantity",
-    label: "Stock",
-    render: (item) => {
-      const isLow = item.quantity <= item.alertQuantity;
-      return (
-        <div className="flex items-center gap-2">
-          <span className={cn(
-            "text-sm font-semibold",
-            isLow ? "text-rose-600" : "text-slate-700"
-          )}>
-            {item.quantity}
-          </span>
-          {isLow && (
-            <span className="flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-600">
-              <AlertTriangle className="h-3 w-3" />
-              Low
-            </span>
-          )}
-        </div>
-      );
-    },
-  },
-  {
-    key: "isActive",
-    label: "Status",
-    render: (item) => <StatusBadge status={item.isActive ? "Active" : "Inactive"} size="sm" />,
-  },
-  {
-    key: "actions",
-    label: "",
-    className: "w-20",
-    render: () => (
-      <div className="flex items-center justify-end gap-1">
-        <button className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors">
-          <Eye className="h-4 w-4" />
-        </button>
-        <button className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-amber-50 hover:text-amber-600 transition-colors">
-          <Edit2 className="h-4 w-4" />
-        </button>
-        <button className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors">
-          <Trash2 className="h-4 w-4" />
-        </button>
-      </div>
-    ),
-  },
-];
-
-// Quick stats
-const stats = [
-  { label: "Total Products", value: "1,250", icon: Package, color: "from-blue-500 to-violet-500" },
-  { label: "Low Stock", value: "12", icon: AlertTriangle, color: "from-amber-500 to-orange-500" },
-  { label: "Out of Stock", value: "3", icon: Archive, color: "from-rose-500 to-pink-500" },
-  { label: "Top Seller", value: "+15%", icon: TrendingUp, color: "from-emerald-500 to-teal-500" },
-];
+const emptyForm = (): CreateProductRequest => ({
+  productCode: "",
+  productName: "",
+  barcode: "",
+  description: "",
+  categoryId: 0,
+  subCategoryId: null,
+  brandId: 0,
+  unitOfMeasurement: "Bottle",
+  sellingPriceExVat: 0,
+  vatRate: 20,
+  stockAlertLevel: 10,
+  reorderLevel: 20,
+  isActive: true,
+});
 
 export default function ProductsPage() {
+  const dispatch = useAppDispatch();
+  const {
+    products,
+    loading,
+    actionLoading,
+    error,
+    success,
+    message,
+    totalCount,
+    currentPage,
+    pageSize,
+    totalPages,
+  } = useAppSelector((s) => s.product);
+  const { categories } = useAppSelector((s) => s.category);
+  const { brands } = useAppSelector((s) => s.brand);
+  const { subCategories } = useAppSelector((s) => s.subCategory);
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [viewProduct, setViewProduct] = useState<Product | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [form, setForm] = useState<CreateProductRequest>(emptyForm());
+
+  useEffect(() => {
+    dispatch(fetchProducts({ pageNumber: 1, pageSize: 10 }));
+    dispatch(fetchCategories({ pageNumber: 1, pageSize: 200 }));
+    dispatch(fetchBrands({ pageNumber: 1, pageSize: 200 }));
+    dispatch(fetchSubCategories());
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (success && message) {
+      dispatch(addToast({ type: "success", title: "Success", message, duration: 3000 }));
+      dispatch(clearProductState());
+    }
+    if (error) {
+      dispatch(addToast({ type: "error", title: "Error", message: error, duration: 5000 }));
+      dispatch(clearProductState());
+    }
+  }, [success, error, message, dispatch]);
+
+  const filteredSubCategories = useMemo(
+    () => subCategories.filter((s) => s.categoryId === form.categoryId),
+    [subCategories, form.categoryId]
+  );
+
+  const lowStockCount = useMemo(() => products.filter((p) => p.isLowStock).length, [products]);
+  const outOfStockCount = useMemo(() => products.filter((p) => p.qtyInStock <= 0).length, [products]);
+
+  const stats = [
+    {
+      label: "Total Products",
+      value: formatNumber(totalCount),
+      icon: Package,
+      color: "from-blue-500 to-violet-500",
+    },
+    {
+      label: "Low Stock",
+      value: formatNumber(lowStockCount),
+      icon: AlertTriangle,
+      color: "from-amber-500 to-orange-500",
+    },
+    {
+      label: "Out of Stock",
+      value: formatNumber(outOfStockCount),
+      icon: Archive,
+      color: "from-rose-500 to-pink-500",
+    },
+    {
+      label: "This page",
+      value: formatNumber(products.length),
+      icon: TrendingUp,
+      color: "from-emerald-500 to-teal-500",
+    },
+  ];
+
+  const openCreateModal = () => {
+    setEditingProduct(null);
+    const firstCat = categories[0]?.categoryId ?? 0;
+    const firstBrand = brands[0]?.brandId ?? 0;
+    setForm({
+      ...emptyForm(),
+      productCode: suggestNextProductCode(products, totalCount),
+      categoryId: firstCat,
+      brandId: firstBrand,
+    });
+    setModalOpen(true);
+  };
+
+  const openEditModal = (item: Product) => {
+    setEditingProduct(item);
+    setForm({
+      productCode: item.productCode,
+      productName: item.productName,
+      barcode: item.barcode ?? "",
+      description: item.description ?? "",
+      categoryId: item.categoryId,
+      subCategoryId: item.subCategoryId ?? null,
+      brandId: item.brandId,
+      unitOfMeasurement: item.unitOfMeasurement,
+      sellingPriceExVat: item.sellingPrice,
+      vatRate: item.vatRate,
+      stockAlertLevel: item.stockAlertLevel,
+      reorderLevel: item.reorderLevel,
+      isActive: item.isActive,
+    });
+    setModalOpen(true);
+  };
+
+  const resetModal = () => {
+    setModalOpen(false);
+    setEditingProduct(null);
+    setForm(emptyForm());
+  };
+
+  const handleSubmit = async () => {
+    if (!form.productCode.trim() || !form.productName.trim()) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Validation Error",
+          message: "Product code and name are required",
+          duration: 3000,
+        })
+      );
+      return;
+    }
+    if (!form.categoryId || !form.brandId) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Validation Error",
+          message: "Category and brand are required",
+          duration: 3000,
+        })
+      );
+      return;
+    }
+
+    const payloadBase = {
+      ...form,
+      productCode: form.productCode.trim(),
+      productName: form.productName.trim(),
+      barcode: form.barcode.trim(),
+      description: form.description ?? "",
+      subCategoryId: form.subCategoryId || null,
+    };
+
+    if (editingProduct) {
+      const payload: UpdateProductRequest = { productId: editingProduct.productId, ...payloadBase };
+      const result = await dispatch(updateProduct(payload));
+      if (updateProduct.fulfilled.match(result)) {
+        resetModal();
+        dispatch(fetchProducts({ pageNumber: currentPage, pageSize }));
+      }
+      return;
+    }
+
+    const result = await dispatch(createProduct(payloadBase));
+    if (createProduct.fulfilled.match(result)) {
+      resetModal();
+      dispatch(fetchProducts({ pageNumber: currentPage, pageSize }));
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    const result = await dispatch(deleteProduct(deleteTarget.productId));
+    if (deleteProduct.fulfilled.match(result)) {
+      setDeleteTarget(null);
+      dispatch(fetchProducts({ pageNumber: currentPage, pageSize }));
+    }
+  };
+
+  const columns: Column<Product>[] = [
+    {
+      key: "productName",
+      label: "Product",
+      render: (item) => (
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-slate-100 to-slate-50 text-slate-400">
+            <Package className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="font-semibold text-slate-800">{item.productName}</p>
+            <p className="text-xs text-slate-400">{item.productCode}</p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "categoryName",
+      label: "Category",
+      render: (item) => (
+        <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+          {item.categoryName ?? "—"}
+        </span>
+      ),
+    },
+    {
+      key: "brandName",
+      label: "Brand",
+      render: (item) => <span className="text-sm text-slate-600">{item.brandName ?? "—"}</span>,
+    },
+    {
+      key: "costPrice",
+      label: "Cost",
+      render: (item) => (
+        <span className="text-sm text-slate-500">
+          {item.costPrice != null ? formatCurrency(item.costPrice) : item.lastPurchasePrice != null ? formatCurrency(item.lastPurchasePrice) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "sellingPrice",
+      label: "Price",
+      render: (item) => (
+        <span className="text-sm font-bold text-slate-800">{formatCurrency(item.sellingPrice)}</span>
+      ),
+    },
+    {
+      key: "qtyInStock",
+      label: "Stock",
+      render: (item) => {
+        const isLow = item.isLowStock ?? item.qtyInStock <= item.stockAlertLevel;
+        return (
+          <div className="flex items-center gap-2">
+            <span
+              className={cn("text-sm font-semibold", isLow ? "text-rose-600" : "text-slate-700")}
+            >
+              {item.qtyInStock}
+            </span>
+            {isLow && (
+              <span className="flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-600">
+                <AlertTriangle className="h-3 w-3" />
+                Low
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: "isActive",
+      label: "Status",
+      render: (item) => <StatusBadge status={item.isActive ? "Active" : "Inactive"} size="sm" />,
+    },
+    {
+      key: "actions",
+      label: "",
+      className: "w-28",
+      render: (item) => (
+        <div className="flex items-center justify-end gap-1">
+          <button
+            type="button"
+            onClick={() => setViewProduct(item)}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
+            title="View"
+          >
+            <Eye className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => openEditModal(item)}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-amber-50 hover:text-amber-600"
+            title="Edit"
+          >
+            <Edit2 className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setDeleteTarget(item)}
+            disabled={actionLoading}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+            title="Delete"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -154,7 +353,6 @@ export default function ProductsPage() {
         ]}
       />
 
-      {/* Quick Stats */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {stats.map((stat) => {
           const Icon = stat.icon;
@@ -163,10 +361,12 @@ export default function ProductsPage() {
               key={stat.label}
               className="flex items-center gap-4 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm"
             >
-              <div className={cn(
-                "flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-lg",
-                stat.color
-              )}>
+              <div
+                className={cn(
+                  "flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-lg",
+                  stat.color
+                )}
+              >
                 <Icon className="h-6 w-6" />
               </div>
               <div>
@@ -178,21 +378,298 @@ export default function ProductsPage() {
         })}
       </div>
 
-      {/* Products Table */}
       <DataTable
         columns={columns}
-        data={demoProducts}
-        rowKey="id"
+        data={products}
+        rowKey="productId"
         title="All Products"
         description="View and manage your complete product catalog"
-        totalCount={demoProducts.length}
+        totalCount={totalCount}
+        pageNumber={currentPage}
+        pageSize={pageSize}
+        onPageChange={(p) => dispatch(fetchProducts({ pageNumber: p, pageSize }))}
+        onPageSizeChange={(s) => dispatch(fetchProducts({ pageNumber: 1, pageSize: s }))}
         onSearch={(term) => console.log("Search:", term)}
-        onAdd={() => {}}
+        onAdd={openCreateModal}
         addLabel="Add Product"
         onExport={() => {}}
         onFilter={() => {}}
-        onRefresh={() => {}}
+        onRefresh={() => dispatch(fetchProducts({ pageNumber: currentPage, pageSize }))}
+        loading={loading}
       />
+
+      <Modal
+        open={modalOpen}
+        onClose={resetModal}
+        title={editingProduct ? "Edit Product" : "Add Product"}
+        description={editingProduct ? "Update product details" : "Create a new product"}
+        footer={
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={resetModal}
+              disabled={actionLoading}
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={actionLoading}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {actionLoading ? "Saving..." : editingProduct ? "Update Product" : "Save Product"}
+            </button>
+          </div>
+        }
+      >
+        <div className="grid max-h-[70vh] grid-cols-1 gap-4 overflow-y-auto md:grid-cols-2">
+          <div className="md:col-span-2">
+            <label htmlFor="prod-code" className="mb-1 block text-sm font-medium text-gray-700">
+              Product code <span className="font-normal text-gray-500">(auto-suggested, editable)</span>
+            </label>
+            <input
+              id="prod-code"
+              value={form.productCode}
+              onChange={(e) => setForm({ ...form, productCode: e.target.value })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label htmlFor="prod-name" className="mb-1 block text-sm font-medium text-gray-700">
+              Product name <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="prod-name"
+              value={form.productName}
+              onChange={(e) => setForm({ ...form, productName: e.target.value })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label htmlFor="prod-barcode" className="mb-1 block text-sm font-medium text-gray-700">
+              Barcode
+            </label>
+            <input
+              id="prod-barcode"
+              value={form.barcode}
+              onChange={(e) => setForm({ ...form, barcode: e.target.value })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label htmlFor="prod-uom" className="mb-1 block text-sm font-medium text-gray-700">
+              Unit of measurement
+            </label>
+            <input
+              id="prod-uom"
+              value={form.unitOfMeasurement}
+              onChange={(e) => setForm({ ...form, unitOfMeasurement: e.target.value })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              placeholder="e.g. Bottle"
+            />
+          </div>
+          <div>
+            <label htmlFor="prod-category" className="mb-1 block text-sm font-medium text-gray-700">
+              Category <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="prod-category"
+              value={form.categoryId || ""}
+              onChange={(e) => {
+                const id = Number(e.target.value) || 0;
+                setForm({ ...form, categoryId: id, subCategoryId: null });
+              }}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+            >
+              <option value="">Select category</option>
+              {categories.map((c) => (
+                <option key={c.categoryId} value={c.categoryId}>
+                  {c.categoryName}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="prod-subcat" className="mb-1 block text-sm font-medium text-gray-700">
+              Subcategory
+            </label>
+            <select
+              id="prod-subcat"
+              value={form.subCategoryId ?? ""}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  subCategoryId: e.target.value ? Number(e.target.value) : null,
+                })
+              }
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+            >
+              <option value="">None</option>
+              {filteredSubCategories.map((s) => (
+                <option key={s.subCategoryId} value={s.subCategoryId}>
+                  {s.subCategoryName}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="prod-brand" className="mb-1 block text-sm font-medium text-gray-700">
+              Brand <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="prod-brand"
+              value={form.brandId || ""}
+              onChange={(e) => setForm({ ...form, brandId: Number(e.target.value) || 0 })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+            >
+              <option value="">Select brand</option>
+              {brands.map((b) => (
+                <option key={b.brandId} value={b.brandId}>
+                  {b.brandName}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="prod-price-ex" className="mb-1 block text-sm font-medium text-gray-700">
+              Selling price (ex VAT)
+            </label>
+            <input
+              id="prod-price-ex"
+              type="number"
+              step="0.01"
+              value={form.sellingPriceExVat}
+              onChange={(e) => setForm({ ...form, sellingPriceExVat: Number(e.target.value) || 0 })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label htmlFor="prod-vat" className="mb-1 block text-sm font-medium text-gray-700">
+              VAT rate (%)
+            </label>
+            <input
+              id="prod-vat"
+              type="number"
+              step="0.01"
+              value={form.vatRate}
+              onChange={(e) => setForm({ ...form, vatRate: Number(e.target.value) || 0 })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label htmlFor="prod-stock-alert" className="mb-1 block text-sm font-medium text-gray-700">
+              Stock alert level
+            </label>
+            <input
+              id="prod-stock-alert"
+              type="number"
+              step="0.01"
+              value={form.stockAlertLevel}
+              onChange={(e) => setForm({ ...form, stockAlertLevel: Number(e.target.value) || 0 })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label htmlFor="prod-reorder" className="mb-1 block text-sm font-medium text-gray-700">
+              Reorder level
+            </label>
+            <input
+              id="prod-reorder"
+              type="number"
+              step="0.01"
+              value={form.reorderLevel}
+              onChange={(e) => setForm({ ...form, reorderLevel: Number(e.target.value) || 0 })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label htmlFor="prod-desc" className="mb-1 block text-sm font-medium text-gray-700">
+              Description
+            </label>
+            <textarea
+              id="prod-desc"
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              rows={2}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="flex items-center md:col-span-2">
+            <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-700">
+              <input
+                type="checkbox"
+                checked={form.isActive}
+                onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+                className="rounded border-gray-300"
+              />
+              Active
+            </label>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={!!viewProduct}
+        onClose={() => setViewProduct(null)}
+        title="Product details"
+        description={viewProduct?.productCode}
+        size="sm"
+      >
+        {viewProduct && (
+          <div className="space-y-2 text-sm text-slate-600">
+            <p>
+              <span className="font-medium text-slate-800">Name:</span> {viewProduct.productName}
+            </p>
+            <p>
+              <span className="font-medium text-slate-800">Category:</span>{" "}
+              {viewProduct.categoryName ?? "—"}
+              {viewProduct.subCategoryName ? ` · ${viewProduct.subCategoryName}` : ""}
+            </p>
+            <p>
+              <span className="font-medium text-slate-800">Brand:</span> {viewProduct.brandName ?? "—"}
+            </p>
+            <p>
+              <span className="font-medium text-slate-800">Stock:</span> {viewProduct.qtyInStock} (
+              {viewProduct.unitOfMeasurement})
+            </p>
+            <p>
+              <span className="font-medium text-slate-800">Selling price:</span>{" "}
+              {formatCurrency(viewProduct.sellingPrice)}
+            </p>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        title="Delete product"
+        description="This cannot be undone"
+        size="sm"
+      >
+        <div className="py-2 text-center text-sm text-slate-600">
+          Delete <span className="font-semibold text-slate-800">&quot;{deleteTarget?.productName}&quot;</span>?
+        </div>
+        <div className="mt-4 flex gap-2">
+          <button
+            type="button"
+            onClick={() => setDeleteTarget(null)}
+            className="flex-1 rounded-lg border border-slate-200 py-2 text-sm font-medium text-slate-700"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleDeleteConfirm}
+            disabled={actionLoading}
+            className="flex-1 rounded-lg bg-red-600 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {actionLoading ? "Deleting..." : "Delete"}
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

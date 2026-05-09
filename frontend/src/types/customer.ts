@@ -50,6 +50,16 @@ export interface CustomerType {
   isActive: boolean;
 }
 
+export interface CreateCustomerTypeRequest {
+  typeName: string;
+  description?: string;
+  isActive: boolean;
+}
+
+export interface UpdateCustomerTypeRequest extends CreateCustomerTypeRequest {
+  customerTypeId: number;
+}
+
 export interface CustomerDropdown {
   customerId: number;
   customerCode: string;

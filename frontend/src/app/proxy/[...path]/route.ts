@@ -1,12 +1,7 @@
 import { NextResponse } from "next/server";
+import { buildBackendApiUrl } from "@/lib/backendProxyUrl";
 
 export const runtime = "nodejs";
-
-function getBackendHost() {
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL;
-  if (!base) return null;
-  return base.replace(/^https?:\/\//, "").replace(/\/+$/, "");
-}
 
 export async function GET(request: Request, context: { params: Promise<{ path: string[] }> }) {
   return proxy(request, context);
@@ -27,17 +22,13 @@ export async function DELETE(request: Request, context: { params: Promise<{ path
 async function proxy(request: Request, context: { params: Promise<{ path: string[] }> }) {
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
-  const host = getBackendHost();
-  if (!host) {
-    return NextResponse.json({ message: "NEXT_PUBLIC_API_BASE_URL is not set" }, { status: 500 });
-  }
-
   const { path } = await context.params;
   const url = new URL(request.url);
 
-  // Force HTTPS so we don't return IIS 301 to the browser.
-  const target = new URL(`https://${host}/api/${path.join("/")}`);
-  target.search = url.search;
+  const target = buildBackendApiUrl(path ?? [], url.search);
+  if (!target) {
+    return NextResponse.json({ message: "NEXT_PUBLIC_API_BASE_URL is not set" }, { status: 500 });
+  }
 
   const headers = new Headers();
   request.headers.forEach((value, key) => {

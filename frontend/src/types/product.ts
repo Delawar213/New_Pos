@@ -1,53 +1,64 @@
 // ============================================
-// Product Types
+// Product Types (API-aligned)
 // ============================================
 
 export interface Product {
-  id: number;
-  name: string;
-  sku: string;
+  productId: number;
+  productCode: string;
   barcode?: string;
-  description?: string;
   categoryId: number;
   categoryName?: string;
   brandId: number;
   brandName?: string;
-  supplierId?: number;
-  supplierName?: string;
-  costPrice: number;
+  subCategoryId?: number | null;
+  subCategoryName?: string;
+  productName: string;
+  description?: string;
+  qtyInStock: number;
+  stockAlertLevel: number;
+  unitOfMeasurement: string;
   sellingPrice: number;
-  quantity: number;
-  alertQuantity: number;
-  taxPercentage: number;
-  discountType?: "percentage" | "fixed";
-  discountValue?: number;
-  image?: string;
-  unit: string;
+  vatRate: number;
+  isVatExempt?: boolean;
+  sellingPriceIncVat?: number;
+  isLowStock?: boolean;
+  reorderLevel: number;
+  isAvailable?: boolean;
   isActive: boolean;
-  createdAt: string;
-  updatedAt?: string;
+  createdDatetime: string;
+  imagePath?: string;
+  lastPurchasePrice?: number;
+  costPrice?: number;
+  minSellingPrice?: number;
+  location?: string;
+}
+
+export interface PaginatedProductResponse {
+  data: Product[];
+  totalRecords: number;
+  pageNumber: number;
+  pageSize: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
 }
 
 export interface CreateProductRequest {
-  name: string;
-  sku: string;
-  barcode?: string;
-  description?: string;
+  productCode: string;
+  productName: string;
+  barcode: string;
+  description: string;
   categoryId: number;
+  subCategoryId: number | null;
   brandId: number;
-  supplierId?: number;
-  costPrice: number;
-  sellingPrice: number;
-  quantity: number;
-  alertQuantity: number;
-  taxPercentage: number;
-  discountType?: "percentage" | "fixed";
-  discountValue?: number;
-  image?: string;
-  unit: string;
+  unitOfMeasurement: string;
+  sellingPriceExVat: number;
+  vatRate: number;
+  stockAlertLevel: number;
+  reorderLevel: number;
   isActive: boolean;
 }
 
 export interface UpdateProductRequest extends CreateProductRequest {
-  id: number;
+  productId: number;
 }

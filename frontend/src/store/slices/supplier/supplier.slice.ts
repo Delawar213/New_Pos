@@ -213,8 +213,8 @@ export const updateSupplier = createAsyncThunk<
   try {
     const token = getState().auth?.token;
     const api = createAuthenticatedRequest(token);
-    const response = await api.put<ApiResponse<Supplier>>(
-      `/proxy/suppliers/${supplierData.supplierId}`,
+    const response = await api.post<ApiResponse<Supplier>>(
+      `/proxy/suppliers/update/${supplierData.supplierId}`,
       supplierData
     );
     return response.data;
@@ -232,7 +232,7 @@ export const deleteSupplier = createAsyncThunk<
   try {
     const token = getState().auth?.token;
     const api = createAuthenticatedRequest(token);
-    const response = await api.delete<ApiResponse<unknown>>(`/proxy/suppliers/${id}`);
+    const response = await api.post<ApiResponse<unknown>>(`/proxy/suppliers/delete/${id}`, { id });
     return { id, message: response.data.message || 'Supplier deleted successfully' };
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string };

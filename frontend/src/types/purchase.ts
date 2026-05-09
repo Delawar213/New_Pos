@@ -9,17 +9,34 @@ export interface Purchase {
   supplierName?: string;
   purchaseDate: string;
   invoiceNumber?: string;
-  discountPercentage: number;
+  discountPercentage?: number;
   description?: string;
   notes?: string;
   createdBy?: string;
-  createdDatetime: string;
-  purchaseDetails: PurchaseDetail[];
+  createdDatetime?: string;
+  /** Present on single-purchase responses; omitted on paginated list. */
+  purchaseDetails?: PurchaseDetail[];
+  totalItems?: number;
+  subtotalExVat?: number;
+  discountAmount?: number;
+  netAmountExVat?: number;
+  vatAmount20?: number;
+  vatAmount5?: number;
+  vatAmount0?: number;
+  totalVatAmount?: number;
+  totalAmountIncVat?: number;
+  paidAmount?: number;
+  remainingAmount?: number;
+  paymentStatus?: string;
+  returnAmount?: number;
+  status?: string;
 }
 
 export interface PurchaseDetail {
   detailId?: number;
+  purchaseDetailId?: number;
   productId: number;
+  productName?: string;
   barcode?: string;
   batchNumber?: string;
   expiryDate?: string | null;

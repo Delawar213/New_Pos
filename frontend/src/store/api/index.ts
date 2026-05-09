@@ -9,7 +9,16 @@ export { baseApi } from "./baseApi";
 export { authApi, useLoginMutation, useLogoutMutation, useGetProfileQuery } from "./authApi";
 export { categoriesApi, useGetCategoriesQuery, useGetActiveCategoriesQuery, useGetCategoryByIdQuery, useCreateCategoryMutation, useUpdateCategoryMutation, useDeleteCategoryMutation } from "./categoriesApi";
 export { brandsApi, useGetBrandsQuery, useGetAllBrandsQuery, useGetBrandByIdQuery, useCreateBrandMutation, useUpdateBrandMutation, useDeleteBrandMutation } from "./brandsApi";
-export { productsApi, useGetProductsQuery, useSearchProductsQuery, useGetProductByIdQuery, useCreateProductMutation, useUpdateProductMutation, useDeleteProductMutation } from "./productsApi";
+export {
+  productsApi,
+  useGetProductsQuery,
+  useGetAllProductsQuery,
+  useSearchProductsQuery,
+  useGetProductByIdQuery,
+  useCreateProductMutation,
+  useUpdateProductMutation,
+  useDeleteProductMutation,
+} from "./productsApi";
 export { suppliersApi, useGetSuppliersQuery, useGetActiveSuppliersQuery, useGetSuppliersDropdownQuery, useGetSupplierByIdQuery, useGetSupplierByCodeQuery, useGetSupplierLedgerQuery, useGetSupplierBalanceQuery, useCreateSupplierMutation, useUpdateSupplierMutation, useDeleteSupplierMutation } from "./suppliersApi";
 export { customersApi, useGetCustomersQuery, useGetActiveCustomersQuery, useGetWalkingCustomerQuery, useGetCustomerTypesQuery, useGetCustomersDropdownQuery, useGetCustomerByIdQuery, useGetCustomerByCodeQuery, useGetCustomerBalanceQuery, useGetCustomerLedgerQuery, useGetCustomerLoyaltyQuery, useAddCustomerLoyaltyMutation, useRedeemCustomerLoyaltyMutation, useCreateCustomerMutation, useUpdateCustomerMutation, useDeleteCustomerMutation } from "./customersApi";
 export { employeesApi, useGetEmployeesQuery, useGetEmployeeByIdQuery, useCreateEmployeeMutation, useUpdateEmployeeMutation, useDeleteEmployeeMutation } from "./employeesApi";
