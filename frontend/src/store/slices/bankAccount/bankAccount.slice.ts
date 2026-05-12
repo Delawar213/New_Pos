@@ -75,6 +75,24 @@ const initialState: BankAccountState = {
   message: "",
 };
 
+/** Loads only `/proxy/bankaccounts/dropdown` (e.g. supplier payment source account). */
+export const fetchBankAccountsDropdown = createAsyncThunk<
+  BankAccountDropdown[],
+  void,
+  { rejectValue: string; state: RootState }
+>("bankAccount/fetchDropdown", async (_, { rejectWithValue }) => {
+  try {
+    const api = createAuthenticatedAxios();
+    const response = await api.get<ApiResponse<BankAccountDropdown[]>>("/proxy/bankaccounts/dropdown");
+    const failMsg = getApiErrorMessage(response.data);
+    if (failMsg) return rejectWithValue(failMsg);
+    return response.data.data ?? [];
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string };
+    return rejectWithValue(err.response?.data?.message || err.message || "Failed to load accounts");
+  }
+});
+
 export const loadBankAccountPage = createAsyncThunk<
   BankAccountPagePayload,
   void,
@@ -238,6 +256,10 @@ const bankAccountSlice = createSlice({
         state.loading = false;
         state.error = payload || "Failed to load";
       });
+
+    builder.addCase(fetchBankAccountsDropdown.fulfilled, (state, { payload }) => {
+      state.dropdownAccounts = payload;
+    });
 
     builder
       .addCase(fetchBankAccountById.pending, (state) => {

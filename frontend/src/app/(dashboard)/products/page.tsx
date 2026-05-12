@@ -14,7 +14,14 @@ import {
   AlertTriangle,
   Archive,
 } from "lucide-react";
-import { PageHeader, DataTable, StatusBadge, Modal } from "@/components/ui";
+import {
+  PageHeader,
+  DataTable,
+  StatusBadge,
+  Modal,
+  SearchableSelect,
+  type SearchableSelectOption,
+} from "@/components/ui";
 import type { Column } from "@/components/ui/DataTable";
 import type { Product, CreateProductRequest, UpdateProductRequest } from "@/types";
 import { formatCurrency, formatNumber, cn } from "@/lib/utils";
@@ -52,13 +59,65 @@ const emptyForm = (): CreateProductRequest => ({
   categoryId: 0,
   subCategoryId: null,
   brandId: 0,
-  unitOfMeasurement: "Bottle",
+  unitOfMeasurement: "Each",
   sellingPriceExVat: 0,
   vatRate: 20,
   stockAlertLevel: 10,
   reorderLevel: 20,
   isActive: true,
 });
+
+/** Typical grocery / retail units — searchable in the product form. */
+const GROCERY_UNITS_OF_MEASUREMENT = [
+  "Each",
+  "Piece",
+  "Pack",
+  "Box",
+  "Case",
+  "Carton",
+  "Tray",
+  "Bottle",
+  "Can",
+  "Jar",
+  "Tin",
+  "Tube",
+  "Pouch",
+  "Bag",
+  "Sachet",
+  "Net bag",
+  "Bunch",
+  "Head",
+  "Loaf",
+  "Slice",
+  "Portion",
+  "Roll",
+  "Dozen",
+  "Pair",
+  "kg",
+  "g",
+  "lb",
+  "oz",
+  "L",
+  "ml",
+  "cl",
+  "Pint",
+  "Fl oz",
+] as const;
+
+const VAT_RATE_OPTIONS = [0, 5, 20] as const;
+
+function buildUomSelectOptions(currentUom: string): SearchableSelectOption<string>[] {
+  const base: SearchableSelectOption<string>[] = GROCERY_UNITS_OF_MEASUREMENT.map((u) => ({
+    value: u,
+    label: u,
+    search: u.toLowerCase(),
+  }));
+  const t = currentUom.trim();
+  if (t && !(GROCERY_UNITS_OF_MEASUREMENT as readonly string[]).includes(t)) {
+    return [{ value: t, label: `${t} (from product)`, search: t.toLowerCase() }, ...base];
+  }
+  return base;
+}
 
 export default function ProductsPage() {
   const dispatch = useAppDispatch();
@@ -218,6 +277,65 @@ export default function ProductsPage() {
     () => subCategories.filter((s) => s.categoryId === form.categoryId),
     [subCategories, form.categoryId]
   );
+
+  const categoryOptions: SearchableSelectOption<number>[] = useMemo(
+    () =>
+      categories.map((c) => ({
+        value: c.categoryId,
+        label: c.categoryName,
+        search: c.categoryName.toLowerCase(),
+      })),
+    [categories]
+  );
+
+  const subCategoryOptions: SearchableSelectOption<number>[] = useMemo(() => {
+    const none: SearchableSelectOption<number> = {
+      value: 0,
+      label: "None",
+      search: "none no subcategory",
+    };
+    const rest = filteredSubCategories.map((s) => ({
+      value: s.subCategoryId,
+      label: s.subCategoryName,
+      search: s.subCategoryName.toLowerCase(),
+    }));
+    return [none, ...rest];
+  }, [filteredSubCategories]);
+
+  const brandOptions: SearchableSelectOption<number>[] = useMemo(
+    () =>
+      brands.map((b) => ({
+        value: b.brandId,
+        label: b.brandName,
+        search: b.brandName.toLowerCase(),
+      })),
+    [brands]
+  );
+
+  const uomOptions = useMemo(
+    () => buildUomSelectOptions(form.unitOfMeasurement),
+    [form.unitOfMeasurement]
+  );
+
+  const vatOptions: SearchableSelectOption<number>[] = useMemo(() => {
+    const base: SearchableSelectOption<number>[] = VAT_RATE_OPTIONS.map((r) => ({
+      value: r,
+      label: `${r}%`,
+      search: `${r} vat percent`.toLowerCase(),
+    }));
+    const r = form.vatRate;
+    if (!VAT_RATE_OPTIONS.includes(r as (typeof VAT_RATE_OPTIONS)[number])) {
+      return [
+        {
+          value: r,
+          label: `${r}% (from product)`,
+          search: `${r} vat`.toLowerCase(),
+        },
+        ...base,
+      ];
+    }
+    return base;
+  }, [form.vatRate]);
 
   const lowStockCount = useMemo(() => products.filter((p) => p.isLowStock).length, [products]);
   const outOfStockCount = useMemo(() => products.filter((p) => p.qtyInStock <= 0).length, [products]);
@@ -539,6 +657,8 @@ export default function ProductsPage() {
         onClose={resetModal}
         title={editingProduct ? "Edit Product" : "Add Product"}
         description={editingProduct ? "Update product details" : "Create a new product"}
+        size="full"
+        scrollableContent={false}
         footer={
           <div className="flex justify-end gap-2">
             <button
@@ -560,8 +680,8 @@ export default function ProductsPage() {
           </div>
         }
       >
-        <div className="grid max-h-[70vh] grid-cols-1 gap-4 overflow-y-auto md:grid-cols-2">
-          <div className="md:col-span-2">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 lg:gap-x-4 lg:gap-y-2">
+          <div className="lg:col-span-2">
             <label htmlFor="prod-code" className="mb-1 block text-sm font-medium text-gray-700">
               Product code <span className="font-normal text-gray-500">(auto-suggested, editable)</span>
             </label>
@@ -572,7 +692,7 @@ export default function ProductsPage() {
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
             />
           </div>
-          <div className="md:col-span-2">
+          <div className="lg:col-span-3">
             <label htmlFor="prod-name" className="mb-1 block text-sm font-medium text-gray-700">
               Product name <span className="text-red-500">*</span>
             </label>
@@ -611,75 +731,61 @@ export default function ProductsPage() {
             <label htmlFor="prod-uom" className="mb-1 block text-sm font-medium text-gray-700">
               Unit of measurement
             </label>
-            <input
+            <SearchableSelect
               id="prod-uom"
+              options={uomOptions}
               value={form.unitOfMeasurement}
-              onChange={(e) => setForm({ ...form, unitOfMeasurement: e.target.value })}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-              placeholder="e.g. Bottle"
+              onChange={(v) => setForm({ ...form, unitOfMeasurement: v })}
+              placeholder="Search unit (e.g. kg, Pack)…"
+              emptyHint="No matching unit"
             />
           </div>
           <div>
             <label htmlFor="prod-category" className="mb-1 block text-sm font-medium text-gray-700">
               Category <span className="text-red-500">*</span>
             </label>
-            <select
+            <SearchableSelect
               id="prod-category"
-              value={form.categoryId || ""}
-              onChange={(e) => {
-                const id = Number(e.target.value) || 0;
-                setForm({ ...form, categoryId: id, subCategoryId: null });
-              }}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-            >
-              <option value="">Select category</option>
-              {categories.map((c) => (
-                <option key={c.categoryId} value={c.categoryId}>
-                  {c.categoryName}
-                </option>
-              ))}
-            </select>
+              options={categoryOptions}
+              value={form.categoryId}
+              onChange={(id) => setForm({ ...form, categoryId: id, subCategoryId: null })}
+              placeholder="Search category…"
+              disabled={categoryOptions.length === 0}
+              emptyHint="No categories loaded"
+            />
           </div>
           <div>
             <label htmlFor="prod-subcat" className="mb-1 block text-sm font-medium text-gray-700">
               Subcategory
             </label>
-            <select
+            <SearchableSelect
               id="prod-subcat"
-              value={form.subCategoryId ?? ""}
-              onChange={(e) =>
+              options={subCategoryOptions}
+              value={form.subCategoryId ?? 0}
+              onChange={(id) =>
                 setForm({
                   ...form,
-                  subCategoryId: e.target.value ? Number(e.target.value) : null,
+                  subCategoryId: id === 0 ? null : id,
                 })
               }
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-            >
-              <option value="">None</option>
-              {filteredSubCategories.map((s) => (
-                <option key={s.subCategoryId} value={s.subCategoryId}>
-                  {s.subCategoryName}
-                </option>
-              ))}
-            </select>
+              placeholder={form.categoryId ? "Search subcategory…" : "Select a category first"}
+              disabled={!form.categoryId}
+              emptyHint="No subcategories for this category"
+            />
           </div>
           <div>
             <label htmlFor="prod-brand" className="mb-1 block text-sm font-medium text-gray-700">
               Brand <span className="text-red-500">*</span>
             </label>
-            <select
+            <SearchableSelect
               id="prod-brand"
-              value={form.brandId || ""}
-              onChange={(e) => setForm({ ...form, brandId: Number(e.target.value) || 0 })}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-            >
-              <option value="">Select brand</option>
-              {brands.map((b) => (
-                <option key={b.brandId} value={b.brandId}>
-                  {b.brandName}
-                </option>
-              ))}
-            </select>
+              options={brandOptions}
+              value={form.brandId}
+              onChange={(id) => setForm({ ...form, brandId: id })}
+              placeholder="Search brand…"
+              disabled={brandOptions.length === 0}
+              emptyHint="No brands loaded"
+            />
           </div>
           <div>
             <label htmlFor="prod-price-ex" className="mb-1 block text-sm font-medium text-gray-700">
@@ -696,15 +802,15 @@ export default function ProductsPage() {
           </div>
           <div>
             <label htmlFor="prod-vat" className="mb-1 block text-sm font-medium text-gray-700">
-              VAT rate (%)
+              VAT rate
             </label>
-            <input
+            <SearchableSelect
               id="prod-vat"
-              type="number"
-              step="0.01"
+              options={vatOptions}
               value={form.vatRate}
-              onChange={(e) => setForm({ ...form, vatRate: Number(e.target.value) || 0 })}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              onChange={(v) => setForm({ ...form, vatRate: v })}
+              placeholder="Search VAT rate…"
+              emptyHint="No rate"
             />
           </div>
           <div>
@@ -733,7 +839,7 @@ export default function ProductsPage() {
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
             />
           </div>
-          <div className="md:col-span-2">
+          <div className="lg:col-span-3">
             <label htmlFor="prod-desc" className="mb-1 block text-sm font-medium text-gray-700">
               Description
             </label>
@@ -745,7 +851,7 @@ export default function ProductsPage() {
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
             />
           </div>
-          <div className="flex items-center md:col-span-2">
+          <div className="flex items-center lg:col-span-3">
             <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-700">
               <input
                 type="checkbox"

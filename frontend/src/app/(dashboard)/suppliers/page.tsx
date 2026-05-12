@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { AlertTriangle } from "lucide-react";
 import { PageHeader, DataTable, StatusBadge, Modal } from "@/components/ui";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -18,6 +18,31 @@ import { formatCurrency } from "@/lib/utils";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { buildPagedFetchArgs } from "@/lib/buildPagedFetchArgs";
 
+const emptySupplierForm = (): CreateSupplierRequest => ({
+  supplierCode: "",
+  supplierName: "",
+  contactPerson: "",
+  contactNo: "",
+  email: "",
+  address: "",
+  city: "",
+  postcode: "",
+  vatNumber: "",
+  creditDays: 30,
+  isActive: true,
+});
+
+function suggestNextSupplierCode(suppliers: Supplier[], totalRecords: number): string {
+  let maxNum = 0;
+  const re = /^SUP(\d+)$/i;
+  for (const s of suppliers) {
+    const m = s.supplierCode?.trim().match(re);
+    if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+  }
+  maxNum = Math.max(maxNum, totalRecords);
+  return `SUP${String(maxNum + 1).padStart(3, "0")}`;
+}
+
 export default function SuppliersPage() {
   const dispatch = useAppDispatch();
   const { suppliers, loading, actionLoading, error, success, message, currentPage, pageSize, totalCount } =
@@ -27,19 +52,7 @@ export default function SuppliersPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(null);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
-  const [form, setForm] = useState<CreateSupplierRequest>({
-    supplierCode: "",
-    supplierName: "",
-    contactPerson: "",
-    contactNo: "",
-    email: "",
-    address: "",
-    city: "",
-    postcode: "",
-    vatNumber: "",
-    creditDays: 30,
-    isActive: true,
-  });
+  const [form, setForm] = useState<CreateSupplierRequest>(emptySupplierForm());
 
   const [searchInput, setSearchInput] = useState("");
   const debouncedSearch = useDebouncedValue(searchInput, 400);
@@ -71,29 +84,37 @@ export default function SuppliersPage() {
   }, [success, error, message, dispatch]);
 
   const resetForm = () => {
-    setForm({
-      supplierCode: "",
-      supplierName: "",
-      contactPerson: "",
-      contactNo: "",
-      email: "",
-      address: "",
-      city: "",
-      postcode: "",
-      vatNumber: "",
-      creditDays: 30,
-      isActive: true,
-    });
+    setForm(emptySupplierForm());
     setEditingSupplier(null);
   };
 
+  const openAddModal = useCallback(() => {
+    setEditingSupplier(null);
+    setForm({
+      ...emptySupplierForm(),
+      supplierCode: suggestNextSupplierCode(suppliers, totalCount),
+    });
+    setModalOpen(true);
+  }, [suppliers, totalCount]);
+
   const handleSubmit = async () => {
-    if (!form.supplierCode.trim() || !form.supplierName.trim()) {
+    if (!form.supplierName.trim()) {
       dispatch(
         addToast({
           type: "error",
           title: "Validation Error",
-          message: "Supplier code and name are required",
+          message: "Supplier name is required",
+          duration: 3000,
+        })
+      );
+      return;
+    }
+    if (!form.supplierCode.trim()) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: "Validation Error",
+          message: "Supplier code is missing — close and reopen Add supplier.",
           duration: 3000,
         })
       );
@@ -229,10 +250,7 @@ export default function SuppliersPage() {
         searchQuery={searchInput}
         onSearchChange={setSearchInput}
         searchPlaceholder="Search suppliers…"
-        onAdd={() => {
-          resetForm();
-          setModalOpen(true);
-        }}
+        onAdd={openAddModal}
         addLabel="Add Supplier"
         loading={loading}
       />
@@ -245,6 +263,8 @@ export default function SuppliersPage() {
         }}
         title={editingSupplier ? "Edit Supplier" : "Add Supplier"}
         description={editingSupplier ? "Update supplier details" : "Create a new supplier"}
+        size="full"
+        scrollableContent={false}
         footer={
           <div className="flex justify-end gap-2">
             <button
@@ -259,7 +279,7 @@ export default function SuppliersPage() {
             </button>
             <button
               onClick={handleSubmit}
-              disabled={actionLoading || !form.supplierCode.trim() || !form.supplierName.trim()}
+              disabled={actionLoading || !form.supplierName.trim() || !form.supplierCode.trim()}
               className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
               {actionLoading ? "Saving..." : editingSupplier ? "Update Supplier" : "Save Supplier"}
@@ -267,20 +287,24 @@ export default function SuppliersPage() {
           </div>
         }
       >
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 lg:gap-x-4 lg:gap-y-2">
           <div>
             <label htmlFor="supplier-code" className="mb-1 block text-sm font-medium text-gray-700">
-              Supplier code <span className="text-red-500">*</span>
+              Supplier code
             </label>
             <input
               id="supplier-code"
               value={form.supplierCode}
-              onChange={(e) => setForm({ ...form, supplierCode: e.target.value })}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-              placeholder="e.g. SUP001"
+              readOnly
+              disabled
+              title={editingSupplier ? "Code cannot be changed" : "Code is generated automatically"}
+              className="w-full cursor-not-allowed rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700"
             />
+            <p className="mt-1 text-xs text-gray-500">
+              {editingSupplier ? "Cannot be changed after creation." : "Auto-generated (SUP001, SUP002, …)."}
+            </p>
           </div>
-          <div>
+          <div className="md:col-span-2 lg:col-span-2">
             <label htmlFor="supplier-name" className="mb-1 block text-sm font-medium text-gray-700">
               Supplier name <span className="text-red-500">*</span>
             </label>
@@ -390,7 +414,7 @@ export default function SuppliersPage() {
               Active
             </label>
           </div>
-          <div className="md:col-span-2">
+          <div className="md:col-span-2 lg:col-span-3">
             <label htmlFor="supplier-address" className="mb-1 block text-sm font-medium text-gray-700">
               Address
             </label>
@@ -399,7 +423,7 @@ export default function SuppliersPage() {
               value={form.address || ""}
               onChange={(e) => setForm({ ...form, address: e.target.value })}
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-              rows={3}
+              rows={2}
               placeholder="Street address"
             />
           </div>

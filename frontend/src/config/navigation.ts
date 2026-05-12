@@ -18,6 +18,9 @@ import {
   BarChart3,
   Settings,
   Monitor,
+  List,
+  PlusCircle,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 
@@ -106,6 +109,10 @@ export const sidebarNavigation: NavGroup[] = [
         label: "Suppliers",
         href: "/suppliers",
         icon: Truck,
+        children: [
+          { label: "Supplier list", href: "/suppliers", icon: List },
+          { label: "Supplier payments", href: "/supplier-payments", icon: Wallet },
+        ],
       },
       {
         label: "Customers",
@@ -141,6 +148,10 @@ export const sidebarNavigation: NavGroup[] = [
         label: "Purchases",
         href: "/purchases",
         icon: ShoppingCart,
+        children: [
+          { label: "Purchase list", href: "/purchases", icon: List },
+          { label: "New purchase", href: "/purchases/new", icon: PlusCircle },
+        ],
       },
       {
         label: "Sales",

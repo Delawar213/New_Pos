@@ -71,3 +71,10 @@ export interface PaginatedPurchaseResponse {
   hasPreviousPage: boolean;
   hasNextPage: boolean;
 }
+
+/** POST body for recording a supplier payment against a purchase (backend may expect PascalCase). */
+export interface SupplierPurchasePaymentRequest {
+  purchaseId: number;
+  /** Amount to pay now (typically ≤ remaining balance). */
+  amount: number;
+}

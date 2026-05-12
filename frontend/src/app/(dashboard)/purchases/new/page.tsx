@@ -1,14 +1,24 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, Search } from "lucide-react";
 import { PageHeader, Modal } from "@/components/ui";
-import type { CreatePurchaseRequest, PurchaseDetail, Product } from "@/types";
+import type {
+  CreatePurchaseRequest,
+  Purchase,
+  PurchaseDetail,
+  Product,
+  UpdatePurchaseRequest,
+} from "@/types";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { addToast } from "@/store/slices/ui/ui.slice";
-import { createPurchase } from "@/store/slices/purchases/purchases.slice";
+import {
+  createPurchase,
+  fetchPurchaseById,
+  updatePurchase,
+} from "@/store/slices/purchases/purchases.slice";
 import { fetchAllProducts, fetchProductByBarcode } from "@/store/slices/product/product.slice";
 import { fetchSuppliers, fetchSuppliersDropdown } from "@/store/slices/supplier/supplier.slice";
 import { cn, formatCurrency } from "@/lib/utils";
@@ -123,10 +133,46 @@ function emptyDetailRow(): PurchaseDetail {
   };
 }
 
-function lineExVatTotal(d: PurchaseDetail): number {
+/** Line total ex VAT after per-unit discount. */
+function lineNetExVat(d: PurchaseDetail): number {
   const qty = Number(d.purchaseQuantity || 0);
-  const unit = Number(d.purchasePriceExVat || 0);
-  return qty * unit;
+  const unitEx = Number(d.purchasePriceExVat || 0);
+  const disc = Number(d.discountPerUnit || 0);
+  return Math.max(0, qty * (unitEx - disc));
+}
+
+function lineVatAmount(d: PurchaseDetail): number {
+  return lineNetExVat(d) * (Number(d.vatRate || 0) / 100);
+}
+
+function todayInputDate(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function purchaseDiscountAmount(
+  subtotalExVat: number,
+  mode: "percent" | "fixed",
+  input: number
+): number {
+  if (subtotalExVat <= 0) return 0;
+  if (mode === "percent") {
+    const p = Math.max(0, input);
+    return Math.min(subtotalExVat, subtotalExVat * (p / 100));
+  }
+  return Math.min(Math.max(0, input), subtotalExVat);
+}
+
+/** Value sent as `discountPercentage` on the API (header discount as % of line subtotal ex VAT). */
+function apiDiscountPercentage(
+  subtotalExVat: number,
+  mode: "percent" | "fixed",
+  input: number
+): number {
+  if (subtotalExVat <= 0) return 0;
+  const discAmt = purchaseDiscountAmount(subtotalExVat, mode, input);
+  const pct = (discAmt / subtotalExVat) * 100;
+  return Math.round(pct * 10000) / 10000;
 }
 
 function isSuccessFlag(v: unknown): boolean {
@@ -296,6 +342,10 @@ type FormValues = Omit<CreatePurchaseRequest, "createdBy" | "purchaseDetails"> &
 
 function toApiPurchaseDetail(d: PurchaseDetail) {
   return {
+    ...(d.detailId != null && d.detailId > 0 ? { detailId: d.detailId } : {}),
+    ...(d.purchaseDetailId != null && d.purchaseDetailId > 0
+      ? { purchaseDetailId: d.purchaseDetailId }
+      : {}),
     productId: d.productId,
     barcode: d.barcode ?? "",
     batchNumber: d.batchNumber ?? "",
@@ -308,10 +358,50 @@ function toApiPurchaseDetail(d: PurchaseDetail) {
   };
 }
 
-export default function NewPurchasePage() {
+function isoDateToInput(iso: string): string {
+  if (!iso) return "";
+  return iso.includes("T") ? (iso.split("T")[0] ?? "") : iso.slice(0, 10);
+}
+
+function mapApiPurchaseToForm(p: Purchase): FormValues {
+  return {
+    supplierId: p.supplierId,
+    purchaseDate: isoDateToInput(p.purchaseDate),
+    invoiceNumber: p.invoiceNumber ?? "",
+    discountPercentage: p.discountPercentage ?? 0,
+    description: p.description ?? "",
+    notes: p.notes ?? "",
+    purchaseDetails: (p.purchaseDetails ?? []).map((d) => ({
+      detailId: d.detailId,
+      purchaseDetailId: d.purchaseDetailId,
+      productId: d.productId,
+      barcode: d.barcode ?? "",
+      batchNumber: d.batchNumber ?? "",
+      expiryDate: d.expiryDate != null && d.expiryDate !== "" ? isoDateToInput(String(d.expiryDate)) : null,
+      purchasePriceExVat: Number(d.purchasePriceExVat ?? 0),
+      discountPerUnit: Number(d.discountPerUnit ?? 0),
+      vatRate: Number(d.vatRate ?? 20),
+      sellingPriceExVat: Number(d.sellingPriceExVat ?? 0),
+      purchaseQuantity: Number(d.purchaseQuantity ?? 1),
+    })),
+  };
+}
+
+function NewPurchasePageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const dispatch = useAppDispatch();
-  const creating = useAppSelector((s) => s.purchases.actionLoading);
+
+  const purchaseIdParam = searchParams.get("purchaseId");
+  const editingId = useMemo(() => {
+    if (!purchaseIdParam) return null;
+    const n = Number(purchaseIdParam);
+    return Number.isFinite(n) && n >= 1 ? n : null;
+  }, [purchaseIdParam]);
+  const isEditing = editingId != null;
+
+  const [hydratingEdit, setHydratingEdit] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const { dropdownSuppliers, suppliers: suppliersFromList, loading: suppliersListLoading, dropdownFetchFailed } =
     useAppSelector((s) => s.supplier);
@@ -322,6 +412,39 @@ export default function NewPurchasePage() {
     void dispatch(fetchSuppliers({ pageNumber: 1, pageSize: 100 }));
     void dispatch(fetchAllProducts());
   }, [dispatch]);
+
+  useEffect(() => {
+    if (!editingId) return;
+    let cancelled = false;
+    setHydratingEdit(true);
+    void dispatch(fetchPurchaseById(editingId))
+      .unwrap()
+      .then((res) => {
+        if (cancelled) return;
+        setForm(mapApiPurchaseToForm(res.data));
+        setDiscountMode("percent");
+        setDiscountInput(Number(res.data.discountPercentage ?? 0));
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const msg = typeof err === "string" ? err : "Failed to load purchase.";
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Could not load purchase",
+            message: msg,
+            duration: 5000,
+          })
+        );
+        router.replace("/purchases");
+      })
+      .finally(() => {
+        if (!cancelled) setHydratingEdit(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dispatch, editingId, router]);
 
   const suppliers = useMemo(
     () =>
@@ -383,13 +506,16 @@ export default function NewPurchasePage() {
 
   const [form, setForm] = useState<FormValues>(() => ({
     supplierId: 0,
-    purchaseDate: "",
+    purchaseDate: todayInputDate(),
     invoiceNumber: "",
     discountPercentage: 0,
     description: "",
     notes: "",
     purchaseDetails: [],
   }));
+
+  const [discountMode, setDiscountMode] = useState<"percent" | "fixed">("percent");
+  const [discountInput, setDiscountInput] = useState(0);
 
   const [lineModalOpen, setLineModalOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -549,11 +675,36 @@ export default function NewPurchasePage() {
 
   const productLabel = (d: PurchaseDetail) => {
     const p = products.find((x: Product) => x.productId === d.productId);
-    return p ? `${p.productCode} — ${p.productName}` : `Product #${d.productId}`;
+    if (p) return `${p.productCode} — ${p.productName}`;
+    if (d.productName) return d.productName;
+    return `Product #${d.productId}`;
   };
+
+  const purchaseTotals = useMemo(() => {
+    const details = form.purchaseDetails.filter((d) => d.productId > 0 && d.purchaseQuantity > 0);
+    const itemsSubtotalExVat = details.reduce((s, d) => s + lineNetExVat(d), 0);
+    const itemsVatBeforeHeader = details.reduce((s, d) => s + lineVatAmount(d), 0);
+    const headerDisc = purchaseDiscountAmount(itemsSubtotalExVat, discountMode, discountInput);
+    const netExVat = itemsSubtotalExVat - headerDisc;
+    const ratio = itemsSubtotalExVat > 0 ? netExVat / itemsSubtotalExVat : 0;
+    const totalVat = itemsVatBeforeHeader * ratio;
+    const grandTotal = netExVat + totalVat;
+    const totalQty = details.reduce((s, d) => s + Number(d.purchaseQuantity || 0), 0);
+    return {
+      itemsSubtotalExVat,
+      headerDisc,
+      netExVat,
+      totalVat,
+      grandTotal,
+      lineCount: details.length,
+      totalQty,
+    };
+  }, [form.purchaseDetails, discountMode, discountInput]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (hydratingEdit) return;
+
     const validDetails = form.purchaseDetails.filter(
       (d) => d.productId > 0 && d.purchaseQuantity > 0
     );
@@ -573,84 +724,122 @@ export default function NewPurchasePage() {
       return;
     }
 
-    const payload: CreatePurchaseRequest = {
+    const linesSubtotal = validDetails.reduce((s, d) => s + lineNetExVat(d), 0);
+    const discountPercentage = apiDiscountPercentage(linesSubtotal, discountMode, discountInput);
+
+    const basePayload = {
       supplierId: form.supplierId,
       purchaseDate: form.purchaseDate,
       invoiceNumber: form.invoiceNumber.trim(),
-      discountPercentage: Number(form.discountPercentage),
+      discountPercentage,
       description: form.description?.trim() || "",
       notes: form.notes?.trim() || "",
       createdBy: CREATED_BY,
       purchaseDetails: validDetails.map(toApiPurchaseDetail),
     };
 
-    const result = await dispatch(createPurchase(payload));
-    if (createPurchase.rejected.match(result)) {
+    setSubmitting(true);
+    try {
+      if (isEditing && editingId != null) {
+        const updatePayload: UpdatePurchaseRequest = {
+          purchaseId: editingId,
+          ...basePayload,
+        };
+        const result = await dispatch(updatePurchase(updatePayload));
+        if (updatePurchase.rejected.match(result)) {
+          dispatch(
+            addToast({
+              type: "error",
+              title: "Could not update purchase",
+              message: result.payload || "Request failed.",
+            })
+          );
+          return;
+        }
+        if (updatePurchase.fulfilled.match(result)) {
+          dispatch(
+            addToast({
+              type: "success",
+              title: "Purchase updated",
+              message: result.payload.message || "Saved successfully.",
+            })
+          );
+          router.push("/purchases");
+        }
+        return;
+      }
+
+      const payload: CreatePurchaseRequest = basePayload;
+      const result = await dispatch(createPurchase(payload));
+      if (createPurchase.rejected.match(result)) {
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Could not create purchase",
+            message: result.payload || "Request failed.",
+          })
+        );
+        return;
+      }
+
+      if (!createPurchase.fulfilled.match(result)) {
+        return;
+      }
+
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[createPurchase] response body:", result.payload);
+      }
+
+      const outcome = interpretCreatePurchaseResponse(result.payload);
+      if (!outcome.ok) {
+        dispatch(
+          addToast({
+            type: "error",
+            title: outcome.title,
+            message: outcome.message,
+          })
+        );
+        return;
+      }
+
       dispatch(
         addToast({
-          type: "error",
-          title: "Could not create purchase",
-          message: result.payload || "Request failed.",
-        })
-      );
-      return;
-    }
-
-    if (!createPurchase.fulfilled.match(result)) {
-      return;
-    }
-
-    if (process.env.NODE_ENV === "development") {
-      console.debug("[createPurchase] response body:", result.payload);
-    }
-
-    const outcome = interpretCreatePurchaseResponse(result.payload);
-    if (!outcome.ok) {
-      dispatch(
-        addToast({
-          type: "error",
+          type: "success",
           title: outcome.title,
           message: outcome.message,
         })
       );
-      return;
+      router.push("/purchases");
+    } finally {
+      setSubmitting(false);
     }
-
-    dispatch(
-      addToast({
-        type: "success",
-        title: outcome.title,
-        message: outcome.message,
-      })
-    );
-    router.push("/purchases");
   };
 
   return (
     <div>
       <PageHeader
-        title="New purchase"
-        description="Create a purchase order with line items"
+        title={isEditing ? "Edit purchase" : "New purchase"}
+        description={
+          isEditing
+            ? "Update this purchase order and its line items"
+            : "Create a purchase order with line items"
+        }
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "Purchases", href: "/purchases" },
-          { label: "New" },
+          { label: isEditing ? "Edit" : "New" },
         ]}
       />
 
-      <div className="mb-4">
-        <Link
-          href="/purchases"
-          className="text-sm font-medium text-blue-600 hover:text-blue-800"
-        >
-          ← Back to purchases
-        </Link>
-      </div>
-
       <form
         onSubmit={handleSubmit}
-        className="space-y-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm"
+        className="relative space-y-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm"
       >
+        {hydratingEdit && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/80 backdrop-blur-[1px]">
+            <p className="text-sm font-medium text-gray-600">Loading purchase…</p>
+          </div>
+        )}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">Supplier *</label>
@@ -679,6 +868,7 @@ export default function NewPurchasePage() {
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
               required
             />
+            <p className="mt-1 text-xs text-gray-500">Defaults to today; change if needed.</p>
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">
@@ -691,43 +881,6 @@ export default function NewPurchasePage() {
               required
             />
           </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
-              Discount %
-            </label>
-            <select
-              value={form.discountPercentage}
-              onChange={(e) =>
-                setForm({ ...form, discountPercentage: Number(e.target.value) })
-              }
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-            >
-              {[0, 5, 10, 15, 20, 25, 30].map((n) => (
-                <option key={n} value={n}>
-                  {n}%
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Description</label>
-          <textarea
-            value={form.description || ""}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-            rows={2}
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Notes</label>
-          <textarea
-            value={form.notes || ""}
-            onChange={(e) => setForm({ ...form, notes: e.target.value })}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-            rows={2}
-          />
         </div>
 
         <div className="rounded-lg border border-gray-200 p-4">
@@ -770,7 +923,7 @@ export default function NewPurchasePage() {
                     <th className="px-3 py-2 text-right font-medium text-gray-700">Buy ex VAT</th>
                     <th className="px-3 py-2 text-right font-medium text-gray-700">VAT %</th>
                     <th className="px-3 py-2 text-right font-medium text-gray-700">Sell ex VAT</th>
-                    <th className="px-3 py-2 text-right font-medium text-gray-700">Line ex VAT</th>
+                    <th className="px-3 py-2 text-right font-medium text-gray-700">Line net (ex VAT)</th>
                     <th className="px-3 py-2 text-right font-medium text-gray-700">Actions</th>
                   </tr>
                 </thead>
@@ -791,7 +944,7 @@ export default function NewPurchasePage() {
                         {formatCurrency(row.sellingPriceExVat)}
                       </td>
                       <td className="px-3 py-2 text-right font-medium tabular-nums text-gray-900">
-                        {formatCurrency(lineExVatTotal(row))}
+                        {formatCurrency(lineNetExVat(row))}
                       </td>
                       <td className="px-3 py-2 text-right">
                         <button
@@ -812,9 +965,135 @@ export default function NewPurchasePage() {
                     </tr>
                   ))}
                 </tbody>
+                {form.purchaseDetails.length > 0 && (
+                  <tfoot className="border-t border-slate-200 bg-slate-50/90">
+                    <tr>
+                      <td colSpan={4} className="px-3 py-2 text-right text-sm font-medium text-slate-600">
+                        {purchaseTotals.lineCount} line{purchaseTotals.lineCount !== 1 ? "s" : ""} ·{" "}
+                        {purchaseTotals.totalQty} units
+                      </td>
+                      <td colSpan={3} className="px-3 py-2 text-right text-sm text-slate-500">
+                        Subtotal (ex VAT)
+                      </td>
+                      <td className="px-3 py-2 text-right text-sm font-semibold tabular-nums text-slate-900">
+                        {formatCurrency(purchaseTotals.itemsSubtotalExVat)}
+                      </td>
+                      <td className="px-3 py-2" />
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           )}
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="mb-3 text-sm font-semibold text-slate-800">Purchase discount</p>
+          <p className="mb-3 text-xs text-slate-500">
+            Applied to the line subtotal (after per-line unit discounts). Choose percentage or a fixed amount.
+          </p>
+          <div className="flex flex-wrap gap-4">
+            <div className="min-w-[160px] flex-1">
+              <label htmlFor="purchase-discount-type" className="mb-1 block text-xs font-medium text-slate-600">
+                Discount type
+              </label>
+              <select
+                id="purchase-discount-type"
+                value={discountMode}
+                onChange={(e) => {
+                  const m = e.target.value as "percent" | "fixed";
+                  setDiscountMode(m);
+                  setDiscountInput(0);
+                }}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              >
+                <option value="percent">Percentage (%)</option>
+                <option value="fixed">Fixed amount</option>
+              </select>
+            </div>
+            <div className="min-w-[180px] flex-1">
+              <label htmlFor="purchase-discount-value" className="mb-1 block text-xs font-medium text-slate-600">
+                {discountMode === "percent" ? "Discount (%)" : "Discount amount"}
+              </label>
+              <input
+                id="purchase-discount-value"
+                type="number"
+                step="0.01"
+                min={0}
+                max={discountMode === "percent" ? 100 : undefined}
+                value={discountInput}
+                onChange={(e) => setDiscountInput(Number(e.target.value) || 0)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-blue-100 bg-gradient-to-br from-slate-50 to-blue-50/40 p-4">
+          <p className="mb-3 text-sm font-semibold text-slate-800">Order summary</p>
+          <dl className="grid gap-2 text-sm sm:grid-cols-2">
+            <div className="flex justify-between gap-4 rounded-lg bg-white/80 px-3 py-2">
+              <dt className="text-slate-600">Lines subtotal (ex VAT)</dt>
+              <dd className="font-semibold tabular-nums text-slate-900">
+                {formatCurrency(purchaseTotals.itemsSubtotalExVat)}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-4 rounded-lg bg-white/80 px-3 py-2">
+              <dt className="text-slate-600">
+                Purchase discount
+                {discountMode === "percent" ? ` (${discountInput}%)` : ""}
+              </dt>
+              <dd className="font-semibold tabular-nums text-rose-600">
+                −{formatCurrency(purchaseTotals.headerDisc)}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-4 rounded-lg bg-white/80 px-3 py-2">
+              <dt className="text-slate-600">Net (ex VAT)</dt>
+              <dd className="font-semibold tabular-nums text-slate-900">
+                {formatCurrency(purchaseTotals.netExVat)}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-4 rounded-lg bg-white/80 px-3 py-2">
+              <dt className="text-slate-600">VAT (proportional)</dt>
+              <dd className="font-semibold tabular-nums text-slate-900">
+                {formatCurrency(purchaseTotals.totalVat)}
+              </dd>
+            </div>
+            <div className="sm:col-span-2 flex justify-between gap-4 rounded-lg border border-blue-200 bg-white px-3 py-3">
+              <dt className="text-base font-semibold text-slate-800">Estimated total (inc VAT)</dt>
+              <dd className="text-base font-bold tabular-nums text-blue-700">
+                {formatCurrency(purchaseTotals.grandTotal)}
+              </dd>
+            </div>
+          </dl>
+          <p className="mt-2 text-[11px] text-slate-500">
+            Summary is for reference; the server may recalculate tax totals from line VAT rates.
+          </p>
+        </div>
+
+        <div>
+          <label htmlFor="purchase-desc" className="mb-1 block text-sm font-medium text-gray-700">
+            Description
+          </label>
+          <textarea
+            id="purchase-desc"
+            value={form.description || ""}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+            rows={2}
+          />
+        </div>
+        <div>
+          <label htmlFor="purchase-notes" className="mb-1 block text-sm font-medium text-gray-700">
+            Notes
+          </label>
+          <textarea
+            id="purchase-notes"
+            value={form.notes || ""}
+            onChange={(e) => setForm({ ...form, notes: e.target.value })}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+            rows={2}
+          />
         </div>
 
         <div className="flex flex-wrap justify-end gap-3 border-t border-gray-100 pt-4">
@@ -826,10 +1105,14 @@ export default function NewPurchasePage() {
           </Link>
           <button
             type="submit"
-            disabled={creating}
+            disabled={submitting || hydratingEdit}
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
           >
-            {creating ? "Saving…" : "Save purchase"}
+            {submitting
+              ? "Saving…"
+              : isEditing
+                ? "Save changes"
+                : "Save purchase"}
           </button>
         </div>
       </form>
@@ -1021,5 +1304,19 @@ export default function NewPurchasePage() {
         </div>
       </Modal>
     </div>
+  );
+}
+
+export default function NewPurchasePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-6">
+          <p className="text-sm text-gray-500">Loading…</p>
+        </div>
+      }
+    >
+      <NewPurchasePageContent />
+    </Suspense>
   );
 }

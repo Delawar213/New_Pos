@@ -8,6 +8,7 @@ import type {
   CreatePurchaseRequest,
   PaginatedPurchaseResponse,
   Purchase,
+  SupplierPurchasePaymentRequest,
   UpdatePurchaseRequest,
 } from "@/types/purchase";
 import type { RootState } from "@/store";
@@ -16,6 +17,9 @@ import { listQueryParams } from "@/lib/listQueryParams";
 interface PurchasesState {
   purchases: Purchase[];
   selectedPurchase: Purchase | null;
+  unpaidPurchases: Purchase[];
+  unpaidLoading: boolean;
+  unpaidError: string | null;
   loading: boolean;
   actionLoading: boolean;
   error: string | null;
@@ -32,6 +36,9 @@ interface PurchasesState {
 const initialState: PurchasesState = {
   purchases: [],
   selectedPurchase: null,
+  unpaidPurchases: [],
+  unpaidLoading: false,
+  unpaidError: null,
   loading: false,
   actionLoading: false,
   error: null,
@@ -129,6 +136,47 @@ export const updatePurchase = createAsyncThunk<
   }
 });
 
+/** Unpaid / outstanding purchases for a supplier (`GET .../purchases/unpaid?supplierId=`). */
+export const fetchUnpaidPurchasesBySupplier = createAsyncThunk<
+  ApiResponse<Purchase[]>,
+  number,
+  { rejectValue: string; state: RootState }
+>("purchases/fetchUnpaidBySupplier", async (supplierId, { rejectWithValue }) => {
+  try {
+    const api = createAuthenticatedAxios();
+    const response = await api.get<ApiResponse<Purchase[]>>("/proxy/purchases/unpaid", {
+      params: { supplierId },
+    });
+    const failMsg = getApiErrorMessage(response.data);
+    if (failMsg) return rejectWithValue(failMsg);
+    return response.data;
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string };
+    return rejectWithValue(err.response?.data?.message || err.message || "Failed to load unpaid purchases");
+  }
+});
+
+/**
+ * Record payment against a purchase. Adjust URL/body if your API differs (e.g. `/purchases/payment`, PascalCase).
+ */
+export const paySupplierPurchase = createAsyncThunk<
+  ApiResponse<unknown>,
+  SupplierPurchasePaymentRequest,
+  { rejectValue: string; state: RootState }
+>("purchases/paySupplier", async (payload, { rejectWithValue }) => {
+  try {
+    const api = createAuthenticatedAxios();
+    const response = await api.post<ApiResponse<unknown>>("/proxy/purchases/pay", payload);
+    const body = response.data as { success?: boolean; message?: string };
+    const failMsg = getApiErrorMessage(body);
+    if (failMsg) return rejectWithValue(failMsg);
+    return response.data as ApiResponse<unknown>;
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string };
+    return rejectWithValue(err.response?.data?.message || err.message || "Failed to record payment");
+  }
+});
+
 export const deletePurchase = createAsyncThunk<
   { id: number; message: string },
   number,
@@ -158,11 +206,41 @@ const purchasesSlice = createSlice({
     clearSelectedPurchase(state) {
       state.selectedPurchase = null;
     },
+    clearUnpaidPurchases(state) {
+      state.unpaidPurchases = [];
+      state.unpaidLoading = false;
+      state.unpaidError = null;
+    },
     setPurchasesPage(state, action: PayloadAction<number>) {
       state.currentPage = action.payload;
     },
   },
   extraReducers: (builder) => {
+    builder.addCase(fetchUnpaidPurchasesBySupplier.pending, (state) => {
+      state.unpaidLoading = true;
+      state.unpaidError = null;
+    });
+    builder.addCase(fetchUnpaidPurchasesBySupplier.fulfilled, (state, { payload }) => {
+      state.unpaidLoading = false;
+      const rows = payload.data;
+      state.unpaidPurchases = Array.isArray(rows) ? rows : [];
+    });
+    builder.addCase(fetchUnpaidPurchasesBySupplier.rejected, (state, { payload }) => {
+      state.unpaidLoading = false;
+      state.unpaidError = payload || "Failed to load unpaid purchases";
+      state.unpaidPurchases = [];
+    });
+
+    builder.addCase(paySupplierPurchase.pending, (state) => {
+      state.actionLoading = true;
+    });
+    builder.addCase(paySupplierPurchase.fulfilled, (state) => {
+      state.actionLoading = false;
+    });
+    builder.addCase(paySupplierPurchase.rejected, (state) => {
+      state.actionLoading = false;
+    });
+
     builder.addCase(fetchPurchases.pending, (state) => {
       state.loading = true;
       state.error = null;
@@ -250,7 +328,8 @@ const purchasesSlice = createSlice({
   },
 });
 
-export const { clearPurchasesState, clearSelectedPurchase, setPurchasesPage } = purchasesSlice.actions;
+export const { clearPurchasesState, clearSelectedPurchase, clearUnpaidPurchases, setPurchasesPage } =
+  purchasesSlice.actions;
 export const purchasesSliceConfig = configureSlice(purchasesSlice, false);
 
 export default purchasesSlice.reducer;

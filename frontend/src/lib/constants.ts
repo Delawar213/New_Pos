@@ -8,7 +8,7 @@ export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "https://loc
 export const PAYMENT_METHODS = [
   { value: "cash", label: "Cash" },
   { value: "card", label: "Card" },
-  { value: "bank", label: "Bank Transfer" },
+  { value: "bank", label: "Bank" },
   { value: "cheque", label: "Cheque" },
   { value: "online", label: "Online" },
 ];

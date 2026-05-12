@@ -17,6 +17,8 @@ interface ModalProps {
   size?: "sm" | "md" | "lg" | "xl" | "full";
   footer?: React.ReactNode;
   showCloseButton?: boolean;
+  /** When false, body is not max-height constrained (e.g. wide forms that should fit without inner scroll). */
+  scrollableContent?: boolean;
 }
 
 const sizeMap = {
@@ -36,6 +38,7 @@ export default function Modal({
   size = "md",
   footer,
   showCloseButton = true,
+  scrollableContent = true,
 }: ModalProps) {
   // Close on Escape key
   useEffect(() => {
@@ -91,7 +94,14 @@ export default function Modal({
         </div>
 
         {/* Content */}
-        <div className="max-h-[calc(100vh-16rem)] overflow-y-auto px-6 py-5 scrollbar-thin">
+        <div
+          className={cn(
+            "px-6 py-5",
+            scrollableContent
+              ? "max-h-[calc(100vh-16rem)] overflow-y-auto scrollbar-thin"
+              : "max-h-none overflow-visible"
+          )}
+        >
           {children}
         </div>
 
