@@ -1,10 +1,10 @@
 // ============================================
 // Base API - RTK Query Configuration
 // ============================================
-// Single base API with tag-based caching. All
-// module APIs inject endpoints into this base.
+// All requests go through `/proxy/*` (same origin) so the Next server talks to the API.
 // ============================================
 
+import type { FetchArgs } from "@reduxjs/toolkit/query";
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
 const prepareHeaders = (headers: Headers) => {
@@ -12,29 +12,33 @@ const prepareHeaders = (headers: Headers) => {
   return headers;
 };
 
-const remoteBaseQuery = fetchBaseQuery({
-  baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL || "https://localhost:7001/api",
-  prepareHeaders: (headers) => prepareHeaders(headers),
-});
+function ensureProxyUrl(url: string): string {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(url)) {
+    return url;
+  }
+  const path = url.startsWith("/") ? url : `/${url}`;
+  return path.startsWith("/proxy/") ? path : `/proxy${path}`;
+}
 
-// Use same-origin for local proxy routes to avoid browser CORS issues.
-const localProxyBaseQuery = fetchBaseQuery({
+function withProxyPath(args: string | FetchArgs): string | FetchArgs {
+  if (typeof args === "string") {
+    return ensureProxyUrl(args);
+  }
+  return { ...args, url: ensureProxyUrl(args.url) };
+}
+
+const rawBaseQuery = fetchBaseQuery({
   baseUrl: "",
   prepareHeaders: (headers) => prepareHeaders(headers),
 });
 
-const baseQueryWithReauth: typeof remoteBaseQuery = async (args, api, extraOptions) => {
-  const url = typeof args === "string" ? args : args.url;
-  const useLocalProxy = typeof url === "string" && url.startsWith("/proxy/");
-  return useLocalProxy
-    ? await localProxyBaseQuery(args, api, extraOptions)
-    : await remoteBaseQuery(args, api, extraOptions);
+const baseQueryThroughProxy: typeof rawBaseQuery = async (args, api, extraOptions) => {
+  return rawBaseQuery(withProxyPath(args), api, extraOptions);
 };
 
 export const baseApi = createApi({
   reducerPath: "api",
-  baseQuery: baseQueryWithReauth,
-  // Tag types for cache invalidation across all modules
+  baseQuery: baseQueryThroughProxy,
   tagTypes: [
     "Categories",
     "Brands",
@@ -49,5 +53,5 @@ export const baseApi = createApi({
     "Sales",
     "Dashboard",
   ],
-  endpoints: () => ({}), // Endpoints injected from separate API files
+  endpoints: () => ({}),
 });

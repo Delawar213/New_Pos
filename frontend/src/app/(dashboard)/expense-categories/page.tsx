@@ -98,7 +98,6 @@ export default function ExpenseCategoriesPage() {
   };
 
   const columns: Column<ExpenseCategory>[] = [
-    { key: "expenseCategoryId", label: "#", className: "w-16" },
     { key: "categoryName", label: "Name" },
     { key: "expenseType", label: "Type" },
     { key: "defaultVatRate", label: "VAT %" },

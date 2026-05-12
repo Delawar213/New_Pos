@@ -1,9 +1,20 @@
 /**
+ * Base URL for server-side proxy → API (no `/api` suffix here; see buildBackendApiUrl).
+ * Prefer `BACKEND_API_BASE_URL` in production so the Next server can use an internal URL
+ * while the browser only calls same-origin `/proxy/*`.
+ */
+export function getBackendApiBaseRaw(): string | undefined {
+  const internal = process.env.BACKEND_API_BASE_URL?.trim();
+  if (internal) return internal;
+  return process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+}
+
+/**
  * Builds the backend URL for Next.js proxy routes.
- * `NEXT_PUBLIC_API_BASE_URL` may be `https://host` or `https://host/api` (both common in this project).
+ * Base may be `https://host` or `https://host/api` (both common in this project).
  */
 export function buildBackendApiUrl(pathSegments: string[], search: string): URL | null {
-  const raw = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+  const raw = getBackendApiBaseRaw();
   if (!raw) return null;
 
   let base = raw.replace(/\/+$/, "");

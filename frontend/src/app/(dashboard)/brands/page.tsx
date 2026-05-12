@@ -156,7 +156,6 @@ export default function BrandsPage() {
   };
 
   const columns: Column<Brand>[] = [
-    { key: "brandId", label: "#", className: "w-16" },
     { key: "brandName", label: "Name" },
     {
       key: "isActive",
@@ -208,6 +207,10 @@ export default function BrandsPage() {
         rowKey="brandId"
         title="All Brands"
         totalCount={totalCount}
+        pageNumber={currentPage}
+        pageSize={pageSize}
+        onPageChange={(p) => dispatch(fetchBrands({ pageNumber: p, pageSize }))}
+        onPageSizeChange={(s) => dispatch(fetchBrands({ pageNumber: 1, pageSize: s }))}
         onSearch={(term) => console.log("Search:", term)}
         onAdd={handleOpenCreate}
         addLabel="Add Brand"

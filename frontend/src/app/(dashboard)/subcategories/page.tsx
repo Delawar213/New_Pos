@@ -162,7 +162,6 @@ export default function SubCategoriesPage() {
   };
 
   const columns: Column<SubCategory>[] = [
-    { key: "subCategoryId", label: "#", className: "w-16" },
     { key: "subCategoryName", label: "Subcategory Name" },
     { key: "categoryName", label: "Category" },
     {

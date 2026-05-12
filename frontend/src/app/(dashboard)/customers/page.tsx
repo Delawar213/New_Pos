@@ -140,7 +140,6 @@ export default function CustomersPage() {
   };
 
   const columns: Column<Customer>[] = [
-    { key: "customerId", label: "#", className: "w-16" },
     { key: "customerCode", label: "Code" },
     {
       key: "customerTypeName",
@@ -198,6 +197,10 @@ export default function CustomersPage() {
         rowKey="customerId"
         title="All Customers"
         totalCount={totalCount}
+        pageNumber={currentPage}
+        pageSize={pageSize}
+        onPageChange={(p) => dispatch(fetchCustomers({ pageNumber: p, pageSize }))}
+        onPageSizeChange={(s) => dispatch(fetchCustomers({ pageNumber: 1, pageSize: s }))}
         onSearch={(term) => console.log("Search:", term)}
         onAdd={() => {
           setEditingCustomer(null);

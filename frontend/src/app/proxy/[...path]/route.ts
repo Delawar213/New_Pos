@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildBackendApiUrl } from "@/lib/backendProxyUrl";
+import { buildProxyOutboundHeaders } from "@/lib/proxyOutboundHeaders";
+import { fetchPreservingWrites } from "@/lib/fetchPreservingWrites";
 
 export const runtime = "nodejs";
 
@@ -13,6 +15,9 @@ export async function POST(request: Request, context: { params: Promise<{ path: 
   return proxy(request, context);
 }
 export async function PUT(request: Request, context: { params: Promise<{ path: string[] }> }) {
+  return proxy(request, context);
+}
+export async function PATCH(request: Request, context: { params: Promise<{ path: string[] }> }) {
   return proxy(request, context);
 }
 export async function DELETE(request: Request, context: { params: Promise<{ path: string[] }> }) {
@@ -30,23 +35,12 @@ async function proxy(request: Request, context: { params: Promise<{ path: string
     return NextResponse.json({ message: "NEXT_PUBLIC_API_BASE_URL is not set" }, { status: 500 });
   }
 
-  const headers = new Headers();
-  request.headers.forEach((value, key) => {
-    const lower = key.toLowerCase();
-    // Let fetch calculate these for the outgoing request.
-    if (lower === "host" || lower === "content-length" || lower === "connection") {
-      return;
-    }
-    headers.set(key, value);
-  });
-  if (!headers.has("content-type")) {
-    headers.set("content-type", "application/json");
-  }
+  const headers = buildProxyOutboundHeaders(request.headers);
 
   const method = request.method.toUpperCase();
   const body = method === "GET" || method === "HEAD" ? undefined : await request.arrayBuffer();
 
-  const resp = await fetch(target, { method, headers, body, redirect: "follow" });
+  const resp = await fetchPreservingWrites(target.toString(), { method, headers, body });
   const respBody = await resp.arrayBuffer();
 
   const outHeaders = new Headers(resp.headers);

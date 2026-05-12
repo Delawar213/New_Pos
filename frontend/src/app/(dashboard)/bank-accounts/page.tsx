@@ -17,7 +17,6 @@ import {
 } from "@/store/api";
 
 const columns: Column<BankAccount>[] = [
-  { key: "bankAccountId", label: "#", className: "w-16" },
   { key: "accountName", label: "Account Name" },
   { key: "accountType", label: "Type" },
   { key: "bankName", label: "Bank" },
@@ -50,7 +49,6 @@ const columns: Column<BankAccount>[] = [
 ];
 
 const cashColumns: Column<CashAccount>[] = [
-  { key: "bankAccountId", label: "#", className: "w-16" },
   { key: "accountName", label: "Cash Account Name" },
   { key: "accountType", label: "Type" },
   {

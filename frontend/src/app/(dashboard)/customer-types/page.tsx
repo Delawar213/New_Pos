@@ -82,7 +82,6 @@ export default function CustomerTypesPage() {
   };
 
   const columns: Column<CustomerType>[] = [
-    { key: "customerTypeId", label: "#", className: "w-16" },
     { key: "typeName", label: "Type Name" },
     { key: "description", label: "Description" },
     {

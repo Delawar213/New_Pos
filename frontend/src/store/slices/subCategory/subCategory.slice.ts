@@ -1,6 +1,6 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
-import axios from 'axios';
 import { configureSlice } from '@/lib/utils';
+import { createAuthenticatedAxios } from '@/lib/createAuthenticatedAxios';
 import { getApiErrorMessage } from '@/lib/apiResult';
 import type {
   CreateSubCategoryRequest,
@@ -8,14 +8,6 @@ import type {
   UpdateSubCategoryRequest,
 } from '@/types/subcategory';
 import type { RootState } from '@/store';
-
-const createAuthenticatedRequest = () => {
-  return axios.create({
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
-};
 
 interface ApiResponse<T> {
   success: boolean;
@@ -46,9 +38,9 @@ export const fetchSubCategories = createAsyncThunk<
   ApiResponse<SubCategory[]>,
   void,
   { rejectValue: string; state: RootState }
->('subCategory/fetchAll', async (_, { rejectWithValue, getState }) => {
+>('subCategory/fetchAll', async (_, { rejectWithValue }) => {
   try {
-    const api = createAuthenticatedRequest();
+    const api = createAuthenticatedAxios();
     const response = await api.get<ApiResponse<SubCategory[]>>('/proxy/categories/subcategory');
     return response.data;
   } catch (error: unknown) {
@@ -61,9 +53,9 @@ export const createSubCategory = createAsyncThunk<
   ApiResponse<unknown>,
   CreateSubCategoryRequest,
   { rejectValue: string; state: RootState }
->('subCategory/create', async (payload, { rejectWithValue, getState }) => {
+>('subCategory/create', async (payload, { rejectWithValue }) => {
   try {
-    const api = createAuthenticatedRequest();
+    const api = createAuthenticatedAxios();
     const response = await api.post<ApiResponse<unknown>>('/proxy/categories/subcategory', payload);
     const failMsg = getApiErrorMessage(response.data);
     if (failMsg) return rejectWithValue(failMsg);
@@ -78,9 +70,9 @@ export const updateSubCategory = createAsyncThunk<
   ApiResponse<SubCategory>,
   UpdateSubCategoryRequest,
   { rejectValue: string; state: RootState }
->('subCategory/update', async (payload, { rejectWithValue, getState }) => {
+>('subCategory/update', async (payload, { rejectWithValue }) => {
   try {
-    const api = createAuthenticatedRequest();
+    const api = createAuthenticatedAxios();
     const response = await api.post<ApiResponse<SubCategory>>(
       `/proxy/categories/subcategory/${payload.subCategoryId}`,
       payload
@@ -96,9 +88,9 @@ export const deleteSubCategory = createAsyncThunk<
   { id: number; message: string },
   number,
   { rejectValue: string; state: RootState }
->('subCategory/delete', async (id, { rejectWithValue, getState }) => {
+>('subCategory/delete', async (id, { rejectWithValue }) => {
   try {
-    const api = createAuthenticatedRequest();
+    const api = createAuthenticatedAxios();
     const response = await api.post<ApiResponse<unknown>>(`/proxy/categories/subcategorydelete/${id}`, { subCategoryId: id });
     const failMsg = getApiErrorMessage(response.data);
     if (failMsg) return rejectWithValue(failMsg);

@@ -1,18 +1,10 @@
 // store/slices/product/product.slice.ts
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
-import axios from "axios";
 import { configureSlice } from "@/lib/utils";
+import { createAuthenticatedAxios } from "@/lib/createAuthenticatedAxios";
 import { getApiErrorMessage } from "@/lib/apiResult";
 import type { CreateProductRequest, PaginatedProductResponse, Product, UpdateProductRequest } from "@/types/product";
 import type { RootState } from "@/store";
-
-const createAuthenticatedRequest = () => {
-  return axios.create({
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-};
 
 interface ApiResponse<T> {
   success: boolean;
@@ -57,11 +49,11 @@ export const fetchProducts = createAsyncThunk<
   ApiResponse<PaginatedProductResponse>,
   { pageNumber?: number; pageSize?: number },
   { rejectValue: string; state: RootState }
->("product/fetchAll", async ({ pageNumber = 1, pageSize = 10 }, { rejectWithValue, getState }) => {
+>("product/fetchAll", async ({ pageNumber = 1, pageSize = 10 }, { rejectWithValue }) => {
   try {
-    const api = createAuthenticatedRequest();
+    const api = createAuthenticatedAxios();
     const response = await api.get<ApiResponse<PaginatedProductResponse>>(
-      `/proxy/products?pageNumber=${pageNumber}&pageSize=${pageSize}`
+      `/proxy/products?pageNumber=${pageNumber}&pageSize=${pageSize}&sortDirection=desc`
     );
     return response.data;
   } catch (error: unknown) {
@@ -74,9 +66,9 @@ export const createProduct = createAsyncThunk<
   ApiResponse<Product>,
   CreateProductRequest,
   { rejectValue: string; state: RootState }
->("product/create", async (payload, { rejectWithValue, getState }) => {
+>("product/create", async (payload, { rejectWithValue }) => {
   try {
-    const api = createAuthenticatedRequest();
+    const api = createAuthenticatedAxios();
     const response = await api.post<ApiResponse<Product>>("/proxy/products", payload);
     const failMsg = getApiErrorMessage(response.data);
     if (failMsg) return rejectWithValue(failMsg);
@@ -91,9 +83,9 @@ export const updateProduct = createAsyncThunk<
   ApiResponse<Product>,
   UpdateProductRequest,
   { rejectValue: string; state: RootState }
->("product/update", async (payload, { rejectWithValue, getState }) => {
+>("product/update", async (payload, { rejectWithValue }) => {
   try {
-    const api = createAuthenticatedRequest();
+    const api = createAuthenticatedAxios();
     const response = await api.post<ApiResponse<Product>>(
       `/proxy/products/update/${payload.productId}`,
       payload
@@ -111,9 +103,9 @@ export const deleteProduct = createAsyncThunk<
   { id: number; message: string },
   number,
   { rejectValue: string; state: RootState }
->("product/delete", async (id, { rejectWithValue, getState }) => {
+>("product/delete", async (id, { rejectWithValue }) => {
   try {
-    const api = createAuthenticatedRequest();
+    const api = createAuthenticatedAxios();
     const response = await api.post<ApiResponse<unknown>>(`/proxy/products/delete/${id}`, { id });
     const failMsg = getApiErrorMessage(response.data);
     if (failMsg) return rejectWithValue(failMsg);

@@ -1,6 +1,6 @@
 // store/slices/auth.slice.ts
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
-import { API } from '@/config/api.config';
+import axios from 'axios';
 import { configureSlice } from '@/lib/utils';
 
 interface User {
@@ -55,7 +55,9 @@ export const loginUser = createAsyncThunk<
   'auth/login',
   async (data: { username: string; password: string }, { rejectWithValue }) => {
     try {
-      const response = await API('api').post<LoginResponse>('/User/login', data);
+      const response = await axios.post<LoginResponse>('/proxy/User/login', data, {
+        headers: { 'Content-Type': 'application/json' },
+      });
 
       // Check API status
       if (response.data.status !== "Success") {

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildBackendApiUrl } from "@/lib/backendProxyUrl";
+import { buildProxyOutboundHeaders } from "@/lib/proxyOutboundHeaders";
+import { fetchPreservingWrites } from "@/lib/fetchPreservingWrites";
 
 export const runtime = "nodejs";
 
@@ -35,21 +37,13 @@ async function proxy(request: Request, context: { params: Promise<{ path: string
     );
   }
 
-  const headers = new Headers();
-  const auth = request.headers.get("authorization");
-  if (auth) headers.set("authorization", auth);
-  headers.set("content-type", request.headers.get("content-type") ?? "application/json");
+  const headers = buildProxyOutboundHeaders(request.headers);
 
   const method = request.method.toUpperCase();
   const body =
     method === "GET" || method === "HEAD" ? undefined : await request.arrayBuffer();
 
-  const resp = await fetch(target, {
-    method,
-    headers,
-    body,
-    redirect: "follow",
-  });
+  const resp = await fetchPreservingWrites(target.toString(), { method, headers, body });
 
   const respBody = await resp.arrayBuffer();
   const outHeaders = new Headers(resp.headers);

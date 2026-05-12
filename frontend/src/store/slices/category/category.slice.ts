@@ -117,10 +117,10 @@ export const fetchCategories = createAsyncThunk<
   { pageNumber?: number; pageSize?: number },
   { rejectValue: string; state: RootState }
 >('category/fetchAll', async ({ pageNumber = 1, pageSize = 10 }, { rejectWithValue }) => {
-  try {
+    try {
     const api = createAuthenticatedAxios();
     const response = await api.get<ApiResponse<Category[] | PaginatedCategoryResponse>>(
-      `/proxy/categories?pageNumber=${pageNumber}&pageSize=${pageSize}`
+      `/proxy/categories?pageNumber=${pageNumber}&pageSize=${pageSize}&sortDirection=desc`
     );
     const failMsg = getApiErrorMessage(response.data);
     if (failMsg) return rejectWithValue(failMsg);
@@ -136,7 +136,7 @@ export const fetchCategoryById = createAsyncThunk<
   number,
   { rejectValue: string; state: RootState }
 >('category/fetchById', async (id, { rejectWithValue }) => {
-  try {
+    try {
     const api = createAuthenticatedAxios();
     const response = await api.get<ApiResponse<Category>>(`/proxy/categories/${id}`);
     const failMsg = getApiErrorMessage(response.data);
@@ -153,7 +153,7 @@ export const fetchActiveCategories = createAsyncThunk<
   void,
   { rejectValue: string; state: RootState }
 >('category/fetchActive', async (_, { rejectWithValue }) => {
-  try {
+    try {
     const api = createAuthenticatedAxios();
     const response = await api.get<ApiResponse<Category[]>>('/proxy/categories/active');
     const failMsg = getApiErrorMessage(response.data);
@@ -170,7 +170,7 @@ export const fetchCategoriesDropdown = createAsyncThunk<
   void,
   { rejectValue: string; state: RootState }
 >('category/fetchDropdown', async (_, { rejectWithValue }) => {
-  try {
+    try {
     const api = createAuthenticatedAxios();
     const response = await api.get<ApiResponse<CategoryDropdown[]>>('/proxy/categories/dropdown');
     const failMsg = getApiErrorMessage(response.data);
@@ -187,7 +187,7 @@ export const createCategory = createAsyncThunk<
   CreateCategoryRequest,
   { rejectValue: string; state: RootState }
 >('category/create', async (categoryData, { rejectWithValue }) => {
-  try {
+    try {
     const api = createAuthenticatedAxios();
     const response = await api.post<ApiResponse<Category>>('/proxy/categories', bodyForCreate(categoryData));
     const failMsg = getApiErrorMessage(response.data);
@@ -204,7 +204,7 @@ export const updateCategory = createAsyncThunk<
   UpdateCategoryRequest,
   { rejectValue: string; state: RootState }
 >('category/update', async (categoryData, { rejectWithValue }) => {
-  try {
+    try {
     const api = createAuthenticatedAxios();
     const { categoryId } = categoryData;
     const response = await api.post<ApiResponse<Category>>(
@@ -226,7 +226,7 @@ export const deleteCategory = createAsyncThunk<
   number,
   { rejectValue: string; state: RootState }
 >('category/delete', async (id, { rejectWithValue }) => {
-  try {
+    try {
     const api = createAuthenticatedAxios();
     const response = await api.post<ApiResponse<unknown>>(`/proxy/categories/subcategorydelete/${id}`, {});
     const failMsg = getApiErrorMessage(response.data);

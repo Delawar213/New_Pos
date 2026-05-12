@@ -150,7 +150,6 @@ export default function EmployeesPage() {
   };
 
   const columns: Column<Employee>[] = [
-    { key: "employeeId", label: "#", className: "w-16" },
     { key: "employeeCode", label: "Code" },
     { key: "employeeName", label: "Name" },
     { key: "contactNo", label: "Phone" },
@@ -202,6 +201,10 @@ export default function EmployeesPage() {
         rowKey="employeeId"
         title="All Employees"
         totalCount={totalCount}
+        pageNumber={currentPage}
+        pageSize={pageSize}
+        onPageChange={(p) => dispatch(fetchEmployees({ pageNumber: p, pageSize }))}
+        onPageSizeChange={(s) => dispatch(fetchEmployees({ pageNumber: 1, pageSize: s }))}
         onSearch={(term) => console.log("Search:", term)}
         onAdd={() => {
           resetForm();

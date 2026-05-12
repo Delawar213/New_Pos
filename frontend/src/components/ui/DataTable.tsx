@@ -4,7 +4,8 @@
 // Data Table Component - Modern Design
 // ============================================
 
-import React from "react";
+import React, { useMemo } from "react";
+import { sortRowsNewestFirst } from "@/lib/sortRowsNewestFirst";
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -48,6 +49,10 @@ interface DataTableProps<T> {
   // Row actions
   onRowClick?: (item: T) => void;
   rowKey: keyof T;
+  /** Row index 1…n across pages (default: true). */
+  showSerialNo?: boolean;
+  /** Sort a copy of `data` with newest dates / highest ids first (default: true). */
+  sortNewestFirst?: boolean;
 }
 
 export default function DataTable<T>({
@@ -70,10 +75,18 @@ export default function DataTable<T>({
   onPageSizeChange,
   onRowClick,
   rowKey,
+  showSerialNo = true,
+  sortNewestFirst = true,
 }: DataTableProps<T>) {
+  const displayData = useMemo(() => {
+    if (!sortNewestFirst) return data;
+    return sortRowsNewestFirst(data);
+  }, [data, sortNewestFirst]);
+
   const totalPages = Math.ceil(totalCount / pageSize);
   const startRecord = (pageNumber - 1) * pageSize + 1;
   const endRecord = Math.min(pageNumber * pageSize, totalCount);
+  const colSpan = columns.length + (showSerialNo ? 1 : 0);
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
@@ -162,6 +175,11 @@ export default function DataTable<T>({
         <table className="w-full">
           <thead>
             <tr className="border-b border-slate-100 bg-slate-50/50">
+              {showSerialNo && (
+                <th className="w-14 whitespace-nowrap px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  S.No
+                </th>
+              )}
               {columns.map((col) => (
                 <th
                   key={col.key}
@@ -180,6 +198,11 @@ export default function DataTable<T>({
               // Loading skeleton
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i} className="border-b border-slate-50">
+                  {showSerialNo && (
+                    <td className="px-5 py-4">
+                      <div className="h-4 w-8 rounded-md skeleton" />
+                    </td>
+                  )}
                   {columns.map((col) => (
                     <td key={col.key} className="px-5 py-4">
                       <div className="h-4 w-24 rounded-md skeleton" />
@@ -187,9 +210,9 @@ export default function DataTable<T>({
                   ))}
                 </tr>
               ))
-            ) : data.length === 0 ? (
+            ) : displayData.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="py-16 text-center">
+                <td colSpan={colSpan} className="py-16 text-center">
                   <div className="flex flex-col items-center">
                     <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
                       <Search className="h-7 w-7" />
@@ -200,7 +223,7 @@ export default function DataTable<T>({
                 </td>
               </tr>
             ) : (
-              data.map((item, index) => (
+              displayData.map((item, index) => (
                 <tr
                   key={String(item[rowKey])}
                   onClick={() => onRowClick?.(item)}
@@ -211,6 +234,11 @@ export default function DataTable<T>({
                     index % 2 === 0 ? "bg-white" : "bg-slate-50/30"
                   )}
                 >
+                  {showSerialNo && (
+                    <td className="whitespace-nowrap px-5 py-4 text-sm font-medium text-slate-500">
+                      {(pageNumber - 1) * pageSize + index + 1}
+                    </td>
+                  )}
                   {columns.map((col) => (
                     <td 
                       key={col.key} 
@@ -232,7 +260,7 @@ export default function DataTable<T>({
       </div>
 
       {/* Pagination */}
-      {totalPages > 0 && (
+      {totalPages > 0 && onPageChange && onPageSizeChange && (
         <div className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50/30 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3 text-sm text-slate-500">
             <span>Rows per page:</span>

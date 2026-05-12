@@ -1,6 +1,6 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
-import axios from 'axios';
 import { configureSlice } from '@/lib/utils';
+import { createAuthenticatedAxios } from '@/lib/createAuthenticatedAxios';
 import { getApiErrorMessage } from '@/lib/apiResult';
 import type {
   Supplier,
@@ -11,14 +11,6 @@ import type {
   PaginatedSupplierResponse,
 } from '@/types/supplier';
 import type { RootState } from '@/store';
-
-const createAuthenticatedRequest = () => {
-  return axios.create({
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
-};
 
 interface ApiResponse<T> {
   success: boolean;
@@ -71,11 +63,11 @@ export const fetchSuppliers = createAsyncThunk<
   ApiResponse<PaginatedSupplierResponse>,
   { pageNumber?: number; pageSize?: number },
   { rejectValue: string; state: RootState }
->('supplier/fetchAll', async ({ pageNumber = 1, pageSize = 10 }, { rejectWithValue, getState }) => {
+>('supplier/fetchAll', async ({ pageNumber = 1, pageSize = 10 }, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
     const response = await api.get<ApiResponse<PaginatedSupplierResponse>>(
-      `/proxy/suppliers?pageNumber=${pageNumber}&pageSize=${pageSize}`
+      `/proxy/suppliers?pageNumber=${pageNumber}&pageSize=${pageSize}&sortDirection=desc`
     );
     return response.data;
   } catch (error: unknown) {
@@ -88,9 +80,9 @@ export const fetchSupplierById = createAsyncThunk<
   ApiResponse<Supplier>,
   number,
   { rejectValue: string; state: RootState }
->('supplier/fetchById', async (id, { rejectWithValue, getState }) => {
+>('supplier/fetchById', async (id, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
     const response = await api.get<ApiResponse<Supplier>>(`/proxy/suppliers/${id}`);
     return response.data;
   } catch (error: unknown) {
@@ -103,9 +95,9 @@ export const fetchSupplierByCode = createAsyncThunk<
   ApiResponse<Supplier>,
   string,
   { rejectValue: string; state: RootState }
->('supplier/fetchByCode', async (code, { rejectWithValue, getState }) => {
+>('supplier/fetchByCode', async (code, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
     const response = await api.get<ApiResponse<Supplier>>(`/proxy/suppliers/code/${code}`);
     return response.data;
   } catch (error: unknown) {
@@ -118,9 +110,9 @@ export const fetchActiveSuppliers = createAsyncThunk<
   ApiResponse<Supplier[]>,
   void,
   { rejectValue: string; state: RootState }
->('supplier/fetchActive', async (_, { rejectWithValue, getState }) => {
+>('supplier/fetchActive', async (_, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
     const response = await api.get<ApiResponse<Supplier[]>>('/proxy/suppliers/active');
     return response.data;
   } catch (error: unknown) {
@@ -133,9 +125,9 @@ export const fetchSuppliersDropdown = createAsyncThunk<
   ApiResponse<SupplierDropdown[]>,
   void,
   { rejectValue: string; state: RootState }
->('supplier/fetchDropdown', async (_, { rejectWithValue, getState }) => {
+>('supplier/fetchDropdown', async (_, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
     const response = await api.get<ApiResponse<SupplierDropdown[]>>('/proxy/suppliers/dropdown');
     return response.data;
   } catch (error: unknown) {
@@ -148,9 +140,9 @@ export const fetchSupplierLedger = createAsyncThunk<
   ApiResponse<SupplierLedgerEntry[]>,
   { supplierId: number; fromDate: string; toDate: string },
   { rejectValue: string; state: RootState }
->('supplier/fetchLedger', async ({ supplierId, fromDate, toDate }, { rejectWithValue, getState }) => {
+>('supplier/fetchLedger', async ({ supplierId, fromDate, toDate }, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
     const response = await api.get<ApiResponse<SupplierLedgerEntry[]>>(
       `/proxy/suppliers/${supplierId}/ledger?fromDate=${fromDate}&toDate=${toDate}`
     );
@@ -165,9 +157,9 @@ export const fetchSupplierBalance = createAsyncThunk<
   ApiResponse<number>,
   number,
   { rejectValue: string; state: RootState }
->('supplier/fetchBalance', async (supplierId, { rejectWithValue, getState }) => {
+>('supplier/fetchBalance', async (supplierId, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
     const response = await api.get<ApiResponse<number>>(`/proxy/suppliers/${supplierId}/balance`);
     return response.data;
   } catch (error: unknown) {
@@ -180,9 +172,9 @@ export const createSupplier = createAsyncThunk<
   ApiResponse<Supplier>,
   CreateSupplierRequest,
   { rejectValue: string; state: RootState }
->('supplier/create', async (supplierData, { rejectWithValue, getState }) => {
+>('supplier/create', async (supplierData, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
     const response = await api.post<ApiResponse<Supplier>>('/proxy/suppliers', supplierData);
     const failMsg = getApiErrorMessage(response.data);
     if (failMsg) return rejectWithValue(failMsg);
@@ -197,9 +189,9 @@ export const updateSupplier = createAsyncThunk<
   ApiResponse<Supplier>,
   UpdateSupplierRequest,
   { rejectValue: string; state: RootState }
->('supplier/update', async (supplierData, { rejectWithValue, getState }) => {
+>('supplier/update', async (supplierData, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
     const response = await api.post<ApiResponse<Supplier>>(
       `/proxy/suppliers/update/${supplierData.supplierId}`,
       supplierData
@@ -217,9 +209,9 @@ export const deleteSupplier = createAsyncThunk<
   { id: number; message: string },
   number,
   { rejectValue: string; state: RootState }
->('supplier/delete', async (id, { rejectWithValue, getState }) => {
+>('supplier/delete', async (id, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
     const response = await api.post<ApiResponse<unknown>>(`/proxy/suppliers/delete/${id}`, { id });
     const failMsg = getApiErrorMessage(response.data);
     if (failMsg) return rejectWithValue(failMsg);

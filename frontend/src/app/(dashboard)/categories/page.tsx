@@ -17,15 +17,16 @@ import type { Category, CreateCategoryRequest, UpdateCategoryRequest } from "@/t
 
 export default function CategoriesPage() {
   const dispatch = useAppDispatch();
-  const { 
-    categories, 
-    loading, 
-    actionLoading, 
-    error, 
-    success, 
+  const {
+    categories,
+    loading,
+    actionLoading,
+    error,
+    success,
     message,
     currentPage,
-    pageSize 
+    pageSize,
+    totalCount,
   } = useAppSelector((state) => state.category);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -167,7 +168,6 @@ export default function CategoriesPage() {
   };
 
   const columns: Column<Category>[] = [
-    { key: "categoryId", label: "#", className: "w-16" },
     { key: "categoryName", label: "Name" },
     { key: "description", label: "Description" },
     {
@@ -219,7 +219,11 @@ export default function CategoriesPage() {
         data={categories}
         rowKey="categoryId"
         title="All Categories"
-        totalCount={categories.length}
+        totalCount={totalCount}
+        pageNumber={currentPage}
+        pageSize={pageSize}
+        onPageChange={(p) => dispatch(fetchCategories({ pageNumber: p, pageSize }))}
+        onPageSizeChange={(s) => dispatch(fetchCategories({ pageNumber: 1, pageSize: s }))}
         onSearch={(term) => console.log("Search:", term)}
         onAdd={handleOpenCreate}
         addLabel="Add Category"

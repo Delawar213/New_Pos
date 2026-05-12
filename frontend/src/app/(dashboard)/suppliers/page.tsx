@@ -135,7 +135,6 @@ export default function SuppliersPage() {
   };
 
   const columns: Column<Supplier>[] = [
-    { key: "supplierId", label: "#", className: "w-16" },
     { key: "supplierCode", label: "Code" },
     { key: "supplierName", label: "Name" },
     { key: "contactNo", label: "Phone" },
@@ -189,6 +188,10 @@ export default function SuppliersPage() {
         rowKey="supplierId"
         title="All Suppliers"
         totalCount={totalCount}
+        pageNumber={currentPage}
+        pageSize={pageSize}
+        onPageChange={(p) => dispatch(fetchSuppliers({ pageNumber: p, pageSize }))}
+        onPageSizeChange={(s) => dispatch(fetchSuppliers({ pageNumber: 1, pageSize: s }))}
         onSearch={(term) => console.log("Search:", term)}
         onAdd={() => {
           resetForm();

@@ -1,6 +1,6 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
-import axios from 'axios';
 import { configureSlice } from '@/lib/utils';
+import { createAuthenticatedAxios } from '@/lib/createAuthenticatedAxios';
 import { getApiErrorMessage } from '@/lib/apiResult';
 import type {
   Customer,
@@ -15,14 +15,6 @@ import type {
   CustomerLoyaltyRequest,
 } from '@/types/customer';
 import type { RootState } from '@/store';
-
-const createAuthenticatedRequest = () => {
-  return axios.create({
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
-};
 
 interface ApiResponse<T> {
   success: boolean;
@@ -81,11 +73,11 @@ export const fetchCustomers = createAsyncThunk<
   ApiResponse<PaginatedCustomerResponse>,
   { pageNumber?: number; pageSize?: number },
   { rejectValue: string; state: RootState }
->('customer/fetchAll', async ({ pageNumber = 1, pageSize = 10 }, { rejectWithValue, getState }) => {
+>('customer/fetchAll', async ({ pageNumber = 1, pageSize = 10 }, { rejectWithValue }) => {
   try {
-    const api = createAuthenticatedRequest();
+    const api = createAuthenticatedAxios();
     const response = await api.get<ApiResponse<PaginatedCustomerResponse>>(
-      `/proxy/customers?pageNumber=${pageNumber}&pageSize=${pageSize}`
+      `/proxy/customers?pageNumber=${pageNumber}&pageSize=${pageSize}&sortDirection=desc`
     );
     return response.data;
   } catch (error: unknown) {
@@ -96,9 +88,9 @@ export const fetchCustomers = createAsyncThunk<
 
 export const fetchCustomerById = createAsyncThunk<ApiResponse<Customer>, number, { rejectValue: string; state: RootState }>(
   'customer/fetchById',
-  async (id, { rejectWithValue, getState }) => {
+  async (id, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
       const response = await api.get<ApiResponse<Customer>>(`/proxy/customers/${id}`);
       return response.data;
     } catch (error: unknown) {
@@ -110,9 +102,9 @@ export const fetchCustomerById = createAsyncThunk<ApiResponse<Customer>, number,
 
 export const fetchCustomerByCode = createAsyncThunk<ApiResponse<Customer>, string, { rejectValue: string; state: RootState }>(
   'customer/fetchByCode',
-  async (code, { rejectWithValue, getState }) => {
+  async (code, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
       const response = await api.get<ApiResponse<Customer>>(`/proxy/customers/code/${code}`);
       return response.data;
     } catch (error: unknown) {
@@ -124,9 +116,9 @@ export const fetchCustomerByCode = createAsyncThunk<ApiResponse<Customer>, strin
 
 export const fetchActiveCustomers = createAsyncThunk<ApiResponse<Customer[]>, void, { rejectValue: string; state: RootState }>(
   'customer/fetchActive',
-  async (_, { rejectWithValue, getState }) => {
+  async (_, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
       const response = await api.get<ApiResponse<Customer[]>>('/proxy/customers/active');
       return response.data;
     } catch (error: unknown) {
@@ -138,9 +130,9 @@ export const fetchActiveCustomers = createAsyncThunk<ApiResponse<Customer[]>, vo
 
 export const fetchWalkingCustomer = createAsyncThunk<ApiResponse<Customer>, void, { rejectValue: string; state: RootState }>(
   'customer/fetchWalking',
-  async (_, { rejectWithValue, getState }) => {
+  async (_, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
       const response = await api.get<ApiResponse<Customer>>('/proxy/customers/walking');
       return response.data;
     } catch (error: unknown) {
@@ -152,9 +144,9 @@ export const fetchWalkingCustomer = createAsyncThunk<ApiResponse<Customer>, void
 
 export const fetchCustomerTypes = createAsyncThunk<ApiResponse<CustomerType[]>, void, { rejectValue: string; state: RootState }>(
   'customer/fetchTypes',
-  async (_, { rejectWithValue, getState }) => {
+  async (_, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
       const response = await api.get<ApiResponse<CustomerType[]>>('/proxy/customers/types');
       return response.data;
     } catch (error: unknown) {
@@ -168,9 +160,9 @@ export const createCustomerType = createAsyncThunk<
   ApiResponse<CustomerType>,
   CreateCustomerTypeRequest,
   { rejectValue: string; state: RootState }
->('customer/createType', async (payload, { rejectWithValue, getState }) => {
+>('customer/createType', async (payload, { rejectWithValue }) => {
   try {
-    const api = createAuthenticatedRequest();
+    const api = createAuthenticatedAxios();
     const response = await api.post<ApiResponse<CustomerType>>('/proxy/customers/types', payload);
     const failMsg = getApiErrorMessage(response.data);
     if (failMsg) return rejectWithValue(failMsg);
@@ -185,9 +177,9 @@ export const updateCustomerType = createAsyncThunk<
   ApiResponse<CustomerType>,
   UpdateCustomerTypeRequest,
   { rejectValue: string; state: RootState }
->('customer/updateType', async (payload, { rejectWithValue, getState }) => {
+>('customer/updateType', async (payload, { rejectWithValue }) => {
   try {
-    const api = createAuthenticatedRequest();
+    const api = createAuthenticatedAxios();
     const response = await api.post<ApiResponse<CustomerType>>(
       `/proxy/customers/types/${payload.customerTypeId}`,
       payload
@@ -205,9 +197,9 @@ export const deleteCustomerType = createAsyncThunk<
   { id: number; message: string },
   number,
   { rejectValue: string; state: RootState }
->('customer/deleteType', async (id, { rejectWithValue, getState }) => {
+>('customer/deleteType', async (id, { rejectWithValue }) => {
   try {
-    const api = createAuthenticatedRequest();
+    const api = createAuthenticatedAxios();
     const response = await api.post<ApiResponse<unknown>>(`/proxy/customers/types/${id}`, { customerTypeId: id });
     const failMsg = getApiErrorMessage(response.data);
     if (failMsg) return rejectWithValue(failMsg);
@@ -220,9 +212,9 @@ export const deleteCustomerType = createAsyncThunk<
 
 export const fetchCustomersDropdown = createAsyncThunk<ApiResponse<CustomerDropdown[]>, void, { rejectValue: string; state: RootState }>(
   'customer/fetchDropdown',
-  async (_, { rejectWithValue, getState }) => {
+  async (_, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
       const response = await api.get<ApiResponse<CustomerDropdown[]>>('/proxy/customers/dropdown');
       return response.data;
     } catch (error: unknown) {
@@ -234,9 +226,9 @@ export const fetchCustomersDropdown = createAsyncThunk<ApiResponse<CustomerDropd
 
 export const fetchCustomerBalance = createAsyncThunk<ApiResponse<number>, number, { rejectValue: string; state: RootState }>(
   'customer/fetchBalance',
-  async (customerId, { rejectWithValue, getState }) => {
+  async (customerId, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
       const response = await api.get<ApiResponse<number>>(`/proxy/customers/${customerId}/balance`);
       return response.data;
     } catch (error: unknown) {
@@ -250,9 +242,9 @@ export const fetchCustomerLedger = createAsyncThunk<
   ApiResponse<CustomerLedgerEntry[]>,
   { customerId: number; fromDate: string; toDate: string },
   { rejectValue: string; state: RootState }
->('customer/fetchLedger', async ({ customerId, fromDate, toDate }, { rejectWithValue, getState }) => {
+>('customer/fetchLedger', async ({ customerId, fromDate, toDate }, { rejectWithValue }) => {
   try {
-    const api = createAuthenticatedRequest();
+    const api = createAuthenticatedAxios();
     const response = await api.get<ApiResponse<CustomerLedgerEntry[]>>(
       `/proxy/customers/${customerId}/ledger?fromDate=${fromDate}&toDate=${toDate}`
     );
@@ -265,9 +257,9 @@ export const fetchCustomerLedger = createAsyncThunk<
 
 export const fetchCustomerLoyalty = createAsyncThunk<ApiResponse<number>, number, { rejectValue: string; state: RootState }>(
   'customer/fetchLoyalty',
-  async (customerId, { rejectWithValue, getState }) => {
+  async (customerId, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
       const response = await api.get<ApiResponse<number>>(`/proxy/customers/${customerId}/loyalty`);
       return response.data;
     } catch (error: unknown) {
@@ -281,9 +273,9 @@ export const addCustomerLoyalty = createAsyncThunk<
   ApiResponse<boolean>,
   { customerId: number; payload: CustomerLoyaltyRequest },
   { rejectValue: string; state: RootState }
->('customer/addLoyalty', async ({ customerId, payload }, { rejectWithValue, getState }) => {
+>('customer/addLoyalty', async ({ customerId, payload }, { rejectWithValue }) => {
   try {
-    const api = createAuthenticatedRequest();
+    const api = createAuthenticatedAxios();
     const response = await api.post<ApiResponse<boolean>>(`/proxy/customers/${customerId}/loyalty/add`, payload);
     const failMsg = getApiErrorMessage(response.data);
     if (failMsg) return rejectWithValue(failMsg);
@@ -298,9 +290,9 @@ export const redeemCustomerLoyalty = createAsyncThunk<
   ApiResponse<boolean>,
   { customerId: number; payload: CustomerLoyaltyRequest },
   { rejectValue: string; state: RootState }
->('customer/redeemLoyalty', async ({ customerId, payload }, { rejectWithValue, getState }) => {
+>('customer/redeemLoyalty', async ({ customerId, payload }, { rejectWithValue }) => {
   try {
-    const api = createAuthenticatedRequest();
+    const api = createAuthenticatedAxios();
     const response = await api.post<ApiResponse<boolean>>(`/proxy/customers/${customerId}/loyalty/redeem`, payload);
     const failMsg = getApiErrorMessage(response.data);
     if (failMsg) return rejectWithValue(failMsg);
@@ -313,9 +305,9 @@ export const redeemCustomerLoyalty = createAsyncThunk<
 
 export const createCustomer = createAsyncThunk<ApiResponse<Customer>, CreateCustomerRequest, { rejectValue: string; state: RootState }>(
   'customer/create',
-  async (customerData, { rejectWithValue, getState }) => {
+  async (customerData, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
       const response = await api.post<ApiResponse<Customer>>('/proxy/customers', customerData);
       const failMsg = getApiErrorMessage(response.data);
       if (failMsg) return rejectWithValue(failMsg);
@@ -329,9 +321,9 @@ export const createCustomer = createAsyncThunk<ApiResponse<Customer>, CreateCust
 
 export const updateCustomer = createAsyncThunk<ApiResponse<Customer>, UpdateCustomerRequest, { rejectValue: string; state: RootState }>(
   'customer/update',
-  async (customerData, { rejectWithValue, getState }) => {
+  async (customerData, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
       const response = await api.post<ApiResponse<Customer>>(
         `/proxy/customers/update/${customerData.customerId}`,
         customerData
@@ -348,9 +340,9 @@ export const updateCustomer = createAsyncThunk<ApiResponse<Customer>, UpdateCust
 
 export const deleteCustomer = createAsyncThunk<{ id: number; message: string }, number, { rejectValue: string; state: RootState }>(
   'customer/delete',
-  async (id, { rejectWithValue, getState }) => {
+  async (id, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
       const response = await api.post<ApiResponse<unknown>>(`/proxy/customers/delete/${id}`, { id });
       const failMsg = getApiErrorMessage(response.data);
       if (failMsg) return rejectWithValue(failMsg);

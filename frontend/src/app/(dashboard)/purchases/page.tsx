@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PageHeader, DataTable, StatusBadge } from "@/components/ui";
 import type { Column } from "@/components/ui/DataTable";
@@ -93,8 +93,10 @@ const columns: Column<Purchase>[] = [
 
 export default function PurchasesPage() {
   const router = useRouter();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const { data, isLoading } = useGetPurchasesQuery(
-    { pageNumber: 1, pageSize: 100 },
+    { pageNumber: page, pageSize, sortDirection: "desc" },
     { refetchOnMountOrArgChange: true }
   );
   const purchases = data?.data?.data ?? [];
@@ -116,6 +118,13 @@ export default function PurchasesPage() {
         rowKey="purchaseId"
         title="All Purchases"
         totalCount={totalCount}
+        pageNumber={page}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={(s) => {
+          setPageSize(s);
+          setPage(1);
+        }}
         onSearch={(term) => console.log("Search:", term)}
         onAdd={() => router.push("/purchases/new")}
         addLabel="Add Purchase"

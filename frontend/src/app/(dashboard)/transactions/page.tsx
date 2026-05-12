@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { PageHeader, DataTable, StatusBadge } from "@/components/ui";
 import type { Column } from "@/components/ui/DataTable";
 import type { Transaction } from "@/types";
@@ -51,7 +51,13 @@ const columns: Column<Transaction>[] = [
 ];
 
 export default function TransactionsPage() {
-  const { data, isLoading } = useGetTransactionsQuery({ pageNumber: 1, pageSize: 10 });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const { data, isLoading } = useGetTransactionsQuery({
+    pageNumber: page,
+    pageSize,
+    sortDirection: "desc",
+  });
   const transactions = data?.data.data || [];
   const totalCount = data?.data.totalRecords || 0;
 
@@ -71,6 +77,13 @@ export default function TransactionsPage() {
         rowKey="transactionId"
         title="All Transactions"
         totalCount={totalCount}
+        pageNumber={page}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={(s) => {
+          setPageSize(s);
+          setPage(1);
+        }}
         onSearch={(term) => console.log("Search:", term)}
         onAdd={() => {}}
         addLabel="Add Transaction"

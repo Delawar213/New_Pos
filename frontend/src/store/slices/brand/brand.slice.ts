@@ -1,7 +1,7 @@
 // store/slices/brand/brand.slice.ts
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
-import axios from 'axios';
 import { configureSlice } from '@/lib/utils';
+import { createAuthenticatedAxios } from '@/lib/createAuthenticatedAxios';
 import { getApiErrorMessage } from '@/lib/apiResult';
 import type { 
   Brand, 
@@ -11,18 +11,6 @@ import type {
   PaginatedBrandResponse
 } from '@/types/brand';
 import type { RootState } from '@/store';
-
-// ============================================
-// Helper Functions
-// ============================================
-
-const createAuthenticatedRequest = () => {
-  return axios.create({
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
-};
 
 // ============================================
 // TypeScript Interfaces
@@ -82,11 +70,11 @@ export const fetchBrands = createAsyncThunk<
   { rejectValue: string; state: RootState }
 >(
   'brand/fetchAll',
-  async ({ pageNumber = 1, pageSize = 10 }, { rejectWithValue, getState }) => {
+  async ({ pageNumber = 1, pageSize = 10 }, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
       const response = await api.get<ApiResponse<PaginatedBrandResponse>>(
-        `/proxy/brands?pageNumber=${pageNumber}&pageSize=${pageSize}`
+        `/proxy/brands?pageNumber=${pageNumber}&pageSize=${pageSize}&sortDirection=desc`
       );
       return response.data;
     } catch (error: unknown) {
@@ -103,9 +91,9 @@ export const fetchBrandById = createAsyncThunk<
   { rejectValue: string; state: RootState }
 >(
   'brand/fetchById',
-  async (id, { rejectWithValue, getState }) => {
+  async (id, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
       const response = await api.get<ApiResponse<Brand>>(`/proxy/brands/${id}`);
       return response.data;
     } catch (error: unknown) {
@@ -122,9 +110,9 @@ export const fetchActiveBrands = createAsyncThunk<
   { rejectValue: string; state: RootState }
 >(
   'brand/fetchActive',
-  async (_, { rejectWithValue, getState }) => {
+  async (_, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
       const response = await api.get<ApiResponse<Brand[]>>('/proxy/brands/active');
       return response.data;
     } catch (error: unknown) {
@@ -141,9 +129,9 @@ export const fetchBrandsDropdown = createAsyncThunk<
   { rejectValue: string; state: RootState }
 >(
   'brand/fetchDropdown',
-  async (_, { rejectWithValue, getState }) => {
+  async (_, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
       const response = await api.get<ApiResponse<BrandDropdown[]>>('/proxy/brands/dropdown');
       return response.data;
     } catch (error: unknown) {
@@ -160,9 +148,9 @@ export const createBrand = createAsyncThunk<
   { rejectValue: string; state: RootState }
 >(
   'brand/create',
-  async (brandData, { rejectWithValue, getState }) => {
+  async (brandData, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
       const response = await api.post<ApiResponse<Brand>>('/proxy/brands', brandData);
       const failMsg = getApiErrorMessage(response.data);
       if (failMsg) return rejectWithValue(failMsg);
@@ -181,9 +169,9 @@ export const updateBrand = createAsyncThunk<
   { rejectValue: string; state: RootState }
 >(
   'brand/update',
-  async (brandData, { rejectWithValue, getState }) => {
+  async (brandData, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
       const response = await api.post<ApiResponse<Brand>>(
         `/proxy/brands/update/${brandData.brandId}`,
         brandData
@@ -205,9 +193,9 @@ export const deleteBrand = createAsyncThunk<
   { rejectValue: string; state: RootState }
 >(
   'brand/delete',
-  async (id, { rejectWithValue, getState }) => {
+  async (id, { rejectWithValue }) => {
     try {
-      const api = createAuthenticatedRequest();
+      const api = createAuthenticatedAxios();
       const response = await api.post<ApiResponse<unknown>>(`/proxy/brands/delete/${id}`, { id });
       const failMsg = getApiErrorMessage(response.data);
       if (failMsg) return rejectWithValue(failMsg);
