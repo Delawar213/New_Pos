@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { AlertTriangle } from "lucide-react";
 import { PageHeader, DataTable, StatusBadge, Modal } from "@/components/ui";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -14,6 +14,8 @@ import {
 import { addToast } from "@/store/slices/ui/ui.slice";
 import type { Column } from "@/components/ui/DataTable";
 import type { Category, CreateCategoryRequest, UpdateCategoryRequest } from "@/types/category";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { buildPagedFetchArgs } from "@/lib/buildPagedFetchArgs";
 
 export default function CategoriesPage() {
   const dispatch = useAppDispatch();
@@ -42,10 +44,23 @@ export default function CategoriesPage() {
     isActive: true,
   });
 
-  // Fetch categories on component mount
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebouncedValue(searchInput, 400);
+  const searchPrevRef = useRef<string | null>(null);
+
   useEffect(() => {
-    dispatch(fetchCategories({ pageNumber: 1, pageSize: 10 }));
-  }, [dispatch]);
+    dispatch(fetchCategories(buildPagedFetchArgs(currentPage, pageSize, debouncedSearch, searchPrevRef)));
+  }, [dispatch, debouncedSearch, currentPage, pageSize]);
+
+  const refreshList = () =>
+    dispatch(
+      fetchCategories({
+        pageNumber: currentPage,
+        pageSize,
+        searchTerm: debouncedSearch.trim() || undefined,
+        sortDirection: "desc",
+      })
+    );
 
   // Show toast notifications
   useEffect(() => {
@@ -96,7 +111,7 @@ export default function CategoriesPage() {
       if (updateCategory.fulfilled.match(result)) {
         setModalOpen(false);
         resetForm();
-        dispatch(fetchCategories({ pageNumber: currentPage, pageSize }));
+        void refreshList();
       }
     } else {
       // Create new category
@@ -105,7 +120,7 @@ export default function CategoriesPage() {
       if (createCategory.fulfilled.match(result)) {
         setModalOpen(false);
         resetForm();
-        dispatch(fetchCategories({ pageNumber: currentPage, pageSize }));
+        void refreshList();
       }
     }
   };
@@ -136,7 +151,7 @@ export default function CategoriesPage() {
     if (deleteCategory.fulfilled.match(result)) {
       setDeleteConfirmOpen(false);
       setCategoryToDelete(null);
-      dispatch(fetchCategories({ pageNumber: currentPage, pageSize }));
+      void refreshList();
     }
   };
 
@@ -222,9 +237,29 @@ export default function CategoriesPage() {
         totalCount={totalCount}
         pageNumber={currentPage}
         pageSize={pageSize}
-        onPageChange={(p) => dispatch(fetchCategories({ pageNumber: p, pageSize }))}
-        onPageSizeChange={(s) => dispatch(fetchCategories({ pageNumber: 1, pageSize: s }))}
-        onSearch={(term) => console.log("Search:", term)}
+        onPageChange={(p) =>
+          dispatch(
+            fetchCategories({
+              pageNumber: p,
+              pageSize,
+              searchTerm: debouncedSearch.trim() || undefined,
+              sortDirection: "desc",
+            })
+          )
+        }
+        onPageSizeChange={(s) =>
+          dispatch(
+            fetchCategories({
+              pageNumber: 1,
+              pageSize: s,
+              searchTerm: debouncedSearch.trim() || undefined,
+              sortDirection: "desc",
+            })
+          )
+        }
+        searchQuery={searchInput}
+        onSearchChange={setSearchInput}
+        searchPlaceholder="Search categories…"
         onAdd={handleOpenCreate}
         addLabel="Add Category"
         loading={loading}

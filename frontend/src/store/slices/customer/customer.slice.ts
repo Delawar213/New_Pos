@@ -15,6 +15,8 @@ import type {
   CustomerLoyaltyRequest,
 } from '@/types/customer';
 import type { RootState } from '@/store';
+import type { PaginationParams } from '@/types/common';
+import { listQueryParams } from '@/lib/listQueryParams';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -71,13 +73,14 @@ const initialState: CustomerState = {
 
 export const fetchCustomers = createAsyncThunk<
   ApiResponse<PaginatedCustomerResponse>,
-  { pageNumber?: number; pageSize?: number },
+  PaginationParams | undefined,
   { rejectValue: string; state: RootState }
->('customer/fetchAll', async ({ pageNumber = 1, pageSize = 10 }, { rejectWithValue }) => {
+>('customer/fetchAll', async (params = {}, { rejectWithValue }) => {
   try {
     const api = createAuthenticatedAxios();
     const response = await api.get<ApiResponse<PaginatedCustomerResponse>>(
-      `/proxy/customers?pageNumber=${pageNumber}&pageSize=${pageSize}&sortDirection=desc`
+      `/proxy/customers`,
+      { params: listQueryParams(params) }
     );
     return response.data;
   } catch (error: unknown) {

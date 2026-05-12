@@ -1,12 +1,14 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { PageHeader, DataTable, StatusBadge } from "@/components/ui";
 import type { Column } from "@/components/ui/DataTable";
 import type { Sale } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchSales } from "@/store/slices/sale/sale.slice";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { buildPagedFetchArgs } from "@/lib/buildPagedFetchArgs";
 
 const columns: Column<Sale>[] = [
   { key: "invoiceNo", label: "Invoice" },
@@ -56,11 +58,14 @@ export default function SalesPage() {
   const dispatch = useAppDispatch();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebouncedValue(searchInput, 400);
+  const searchPrevRef = useRef<string | null>(null);
   const { sales, totalCount, loading, error } = useAppSelector((s) => s.sale);
 
   useEffect(() => {
-    void dispatch(fetchSales({ pageNumber: page, pageSize, sortDirection: "desc" }));
-  }, [dispatch, page, pageSize]);
+    void dispatch(fetchSales(buildPagedFetchArgs(page, pageSize, debouncedSearch, searchPrevRef)));
+  }, [dispatch, debouncedSearch, page, pageSize]);
 
   return (
     <div>
@@ -90,13 +95,22 @@ export default function SalesPage() {
           setPageSize(s);
           setPage(1);
         }}
-        onSearch={(term) => console.log("Search:", term)}
+        searchQuery={searchInput}
+        onSearchChange={setSearchInput}
+        searchPlaceholder="Search invoice, customer…"
         onAdd={() => {}}
         addLabel="New Sale"
         onFilter={() => {}}
         onExport={() => {}}
         onRefresh={() =>
-          void dispatch(fetchSales({ pageNumber: page, pageSize, sortDirection: "desc" }))
+          void dispatch(
+            fetchSales({
+              pageNumber: page,
+              pageSize,
+              sortDirection: "desc",
+              searchTerm: debouncedSearch.trim() || undefined,
+            })
+          )
         }
         loading={loading}
       />

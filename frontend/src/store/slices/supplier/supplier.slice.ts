@@ -11,6 +11,8 @@ import type {
   PaginatedSupplierResponse,
 } from '@/types/supplier';
 import type { RootState } from '@/store';
+import type { PaginationParams } from '@/types/common';
+import { listQueryParams } from '@/lib/listQueryParams';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -64,13 +66,14 @@ const initialState: SupplierState = {
 
 export const fetchSuppliers = createAsyncThunk<
   ApiResponse<PaginatedSupplierResponse>,
-  { pageNumber?: number; pageSize?: number },
+  PaginationParams | undefined,
   { rejectValue: string; state: RootState }
->('supplier/fetchAll', async ({ pageNumber = 1, pageSize = 10 }, { rejectWithValue }) => {
+>('supplier/fetchAll', async (params = {}, { rejectWithValue }) => {
     try {
       const api = createAuthenticatedAxios();
     const response = await api.get<ApiResponse<PaginatedSupplierResponse>>(
-      `/proxy/suppliers?pageNumber=${pageNumber}&pageSize=${pageSize}&sortDirection=desc`
+      `/proxy/suppliers`,
+      { params: listQueryParams(params) }
     );
     return response.data;
   } catch (error: unknown) {

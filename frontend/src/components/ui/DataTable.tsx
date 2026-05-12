@@ -4,7 +4,7 @@
 // Data Table Component - Modern Design
 // ============================================
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { sortRowsNewestFirst } from "@/lib/sortRowsNewestFirst";
 import { 
   ChevronLeft, 
@@ -33,6 +33,11 @@ interface DataTableProps<T> {
   title?: string;
   description?: string;
   searchPlaceholder?: string;
+  /** Controlled search text (use with `onSearchChange`). */
+  searchQuery?: string;
+  /** Updates search text as the user types. */
+  onSearchChange?: (term: string) => void;
+  /** @deprecated Prefer `searchQuery` + `onSearchChange` for controlled search. */
   onSearch?: (term: string) => void;
   onAdd?: () => void;
   addLabel?: string;
@@ -61,6 +66,8 @@ export default function DataTable<T>({
   title,
   description,
   searchPlaceholder = "Search...",
+  searchQuery,
+  onSearchChange,
   onSearch,
   onAdd,
   addLabel = "Add New",
@@ -78,6 +85,11 @@ export default function DataTable<T>({
   showSerialNo = true,
   sortNewestFirst = true,
 }: DataTableProps<T>) {
+  const [uncontrolledSearch, setUncontrolledSearch] = useState("");
+  const searchHandler = onSearchChange ?? onSearch;
+  const isSearchControlled = searchQuery !== undefined;
+  const searchInputValue = isSearchControlled ? searchQuery : uncontrolledSearch;
+
   const displayData = useMemo(() => {
     if (!sortNewestFirst) return data;
     return sortRowsNewestFirst(data);
@@ -109,13 +121,20 @@ export default function DataTable<T>({
           
           <div className="flex flex-wrap items-center gap-2">
             {/* Search */}
-            {onSearch && (
+            {searchHandler && (
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
-                  type="text"
+                  type="search"
+                  value={searchInputValue}
                   placeholder={searchPlaceholder}
-                  onChange={(e) => onSearch(e.target.value)}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (!isSearchControlled) setUncontrolledSearch(v);
+                    searchHandler(v);
+                  }}
+                  autoComplete="off"
+                  spellCheck={false}
                   className="h-10 w-48 rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 placeholder:text-slate-400"
                 />
               </div>

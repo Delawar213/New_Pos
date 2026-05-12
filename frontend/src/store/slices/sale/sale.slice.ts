@@ -6,6 +6,7 @@ import { getApiErrorMessage } from "@/lib/apiResult";
 import type { ApiResponse, PaginationParams, PaginatedResponse } from "@/types/common";
 import type { CreateSaleRequest, Sale, UpdateSaleRequest } from "@/types/sale";
 import type { RootState } from "@/store";
+import { listQueryParams } from "@/lib/listQueryParams";
 
 function extractSalesPage(raw: unknown): PaginatedResponse<Sale> | null {
   if (raw == null || typeof raw !== "object") return null;
@@ -68,16 +69,10 @@ export const fetchSales = createAsyncThunk<
 >("sale/fetchList", async (params = {}, { rejectWithValue }) => {
   try {
     const api = createAuthenticatedAxios();
-    const pageNumber = params.pageNumber ?? 1;
-    const pageSize = params.pageSize ?? 10;
     const response = await api.get<unknown>("/proxy/sales", {
       params: {
-        pageNumber,
-        pageSize,
-        sortDirection: params.sortDirection,
-        searchTerm: params.searchTerm,
-        sortBy: params.sortBy,
-        status: params.status,
+        ...listQueryParams(params),
+        ...(params.status ? { status: params.status } : {}),
       },
     });
     const body = response.data as { success?: boolean; message?: string; errors?: string[] | null };

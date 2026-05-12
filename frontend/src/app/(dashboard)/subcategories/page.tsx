@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { PageHeader, DataTable, StatusBadge, Modal } from "@/components/ui";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -19,6 +19,8 @@ import type {
   SubCategory,
   UpdateSubCategoryRequest,
 } from "@/types/subcategory";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { filterRowsBySearch } from "@/lib/filterRowsBySearch";
 
 export default function SubCategoriesPage() {
   const dispatch = useAppDispatch();
@@ -38,6 +40,17 @@ export default function SubCategoriesPage() {
     subCategoryName: "",
     isActive: true,
   });
+
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebouncedValue(searchInput, 250);
+  const filteredSubCategories = useMemo(
+    () =>
+      filterRowsBySearch(subCategories, debouncedSearch, (r) => [
+        r.subCategoryName,
+        r.categoryName ?? "",
+      ]),
+    [subCategories, debouncedSearch]
+  );
 
   useEffect(() => {
     dispatch(fetchCategories({ pageNumber: 1, pageSize: 200 }));
@@ -205,11 +218,13 @@ export default function SubCategoriesPage() {
 
       <DataTable
         columns={columns}
-        data={subCategories}
+        data={filteredSubCategories}
         rowKey="subCategoryId"
         title="All Subcategories"
-        totalCount={subCategories.length}
-        onSearch={(term) => console.log("Search:", term)}
+        totalCount={filteredSubCategories.length}
+        searchQuery={searchInput}
+        onSearchChange={setSearchInput}
+        searchPlaceholder="Search subcategories…"
         onAdd={() => setModalOpen(true)}
         addLabel="Add Subcategory"
         loading={loading}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { AlertTriangle } from "lucide-react";
 import { PageHeader, DataTable, StatusBadge, Modal } from "@/components/ui";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -14,6 +14,8 @@ import {
 import { addToast } from "@/store/slices/ui/ui.slice";
 import type { Column } from "@/components/ui/DataTable";
 import type { Employee, CreateEmployeeRequest, UpdateEmployeeRequest } from "@/types";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { buildPagedFetchArgs } from "@/lib/buildPagedFetchArgs";
 
 export default function EmployeesPage() {
   const dispatch = useAppDispatch();
@@ -40,9 +42,23 @@ export default function EmployeesPage() {
     createdBy: "1",
   });
 
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebouncedValue(searchInput, 400);
+  const searchPrevRef = useRef<string | null>(null);
+
   useEffect(() => {
-    dispatch(fetchEmployees({ pageNumber: 1, pageSize: 10 }));
-  }, [dispatch]);
+    dispatch(fetchEmployees(buildPagedFetchArgs(currentPage, pageSize, debouncedSearch, searchPrevRef)));
+  }, [dispatch, debouncedSearch, currentPage, pageSize]);
+
+  const refreshList = () =>
+    dispatch(
+      fetchEmployees({
+        pageNumber: currentPage,
+        pageSize,
+        searchTerm: debouncedSearch.trim() || undefined,
+        sortDirection: "desc",
+      })
+    );
 
   useEffect(() => {
     if (success && message) {
@@ -101,7 +117,7 @@ export default function EmployeesPage() {
       if (updateEmployee.fulfilled.match(result)) {
         setModalOpen(false);
         resetForm();
-        dispatch(fetchEmployees({ pageNumber: currentPage, pageSize }));
+        void refreshList();
       }
       return;
     }
@@ -115,7 +131,7 @@ export default function EmployeesPage() {
     if (createEmployee.fulfilled.match(result)) {
       setModalOpen(false);
       resetForm();
-      dispatch(fetchEmployees({ pageNumber: currentPage, pageSize }));
+      void refreshList();
     }
   };
 
@@ -145,7 +161,7 @@ export default function EmployeesPage() {
     if (deleteEmployee.fulfilled.match(result)) {
       setDeleteConfirmOpen(false);
       setEmployeeToDelete(null);
-      dispatch(fetchEmployees({ pageNumber: currentPage, pageSize }));
+      void refreshList();
     }
   };
 
@@ -203,9 +219,29 @@ export default function EmployeesPage() {
         totalCount={totalCount}
         pageNumber={currentPage}
         pageSize={pageSize}
-        onPageChange={(p) => dispatch(fetchEmployees({ pageNumber: p, pageSize }))}
-        onPageSizeChange={(s) => dispatch(fetchEmployees({ pageNumber: 1, pageSize: s }))}
-        onSearch={(term) => console.log("Search:", term)}
+        onPageChange={(p) =>
+          dispatch(
+            fetchEmployees({
+              pageNumber: p,
+              pageSize,
+              searchTerm: debouncedSearch.trim() || undefined,
+              sortDirection: "desc",
+            })
+          )
+        }
+        onPageSizeChange={(s) =>
+          dispatch(
+            fetchEmployees({
+              pageNumber: 1,
+              pageSize: s,
+              searchTerm: debouncedSearch.trim() || undefined,
+              sortDirection: "desc",
+            })
+          )
+        }
+        searchQuery={searchInput}
+        onSearchChange={setSearchInput}
+        searchPlaceholder="Search employees…"
         onAdd={() => {
           resetForm();
           setModalOpen(true);

@@ -18,6 +18,8 @@ import { PageHeader, DataTable, StatusBadge, Modal } from "@/components/ui";
 import type { Column } from "@/components/ui/DataTable";
 import type { Product, CreateProductRequest, UpdateProductRequest } from "@/types";
 import { formatCurrency, formatNumber, cn } from "@/lib/utils";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { buildPagedFetchArgs } from "@/lib/buildPagedFetchArgs";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   fetchProducts,
@@ -82,6 +84,9 @@ export default function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [form, setForm] = useState<CreateProductRequest>(emptyForm());
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebouncedValue(searchInput, 400);
+  const searchPrevRef = useRef<string | null>(null);
 
   const commitBarcodeValue = useCallback((value: string) => {
     setForm((f) => ({ ...f, barcode: value }));
@@ -179,11 +184,24 @@ export default function ProductsPage() {
   }, [modalOpen, commitBarcodeValue]);
 
   useEffect(() => {
-    dispatch(fetchProducts({ pageNumber: 1, pageSize: 10 }));
     dispatch(fetchCategories({ pageNumber: 1, pageSize: 200 }));
     dispatch(fetchBrands({ pageNumber: 1, pageSize: 200 }));
     dispatch(fetchSubCategories());
   }, [dispatch]);
+
+  useEffect(() => {
+    dispatch(fetchProducts(buildPagedFetchArgs(currentPage, pageSize, debouncedSearch, searchPrevRef)));
+  }, [dispatch, debouncedSearch, currentPage, pageSize]);
+
+  const refreshProductList = () =>
+    dispatch(
+      fetchProducts({
+        pageNumber: currentPage,
+        pageSize,
+        searchTerm: debouncedSearch.trim() || undefined,
+        sortDirection: "desc",
+      })
+    );
 
   useEffect(() => {
     if (success && message) {
@@ -310,7 +328,7 @@ export default function ProductsPage() {
       const result = await dispatch(updateProduct(payload));
       if (updateProduct.fulfilled.match(result)) {
         resetModal();
-        dispatch(fetchProducts({ pageNumber: currentPage, pageSize }));
+        void refreshProductList();
       }
       return;
     }
@@ -318,7 +336,7 @@ export default function ProductsPage() {
     const result = await dispatch(createProduct(payloadBase));
     if (createProduct.fulfilled.match(result)) {
       resetModal();
-      dispatch(fetchProducts({ pageNumber: currentPage, pageSize }));
+      void refreshProductList();
     }
   };
 
@@ -327,7 +345,7 @@ export default function ProductsPage() {
     const result = await dispatch(deleteProduct(deleteTarget.productId));
     if (deleteProduct.fulfilled.match(result)) {
       setDeleteTarget(null);
-      dispatch(fetchProducts({ pageNumber: currentPage, pageSize }));
+      void refreshProductList();
     }
   };
 
@@ -485,14 +503,34 @@ export default function ProductsPage() {
         totalCount={totalCount}
         pageNumber={currentPage}
         pageSize={pageSize}
-        onPageChange={(p) => dispatch(fetchProducts({ pageNumber: p, pageSize }))}
-        onPageSizeChange={(s) => dispatch(fetchProducts({ pageNumber: 1, pageSize: s }))}
-        onSearch={(term) => console.log("Search:", term)}
+        onPageChange={(p) =>
+          dispatch(
+            fetchProducts({
+              pageNumber: p,
+              pageSize,
+              searchTerm: debouncedSearch.trim() || undefined,
+              sortDirection: "desc",
+            })
+          )
+        }
+        onPageSizeChange={(s) =>
+          dispatch(
+            fetchProducts({
+              pageNumber: 1,
+              pageSize: s,
+              searchTerm: debouncedSearch.trim() || undefined,
+              sortDirection: "desc",
+            })
+          )
+        }
+        searchQuery={searchInput}
+        onSearchChange={setSearchInput}
+        searchPlaceholder="Search products, codes, barcodes…"
         onAdd={openCreateModal}
         addLabel="Add Product"
         onExport={() => {}}
         onFilter={() => {}}
-        onRefresh={() => dispatch(fetchProducts({ pageNumber: currentPage, pageSize }))}
+        onRefresh={() => void refreshProductList()}
         loading={loading}
       />
 

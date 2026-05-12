@@ -9,6 +9,8 @@ import type {
   PaginatedEmployeeResponse,
 } from '@/types/employee';
 import type { RootState } from '@/store';
+import type { PaginationParams } from '@/types/common';
+import { listQueryParams } from '@/lib/listQueryParams';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -51,13 +53,14 @@ const initialState: EmployeeState = {
 
 export const fetchEmployees = createAsyncThunk<
   ApiResponse<PaginatedEmployeeResponse>,
-  { pageNumber?: number; pageSize?: number },
+  PaginationParams | undefined,
   { rejectValue: string; state: RootState }
->('employee/fetchAll', async ({ pageNumber = 1, pageSize = 10 }, { rejectWithValue }) => {
+>('employee/fetchAll', async (params = {}, { rejectWithValue }) => {
   try {
     const api = createAuthenticatedAxios();
     const response = await api.get<ApiResponse<PaginatedEmployeeResponse>>(
-      `/proxy/employees?pageNumber=${pageNumber}&pageSize=${pageSize}&sortDirection=desc`
+      `/proxy/employees`,
+      { params: listQueryParams(params) }
     );
     return response.data;
   } catch (error: unknown) {

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { DataTable, Modal, PageHeader, StatusBadge } from "@/components/ui";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
@@ -11,6 +11,8 @@ import {
 import { addToast } from "@/store/slices/ui/ui.slice";
 import type { Column } from "@/components/ui/DataTable";
 import type { CreateCustomerTypeRequest, CustomerType } from "@/types/customer";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { filterRowsBySearch } from "@/lib/filterRowsBySearch";
 
 export default function CustomerTypesPage() {
   const dispatch = useAppDispatch();
@@ -24,6 +26,17 @@ export default function CustomerTypesPage() {
     description: "",
     isActive: true,
   });
+
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebouncedValue(searchInput, 250);
+  const filteredTypes = useMemo(
+    () =>
+      filterRowsBySearch(customerTypes, debouncedSearch, (r) => [
+        r.typeName,
+        r.description ?? "",
+      ]),
+    [customerTypes, debouncedSearch]
+  );
 
   useEffect(() => {
     dispatch(fetchCustomerTypes());
@@ -104,11 +117,13 @@ export default function CustomerTypesPage() {
 
       <DataTable
         columns={columns}
-        data={customerTypes}
+        data={filteredTypes}
         rowKey="customerTypeId"
         title="All Customer Types"
-        totalCount={customerTypes.length}
-        onSearch={(term) => console.log("Search:", term)}
+        totalCount={filteredTypes.length}
+        searchQuery={searchInput}
+        onSearchChange={setSearchInput}
+        searchPlaceholder="Search customer types…"
         loading={loading}
       />
 

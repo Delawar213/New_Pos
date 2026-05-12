@@ -6,6 +6,8 @@ import { PageHeader, DataTable, StatusBadge, Modal, StatsCard } from "@/componen
 import type { Column } from "@/components/ui/DataTable";
 import type { BankAccount, CashAccount, CreateBankAccountRequest } from "@/types";
 import { cn, formatCurrency } from "@/lib/utils";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { filterRowsBySearch } from "@/lib/filterRowsBySearch";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { addToast } from "@/store/slices/ui/ui.slice";
 import {
@@ -67,6 +69,47 @@ export default function BankAccountsPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [accountToDelete, setAccountToDelete] = useState<BankAccount | null>(null);
   const [form, setForm] = useState<CreateBankAccountRequest>(emptyForm());
+
+  const [searchAll, setSearchAll] = useState("");
+  const [searchCash, setSearchCash] = useState("");
+  const [searchBank, setSearchBank] = useState("");
+  const debouncedAll = useDebouncedValue(searchAll, 250);
+  const debouncedCash = useDebouncedValue(searchCash, 250);
+  const debouncedBank = useDebouncedValue(searchBank, 250);
+
+  const filteredBankAccounts = useMemo(
+    () =>
+      filterRowsBySearch(bankAccounts, debouncedAll, (r) => [
+        r.accountName,
+        r.accountNumber,
+        r.accountType,
+        r.bankName ?? "",
+        r.sortCode ?? "",
+        r.branchName ?? "",
+      ]),
+    [bankAccounts, debouncedAll]
+  );
+  const filteredCashAccounts = useMemo(
+    () =>
+      filterRowsBySearch(cashAccounts, debouncedCash, (r) => [
+        r.accountName,
+        r.accountType,
+        String(r.currentBalance),
+      ]),
+    [cashAccounts, debouncedCash]
+  );
+  const filteredBankOnly = useMemo(
+    () =>
+      filterRowsBySearch(bankOnlyAccounts, debouncedBank, (r) => [
+        r.accountName,
+        r.accountNumber,
+        r.accountType,
+        r.bankName ?? "",
+        r.sortCode ?? "",
+        r.branchName ?? "",
+      ]),
+    [bankOnlyAccounts, debouncedBank]
+  );
 
   const combinedLiquidity = totalCashBalance + totalBankBalance;
   const leadAccountName = bankAccounts[0]?.accountName;
@@ -405,12 +448,14 @@ export default function BankAccountsPage() {
         </div>
         <DataTable
           columns={columns}
-          data={bankAccounts}
+          data={filteredBankAccounts}
           rowKey="bankAccountId"
           title="All accounts"
           description="Sortable grid of every registered account"
-          totalCount={bankAccounts.length}
-          onSearch={(term) => console.log("Search:", term)}
+          totalCount={filteredBankAccounts.length}
+          searchQuery={searchAll}
+          onSearchChange={setSearchAll}
+          searchPlaceholder="Filter by name, number, bank…"
           onAdd={openCreate}
           addLabel="New account"
           onRefresh={() => dispatch(loadBankAccountPage())}
@@ -461,23 +506,27 @@ export default function BankAccountsPage() {
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
           <DataTable
             columns={cashColumns}
-            data={cashAccounts}
+            data={filteredCashAccounts}
             rowKey="bankAccountId"
             title="Cash accounts"
             description="Drawers, tills, and cash-in-hand"
-            totalCount={cashAccounts.length}
-            onSearch={(term) => console.log("Cash Search:", term)}
+            totalCount={filteredCashAccounts.length}
+            searchQuery={searchCash}
+            onSearchChange={setSearchCash}
+            searchPlaceholder="Filter cash accounts…"
             onAdd={openCreate}
             addLabel="Add cash account"
           />
           <DataTable
             columns={cashColumns}
-            data={bankOnlyAccounts}
+            data={filteredBankOnly}
             rowKey="bankAccountId"
             title="Bank accounts"
             description="Institutional bank books only"
-            totalCount={bankOnlyAccounts.length}
-            onSearch={(term) => console.log("Bank Search:", term)}
+            totalCount={filteredBankOnly.length}
+            searchQuery={searchBank}
+            onSearchChange={setSearchBank}
+            searchPlaceholder="Filter bank accounts…"
             onAdd={openCreate}
             addLabel="Add bank account"
           />

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { PageHeader, DataTable, StatusBadge } from "@/components/ui";
 import type { Column } from "@/components/ui/DataTable";
@@ -8,6 +8,8 @@ import type { Purchase } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchPurchases } from "@/store/slices/purchases/purchases.slice";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { buildPagedFetchArgs } from "@/lib/buildPagedFetchArgs";
 
 function lineTotalFromDetails(item: Purchase): number | null {
   const details = item.purchaseDetails;
@@ -97,11 +99,14 @@ export default function PurchasesPage() {
   const dispatch = useAppDispatch();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebouncedValue(searchInput, 400);
+  const searchPrevRef = useRef<string | null>(null);
   const { purchases, totalCount, loading } = useAppSelector((s) => s.purchases);
 
   useEffect(() => {
-    void dispatch(fetchPurchases({ pageNumber: page, pageSize, sortDirection: "desc" }));
-  }, [dispatch, page, pageSize]);
+    void dispatch(fetchPurchases(buildPagedFetchArgs(page, pageSize, debouncedSearch, searchPrevRef)));
+  }, [dispatch, debouncedSearch, page, pageSize]);
 
   return (
     <div>
@@ -126,13 +131,22 @@ export default function PurchasesPage() {
           setPageSize(s);
           setPage(1);
         }}
-        onSearch={(term) => console.log("Search:", term)}
+        searchQuery={searchInput}
+        onSearchChange={setSearchInput}
+        searchPlaceholder="Search reference, supplier, invoice…"
         onAdd={() => router.push("/purchases/new")}
         addLabel="Add Purchase"
         onFilter={() => {}}
         onExport={() => {}}
         onRefresh={() =>
-          void dispatch(fetchPurchases({ pageNumber: page, pageSize, sortDirection: "desc" }))
+          void dispatch(
+            fetchPurchases({
+              pageNumber: page,
+              pageSize,
+              sortDirection: "desc",
+              searchTerm: debouncedSearch.trim() || undefined,
+            })
+          )
         }
         loading={loading}
       />

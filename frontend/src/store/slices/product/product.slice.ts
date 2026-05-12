@@ -5,6 +5,8 @@ import { createAuthenticatedAxios } from "@/lib/createAuthenticatedAxios";
 import { getApiErrorMessage } from "@/lib/apiResult";
 import type { CreateProductRequest, PaginatedProductResponse, Product, UpdateProductRequest } from "@/types/product";
 import type { RootState } from "@/store";
+import type { PaginationParams } from "@/types/common";
+import { listQueryParams } from "@/lib/listQueryParams";
 
 interface ApiResponse<T> {
   success: boolean;
@@ -54,13 +56,14 @@ const initialState: ProductState = {
 
 export const fetchProducts = createAsyncThunk<
   ApiResponse<PaginatedProductResponse>,
-  { pageNumber?: number; pageSize?: number },
+  PaginationParams | undefined,
   { rejectValue: string; state: RootState }
->("product/fetchAll", async ({ pageNumber = 1, pageSize = 10 }, { rejectWithValue }) => {
+>("product/fetchAll", async (params = {}, { rejectWithValue }) => {
   try {
     const api = createAuthenticatedAxios();
     const response = await api.get<ApiResponse<PaginatedProductResponse>>(
-      `/proxy/products?pageNumber=${pageNumber}&pageSize=${pageSize}&sortDirection=desc`
+      `/proxy/products`,
+      { params: listQueryParams(params) }
     );
     return response.data;
   } catch (error: unknown) {

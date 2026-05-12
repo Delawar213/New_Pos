@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { AlertTriangle } from "lucide-react";
 import { PageHeader, DataTable, StatusBadge, Modal } from "@/components/ui";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -16,6 +16,8 @@ import { addToast } from "@/store/slices/ui/ui.slice";
 import type { Column } from "@/components/ui/DataTable";
 import type { Customer, CreateCustomerRequest, UpdateCustomerRequest } from "@/types";
 import { formatCurrency } from "@/lib/utils";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { buildPagedFetchArgs } from "@/lib/buildPagedFetchArgs";
 
 function suggestNextCustomerCode(customers: Customer[]): string {
   let maxNum = 0;
@@ -51,10 +53,27 @@ export default function CustomersPage() {
     isActive: true,
   });
 
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebouncedValue(searchInput, 400);
+  const searchPrevRef = useRef<string | null>(null);
+
   useEffect(() => {
-    dispatch(fetchCustomers({ pageNumber: 1, pageSize: 10 }));
     dispatch(fetchCustomerTypes());
   }, [dispatch]);
+
+  useEffect(() => {
+    dispatch(fetchCustomers(buildPagedFetchArgs(currentPage, pageSize, debouncedSearch, searchPrevRef)));
+  }, [dispatch, debouncedSearch, currentPage, pageSize]);
+
+  const refreshList = () =>
+    dispatch(
+      fetchCustomers({
+        pageNumber: currentPage,
+        pageSize,
+        searchTerm: debouncedSearch.trim() || undefined,
+        sortDirection: "desc",
+      })
+    );
 
   useEffect(() => {
     if (success && message) {
@@ -97,7 +116,7 @@ export default function CustomersPage() {
       if (updateCustomer.fulfilled.match(result)) {
         setModalOpen(false);
         resetForm();
-        dispatch(fetchCustomers({ pageNumber: currentPage, pageSize }));
+        void refreshList();
       }
       return;
     }
@@ -106,7 +125,7 @@ export default function CustomersPage() {
     if (createCustomer.fulfilled.match(result)) {
       setModalOpen(false);
       resetForm();
-      dispatch(fetchCustomers({ pageNumber: currentPage, pageSize }));
+      void refreshList();
     }
   };
 
@@ -135,7 +154,7 @@ export default function CustomersPage() {
     if (deleteCustomer.fulfilled.match(result)) {
       setDeleteConfirmOpen(false);
       setCustomerToDelete(null);
-      dispatch(fetchCustomers({ pageNumber: currentPage, pageSize }));
+      void refreshList();
     }
   };
 
@@ -199,9 +218,29 @@ export default function CustomersPage() {
         totalCount={totalCount}
         pageNumber={currentPage}
         pageSize={pageSize}
-        onPageChange={(p) => dispatch(fetchCustomers({ pageNumber: p, pageSize }))}
-        onPageSizeChange={(s) => dispatch(fetchCustomers({ pageNumber: 1, pageSize: s }))}
-        onSearch={(term) => console.log("Search:", term)}
+        onPageChange={(p) =>
+          dispatch(
+            fetchCustomers({
+              pageNumber: p,
+              pageSize,
+              searchTerm: debouncedSearch.trim() || undefined,
+              sortDirection: "desc",
+            })
+          )
+        }
+        onPageSizeChange={(s) =>
+          dispatch(
+            fetchCustomers({
+              pageNumber: 1,
+              pageSize: s,
+              searchTerm: debouncedSearch.trim() || undefined,
+              sortDirection: "desc",
+            })
+          )
+        }
+        searchQuery={searchInput}
+        onSearchChange={setSearchInput}
+        searchPlaceholder="Search customers…"
         onAdd={() => {
           setEditingCustomer(null);
           setForm({

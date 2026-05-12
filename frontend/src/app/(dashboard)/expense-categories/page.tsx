@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { PageHeader, DataTable, StatusBadge, Modal } from "@/components/ui";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -14,6 +14,8 @@ import {
 import { addToast } from "@/store/slices/ui/ui.slice";
 import type { Column } from "@/components/ui/DataTable";
 import type { ExpenseCategory, CreateExpenseCategoryRequest, UpdateExpenseCategoryRequest } from "@/types";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { filterRowsBySearch } from "@/lib/filterRowsBySearch";
 
 export default function ExpenseCategoriesPage() {
   const dispatch = useAppDispatch();
@@ -33,6 +35,18 @@ export default function ExpenseCategoriesPage() {
     description: "",
     isActive: true,
   });
+
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebouncedValue(searchInput, 250);
+  const filteredCategories = useMemo(
+    () =>
+      filterRowsBySearch(categories, debouncedSearch, (r) => [
+        r.categoryName,
+        r.expenseType,
+        r.description ?? "",
+      ]),
+    [categories, debouncedSearch]
+  );
 
   useEffect(() => {
     dispatch(fetchExpenseCategories());
@@ -143,11 +157,13 @@ export default function ExpenseCategoriesPage() {
       />
       <DataTable
         columns={columns}
-        data={categories}
+        data={filteredCategories}
         rowKey="expenseCategoryId"
         title="All Expense Categories"
-        totalCount={categories.length}
-        onSearch={(term) => console.log("Search:", term)}
+        totalCount={filteredCategories.length}
+        searchQuery={searchInput}
+        onSearchChange={setSearchInput}
+        searchPlaceholder="Search expense categories…"
         onAdd={() => {
           resetForm();
           setModalOpen(true);

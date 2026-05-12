@@ -11,6 +11,7 @@ import type {
   UpdatePurchaseRequest,
 } from "@/types/purchase";
 import type { RootState } from "@/store";
+import { listQueryParams } from "@/lib/listQueryParams";
 
 interface PurchasesState {
   purchases: Purchase[];
@@ -51,17 +52,12 @@ export const fetchPurchases = createAsyncThunk<
 >("purchases/fetchList", async (params = {}, { rejectWithValue }) => {
   try {
     const api = createAuthenticatedAxios();
-    const pageNumber = params.pageNumber ?? 1;
-    const pageSize = params.pageSize ?? 25;
-    const sortDirection = params.sortDirection ?? "desc";
     const response = await api.get<ApiResponse<PaginatedPurchaseResponse>>("/proxy/purchases", {
-      params: {
-        pageNumber,
-        pageSize,
-        sortDirection,
-        searchTerm: params.searchTerm,
-        sortBy: params.sortBy,
-      },
+      params: listQueryParams({
+        ...params,
+        pageSize: params.pageSize ?? 25,
+        pageNumber: params.pageNumber ?? 1,
+      }),
     });
     const failMsg = getApiErrorMessage(response.data);
     if (failMsg) return rejectWithValue(failMsg);
@@ -120,7 +116,7 @@ export const updatePurchase = createAsyncThunk<
   try {
     const api = createAuthenticatedAxios();
     const { purchaseId, ...rest } = payload;
-    const response = await api.put<ApiResponse<Purchase>>(`/proxy/purchases/${purchaseId}`, {
+    const response = await api.post<ApiResponse<Purchase>>(`/proxy/purchases/update/${purchaseId}`, {
       purchaseId,
       ...rest,
     });
@@ -140,7 +136,7 @@ export const deletePurchase = createAsyncThunk<
 >("purchases/delete", async (id, { rejectWithValue }) => {
   try {
     const api = createAuthenticatedAxios();
-    const response = await api.delete<ApiResponse<null>>(`/proxy/purchases/${id}`);
+    const response = await api.post<ApiResponse<null>>(`/proxy/purchases/delete/${id}`, { purchaseId: id });
     const failMsg = getApiErrorMessage(response.data);
     if (failMsg) return rejectWithValue(failMsg);
     return { id, message: response.data.message || "Purchase deleted successfully" };

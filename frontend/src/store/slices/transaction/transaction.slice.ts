@@ -11,6 +11,7 @@ import type {
   UpdateTransactionRequest,
 } from "@/types/transaction";
 import type { RootState } from "@/store";
+import { listQueryParams } from "@/lib/listQueryParams";
 
 interface TransactionState {
   transactions: Transaction[];
@@ -51,17 +52,8 @@ export const fetchTransactions = createAsyncThunk<
 >("transaction/fetchList", async (params = {}, { rejectWithValue }) => {
   try {
     const api = createAuthenticatedAxios();
-    const pageNumber = params.pageNumber ?? 1;
-    const pageSize = params.pageSize ?? 10;
-    const sortDirection = params.sortDirection ?? "desc";
     const response = await api.get<ApiResponse<PaginatedTransactionResponse>>("/proxy/transactions", {
-      params: {
-        pageNumber,
-        pageSize,
-        sortDirection,
-        searchTerm: params.searchTerm,
-        sortBy: params.sortBy,
-      },
+      params: listQueryParams(params),
     });
     const failMsg = getApiErrorMessage(response.data);
     if (failMsg) return rejectWithValue(failMsg);

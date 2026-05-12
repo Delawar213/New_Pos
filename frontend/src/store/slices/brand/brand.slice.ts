@@ -11,6 +11,8 @@ import type {
   PaginatedBrandResponse
 } from '@/types/brand';
 import type { RootState } from '@/store';
+import type { PaginationParams } from '@/types/common';
+import { listQueryParams } from '@/lib/listQueryParams';
 
 // ============================================
 // TypeScript Interfaces
@@ -66,15 +68,16 @@ const initialState: BrandState = {
 // Fetch all brands with pagination
 export const fetchBrands = createAsyncThunk<
   ApiResponse<PaginatedBrandResponse>,
-  { pageNumber?: number; pageSize?: number },
+  PaginationParams | undefined,
   { rejectValue: string; state: RootState }
 >(
   'brand/fetchAll',
-  async ({ pageNumber = 1, pageSize = 10 }, { rejectWithValue }) => {
+  async (params = {}, { rejectWithValue }) => {
     try {
       const api = createAuthenticatedAxios();
       const response = await api.get<ApiResponse<PaginatedBrandResponse>>(
-        `/proxy/brands?pageNumber=${pageNumber}&pageSize=${pageSize}&sortDirection=desc`
+        `/proxy/brands`,
+        { params: listQueryParams(params) }
       );
       return response.data;
     } catch (error: unknown) {

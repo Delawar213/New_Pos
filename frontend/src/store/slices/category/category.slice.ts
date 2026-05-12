@@ -10,6 +10,8 @@ import type {
   PaginatedCategoryResponse,
 } from '@/types/category';
 import type { RootState } from '@/store';
+import type { PaginationParams } from '@/types/common';
+import { listQueryParams } from '@/lib/listQueryParams';
 
 // ============================================
 // Types
@@ -114,13 +116,14 @@ const initialState: CategoryState = {
 
 export const fetchCategories = createAsyncThunk<
   ApiResponse<Category[] | PaginatedCategoryResponse>,
-  { pageNumber?: number; pageSize?: number },
+  PaginationParams | undefined,
   { rejectValue: string; state: RootState }
->('category/fetchAll', async ({ pageNumber = 1, pageSize = 10 }, { rejectWithValue }) => {
+>('category/fetchAll', async (params = {}, { rejectWithValue }) => {
     try {
-    const api = createAuthenticatedAxios();
+      const api = createAuthenticatedAxios();
     const response = await api.get<ApiResponse<Category[] | PaginatedCategoryResponse>>(
-      `/proxy/categories?pageNumber=${pageNumber}&pageSize=${pageSize}&sortDirection=desc`
+      `/proxy/categories`,
+      { params: listQueryParams(params) }
     );
     const failMsg = getApiErrorMessage(response.data);
     if (failMsg) return rejectWithValue(failMsg);

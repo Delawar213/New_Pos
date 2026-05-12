@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { AlertTriangle } from "lucide-react";
 import { PageHeader, DataTable, StatusBadge, Modal } from "@/components/ui";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -15,6 +15,8 @@ import { addToast } from "@/store/slices/ui/ui.slice";
 import type { Column } from "@/components/ui/DataTable";
 import type { Supplier, CreateSupplierRequest, UpdateSupplierRequest } from "@/types";
 import { formatCurrency } from "@/lib/utils";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { buildPagedFetchArgs } from "@/lib/buildPagedFetchArgs";
 
 export default function SuppliersPage() {
   const dispatch = useAppDispatch();
@@ -39,9 +41,23 @@ export default function SuppliersPage() {
     isActive: true,
   });
 
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebouncedValue(searchInput, 400);
+  const searchPrevRef = useRef<string | null>(null);
+
   useEffect(() => {
-    dispatch(fetchSuppliers({ pageNumber: 1, pageSize: 10 }));
-  }, [dispatch]);
+    dispatch(fetchSuppliers(buildPagedFetchArgs(currentPage, pageSize, debouncedSearch, searchPrevRef)));
+  }, [dispatch, debouncedSearch, currentPage, pageSize]);
+
+  const refreshList = () =>
+    dispatch(
+      fetchSuppliers({
+        pageNumber: currentPage,
+        pageSize,
+        searchTerm: debouncedSearch.trim() || undefined,
+        sortDirection: "desc",
+      })
+    );
 
   useEffect(() => {
     if (success && message) {
@@ -93,7 +109,7 @@ export default function SuppliersPage() {
       if (updateSupplier.fulfilled.match(result)) {
         setModalOpen(false);
         resetForm();
-        dispatch(fetchSuppliers({ pageNumber: currentPage, pageSize }));
+        void refreshList();
       }
       return;
     }
@@ -102,7 +118,7 @@ export default function SuppliersPage() {
     if (createSupplier.fulfilled.match(result)) {
       setModalOpen(false);
       resetForm();
-      dispatch(fetchSuppliers({ pageNumber: currentPage, pageSize }));
+      void refreshList();
     }
   };
 
@@ -130,7 +146,7 @@ export default function SuppliersPage() {
     if (deleteSupplier.fulfilled.match(result)) {
       setDeleteConfirmOpen(false);
       setSupplierToDelete(null);
-      dispatch(fetchSuppliers({ pageNumber: currentPage, pageSize }));
+      void refreshList();
     }
   };
 
@@ -190,9 +206,29 @@ export default function SuppliersPage() {
         totalCount={totalCount}
         pageNumber={currentPage}
         pageSize={pageSize}
-        onPageChange={(p) => dispatch(fetchSuppliers({ pageNumber: p, pageSize }))}
-        onPageSizeChange={(s) => dispatch(fetchSuppliers({ pageNumber: 1, pageSize: s }))}
-        onSearch={(term) => console.log("Search:", term)}
+        onPageChange={(p) =>
+          dispatch(
+            fetchSuppliers({
+              pageNumber: p,
+              pageSize,
+              searchTerm: debouncedSearch.trim() || undefined,
+              sortDirection: "desc",
+            })
+          )
+        }
+        onPageSizeChange={(s) =>
+          dispatch(
+            fetchSuppliers({
+              pageNumber: 1,
+              pageSize: s,
+              searchTerm: debouncedSearch.trim() || undefined,
+              sortDirection: "desc",
+            })
+          )
+        }
+        searchQuery={searchInput}
+        onSearchChange={setSearchInput}
+        searchPlaceholder="Search suppliers…"
         onAdd={() => {
           resetForm();
           setModalOpen(true);

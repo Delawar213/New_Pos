@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { AlertTriangle } from "lucide-react";
 import { PageHeader, DataTable, StatusBadge, Modal } from "@/components/ui";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -14,6 +14,8 @@ import {
 import { addToast } from "@/store/slices/ui/ui.slice";
 import type { Column } from "@/components/ui/DataTable";
 import type { Brand, CreateBrandRequest, UpdateBrandRequest } from "@/types/brand";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { buildPagedFetchArgs } from "@/lib/buildPagedFetchArgs";
 
 export default function BrandsPage() {
   const dispatch = useAppDispatch();
@@ -39,10 +41,23 @@ export default function BrandsPage() {
     isActive: true,
   });
 
-  // Fetch brands on component mount
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebouncedValue(searchInput, 400);
+  const searchPrevRef = useRef<string | null>(null);
+
   useEffect(() => {
-    dispatch(fetchBrands({ pageNumber: 1, pageSize: 10 }));
-  }, [dispatch]);
+    dispatch(fetchBrands(buildPagedFetchArgs(currentPage, pageSize, debouncedSearch, searchPrevRef)));
+  }, [dispatch, debouncedSearch, currentPage, pageSize]);
+
+  const refreshList = () =>
+    dispatch(
+      fetchBrands({
+        pageNumber: currentPage,
+        pageSize,
+        searchTerm: debouncedSearch.trim() || undefined,
+        sortDirection: "desc",
+      })
+    );
 
   // Show toast notifications
   useEffect(() => {
@@ -91,7 +106,7 @@ export default function BrandsPage() {
       if (updateBrand.fulfilled.match(result)) {
         setModalOpen(false);
         resetForm();
-        dispatch(fetchBrands({ pageNumber: currentPage, pageSize }));
+        void refreshList();
       }
     } else {
       const result = await dispatch(createBrand(form));
@@ -99,7 +114,7 @@ export default function BrandsPage() {
       if (createBrand.fulfilled.match(result)) {
         setModalOpen(false);
         resetForm();
-        dispatch(fetchBrands({ pageNumber: currentPage, pageSize }));
+        void refreshList();
       }
     }
   };
@@ -127,7 +142,7 @@ export default function BrandsPage() {
     if (deleteBrand.fulfilled.match(result)) {
       setDeleteConfirmOpen(false);
       setBrandToDelete(null);
-      dispatch(fetchBrands({ pageNumber: currentPage, pageSize }));
+      void refreshList();
     }
   };
 
@@ -209,9 +224,29 @@ export default function BrandsPage() {
         totalCount={totalCount}
         pageNumber={currentPage}
         pageSize={pageSize}
-        onPageChange={(p) => dispatch(fetchBrands({ pageNumber: p, pageSize }))}
-        onPageSizeChange={(s) => dispatch(fetchBrands({ pageNumber: 1, pageSize: s }))}
-        onSearch={(term) => console.log("Search:", term)}
+        onPageChange={(p) =>
+          dispatch(
+            fetchBrands({
+              pageNumber: p,
+              pageSize,
+              searchTerm: debouncedSearch.trim() || undefined,
+              sortDirection: "desc",
+            })
+          )
+        }
+        onPageSizeChange={(s) =>
+          dispatch(
+            fetchBrands({
+              pageNumber: 1,
+              pageSize: s,
+              searchTerm: debouncedSearch.trim() || undefined,
+              sortDirection: "desc",
+            })
+          )
+        }
+        searchQuery={searchInput}
+        onSearchChange={setSearchInput}
+        searchPlaceholder="Search brands…"
         onAdd={handleOpenCreate}
         addLabel="Add Brand"
         loading={loading}
