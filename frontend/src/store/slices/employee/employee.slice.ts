@@ -1,6 +1,7 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import axios from 'axios';
 import { configureSlice } from '@/lib/utils';
+import { getApiErrorMessage } from '@/lib/apiResult';
 import type {
   Employee,
   CreateEmployeeRequest,
@@ -9,17 +10,10 @@ import type {
 } from '@/types/employee';
 import type { RootState } from '@/store';
 
-const createAuthenticatedRequest = (token?: string) => {
-  const normalizedToken = token?.startsWith('Bearer ') ? token.slice(7) : token;
+const createAuthenticatedRequest = () => {
   return axios.create({
     headers: {
       'Content-Type': 'application/json',
-      ...(normalizedToken
-        ? {
-            Authorization: `Bearer ${normalizedToken}`,
-            'X-Access-Token': normalizedToken,
-          }
-        : {}),
     },
   });
 };
@@ -69,7 +63,7 @@ export const fetchEmployees = createAsyncThunk<
   { rejectValue: string; state: RootState }
 >('employee/fetchAll', async ({ pageNumber = 1, pageSize = 10 }, { rejectWithValue, getState }) => {
   try {
-    const api = createAuthenticatedRequest(getState().auth?.token);
+    const api = createAuthenticatedRequest();
     const response = await api.get<ApiResponse<PaginatedEmployeeResponse>>(
       `/proxy/employees?pageNumber=${pageNumber}&pageSize=${pageSize}`
     );
@@ -84,7 +78,7 @@ export const fetchEmployeeById = createAsyncThunk<ApiResponse<Employee>, number,
   'employee/fetchById',
   async (id, { rejectWithValue, getState }) => {
     try {
-      const api = createAuthenticatedRequest(getState().auth?.token);
+      const api = createAuthenticatedRequest();
       const response = await api.get<ApiResponse<Employee>>(`/proxy/employees/${id}`);
       return response.data;
     } catch (error: unknown) {
@@ -98,7 +92,7 @@ export const createEmployee = createAsyncThunk<ApiResponse<Employee>, CreateEmpl
   'employee/create',
   async (employeeData, { rejectWithValue, getState }) => {
     try {
-      const api = createAuthenticatedRequest(getState().auth?.token);
+      const api = createAuthenticatedRequest();
       const response = await api.post<ApiResponse<Employee>>('/proxy/employees', employeeData);
       return response.data;
     } catch (error: unknown) {
@@ -112,8 +106,10 @@ export const updateEmployee = createAsyncThunk<ApiResponse<Employee>, UpdateEmpl
   'employee/update',
   async (employeeData, { rejectWithValue, getState }) => {
     try {
-      const api = createAuthenticatedRequest(getState().auth?.token);
+      const api = createAuthenticatedRequest();
       const response = await api.put<ApiResponse<Employee>>(`/proxy/employees/${employeeData.employeeId}`, employeeData);
+      const failMsg = getApiErrorMessage(response.data);
+      if (failMsg) return rejectWithValue(failMsg);
       return response.data;
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -126,7 +122,7 @@ export const deleteEmployee = createAsyncThunk<{ id: number; message: string }, 
   'employee/delete',
   async (id, { rejectWithValue, getState }) => {
     try {
-      const api = createAuthenticatedRequest(getState().auth?.token);
+      const api = createAuthenticatedRequest();
       const response = await api.delete<ApiResponse<unknown>>(`/proxy/employees/${id}`);
       return { id, message: response.data.message || 'Employee deleted successfully' };
     } catch (error: unknown) {

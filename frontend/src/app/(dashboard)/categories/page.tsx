@@ -36,6 +36,8 @@ export default function CategoriesPage() {
     categoryName: "",
     description: "",
     parentCategoryId: null,
+    displayOrder: 0,
+    vatRate: 0,
     isActive: true,
   });
 
@@ -113,22 +115,14 @@ export default function CategoriesPage() {
       categoryName: category.categoryName,
       description: category.description || "",
       parentCategoryId: category.parentCategoryId || null,
+      displayOrder: category.displayOrder,
+      vatRate: category.vatRate,
       isActive: category.isActive,
     });
     setModalOpen(true);
   };
 
   const handleDeleteClick = (category: Category) => {
-    if (category.subCategories && category.subCategories.length > 0) {
-      dispatch(addToast({
-        type: 'error',
-        title: 'Cannot Delete Category',
-        message: 'This category is used in subcategories, so it cannot be deleted.',
-        duration: 5000,
-      }));
-      return;
-    }
-
     setCategoryToDelete(category);
     setDeleteConfirmOpen(true);
   };
@@ -160,6 +154,8 @@ export default function CategoriesPage() {
       categoryName: "", 
       description: "", 
       parentCategoryId: null, 
+      displayOrder: 0,
+      vatRate: 0,
       isActive: true 
     });
     setEditingCategory(null);

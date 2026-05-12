@@ -1,6 +1,7 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import axios from 'axios';
 import { configureSlice } from '@/lib/utils';
+import { getApiErrorMessage } from '@/lib/apiResult';
 import type {
   Customer,
   CreateCustomerRequest,
@@ -15,17 +16,10 @@ import type {
 } from '@/types/customer';
 import type { RootState } from '@/store';
 
-const createAuthenticatedRequest = (token?: string) => {
-  const normalizedToken = token?.startsWith('Bearer ') ? token.slice(7) : token;
+const createAuthenticatedRequest = () => {
   return axios.create({
     headers: {
       'Content-Type': 'application/json',
-      ...(normalizedToken
-        ? {
-            Authorization: `Bearer ${normalizedToken}`,
-            'X-Access-Token': normalizedToken,
-          }
-        : {}),
     },
   });
 };
@@ -89,7 +83,7 @@ export const fetchCustomers = createAsyncThunk<
   { rejectValue: string; state: RootState }
 >('customer/fetchAll', async ({ pageNumber = 1, pageSize = 10 }, { rejectWithValue, getState }) => {
   try {
-    const api = createAuthenticatedRequest(getState().auth?.token);
+    const api = createAuthenticatedRequest();
     const response = await api.get<ApiResponse<PaginatedCustomerResponse>>(
       `/proxy/customers?pageNumber=${pageNumber}&pageSize=${pageSize}`
     );
@@ -104,7 +98,7 @@ export const fetchCustomerById = createAsyncThunk<ApiResponse<Customer>, number,
   'customer/fetchById',
   async (id, { rejectWithValue, getState }) => {
     try {
-      const api = createAuthenticatedRequest(getState().auth?.token);
+      const api = createAuthenticatedRequest();
       const response = await api.get<ApiResponse<Customer>>(`/proxy/customers/${id}`);
       return response.data;
     } catch (error: unknown) {
@@ -118,7 +112,7 @@ export const fetchCustomerByCode = createAsyncThunk<ApiResponse<Customer>, strin
   'customer/fetchByCode',
   async (code, { rejectWithValue, getState }) => {
     try {
-      const api = createAuthenticatedRequest(getState().auth?.token);
+      const api = createAuthenticatedRequest();
       const response = await api.get<ApiResponse<Customer>>(`/proxy/customers/code/${code}`);
       return response.data;
     } catch (error: unknown) {
@@ -132,7 +126,7 @@ export const fetchActiveCustomers = createAsyncThunk<ApiResponse<Customer[]>, vo
   'customer/fetchActive',
   async (_, { rejectWithValue, getState }) => {
     try {
-      const api = createAuthenticatedRequest(getState().auth?.token);
+      const api = createAuthenticatedRequest();
       const response = await api.get<ApiResponse<Customer[]>>('/proxy/customers/active');
       return response.data;
     } catch (error: unknown) {
@@ -146,7 +140,7 @@ export const fetchWalkingCustomer = createAsyncThunk<ApiResponse<Customer>, void
   'customer/fetchWalking',
   async (_, { rejectWithValue, getState }) => {
     try {
-      const api = createAuthenticatedRequest(getState().auth?.token);
+      const api = createAuthenticatedRequest();
       const response = await api.get<ApiResponse<Customer>>('/proxy/customers/walking');
       return response.data;
     } catch (error: unknown) {
@@ -160,7 +154,7 @@ export const fetchCustomerTypes = createAsyncThunk<ApiResponse<CustomerType[]>, 
   'customer/fetchTypes',
   async (_, { rejectWithValue, getState }) => {
     try {
-      const api = createAuthenticatedRequest(getState().auth?.token);
+      const api = createAuthenticatedRequest();
       const response = await api.get<ApiResponse<CustomerType[]>>('/proxy/customers/types');
       return response.data;
     } catch (error: unknown) {
@@ -176,8 +170,10 @@ export const createCustomerType = createAsyncThunk<
   { rejectValue: string; state: RootState }
 >('customer/createType', async (payload, { rejectWithValue, getState }) => {
   try {
-    const api = createAuthenticatedRequest(getState().auth?.token);
+    const api = createAuthenticatedRequest();
     const response = await api.post<ApiResponse<CustomerType>>('/proxy/customers/types', payload);
+    const failMsg = getApiErrorMessage(response.data);
+    if (failMsg) return rejectWithValue(failMsg);
     return response.data;
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -191,11 +187,13 @@ export const updateCustomerType = createAsyncThunk<
   { rejectValue: string; state: RootState }
 >('customer/updateType', async (payload, { rejectWithValue, getState }) => {
   try {
-    const api = createAuthenticatedRequest(getState().auth?.token);
+    const api = createAuthenticatedRequest();
     const response = await api.post<ApiResponse<CustomerType>>(
       `/proxy/customers/types/${payload.customerTypeId}`,
       payload
     );
+    const failMsg = getApiErrorMessage(response.data);
+    if (failMsg) return rejectWithValue(failMsg);
     return response.data;
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -209,8 +207,10 @@ export const deleteCustomerType = createAsyncThunk<
   { rejectValue: string; state: RootState }
 >('customer/deleteType', async (id, { rejectWithValue, getState }) => {
   try {
-    const api = createAuthenticatedRequest(getState().auth?.token);
+    const api = createAuthenticatedRequest();
     const response = await api.post<ApiResponse<unknown>>(`/proxy/customers/types/${id}`, { customerTypeId: id });
+    const failMsg = getApiErrorMessage(response.data);
+    if (failMsg) return rejectWithValue(failMsg);
     return { id, message: response.data.message || 'Customer type deleted successfully' };
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -222,7 +222,7 @@ export const fetchCustomersDropdown = createAsyncThunk<ApiResponse<CustomerDropd
   'customer/fetchDropdown',
   async (_, { rejectWithValue, getState }) => {
     try {
-      const api = createAuthenticatedRequest(getState().auth?.token);
+      const api = createAuthenticatedRequest();
       const response = await api.get<ApiResponse<CustomerDropdown[]>>('/proxy/customers/dropdown');
       return response.data;
     } catch (error: unknown) {
@@ -236,7 +236,7 @@ export const fetchCustomerBalance = createAsyncThunk<ApiResponse<number>, number
   'customer/fetchBalance',
   async (customerId, { rejectWithValue, getState }) => {
     try {
-      const api = createAuthenticatedRequest(getState().auth?.token);
+      const api = createAuthenticatedRequest();
       const response = await api.get<ApiResponse<number>>(`/proxy/customers/${customerId}/balance`);
       return response.data;
     } catch (error: unknown) {
@@ -252,7 +252,7 @@ export const fetchCustomerLedger = createAsyncThunk<
   { rejectValue: string; state: RootState }
 >('customer/fetchLedger', async ({ customerId, fromDate, toDate }, { rejectWithValue, getState }) => {
   try {
-    const api = createAuthenticatedRequest(getState().auth?.token);
+    const api = createAuthenticatedRequest();
     const response = await api.get<ApiResponse<CustomerLedgerEntry[]>>(
       `/proxy/customers/${customerId}/ledger?fromDate=${fromDate}&toDate=${toDate}`
     );
@@ -267,7 +267,7 @@ export const fetchCustomerLoyalty = createAsyncThunk<ApiResponse<number>, number
   'customer/fetchLoyalty',
   async (customerId, { rejectWithValue, getState }) => {
     try {
-      const api = createAuthenticatedRequest(getState().auth?.token);
+      const api = createAuthenticatedRequest();
       const response = await api.get<ApiResponse<number>>(`/proxy/customers/${customerId}/loyalty`);
       return response.data;
     } catch (error: unknown) {
@@ -283,8 +283,10 @@ export const addCustomerLoyalty = createAsyncThunk<
   { rejectValue: string; state: RootState }
 >('customer/addLoyalty', async ({ customerId, payload }, { rejectWithValue, getState }) => {
   try {
-    const api = createAuthenticatedRequest(getState().auth?.token);
+    const api = createAuthenticatedRequest();
     const response = await api.post<ApiResponse<boolean>>(`/proxy/customers/${customerId}/loyalty/add`, payload);
+    const failMsg = getApiErrorMessage(response.data);
+    if (failMsg) return rejectWithValue(failMsg);
     return response.data;
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -298,8 +300,10 @@ export const redeemCustomerLoyalty = createAsyncThunk<
   { rejectValue: string; state: RootState }
 >('customer/redeemLoyalty', async ({ customerId, payload }, { rejectWithValue, getState }) => {
   try {
-    const api = createAuthenticatedRequest(getState().auth?.token);
+    const api = createAuthenticatedRequest();
     const response = await api.post<ApiResponse<boolean>>(`/proxy/customers/${customerId}/loyalty/redeem`, payload);
+    const failMsg = getApiErrorMessage(response.data);
+    if (failMsg) return rejectWithValue(failMsg);
     return response.data;
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -311,8 +315,10 @@ export const createCustomer = createAsyncThunk<ApiResponse<Customer>, CreateCust
   'customer/create',
   async (customerData, { rejectWithValue, getState }) => {
     try {
-      const api = createAuthenticatedRequest(getState().auth?.token);
+      const api = createAuthenticatedRequest();
       const response = await api.post<ApiResponse<Customer>>('/proxy/customers', customerData);
+      const failMsg = getApiErrorMessage(response.data);
+      if (failMsg) return rejectWithValue(failMsg);
       return response.data;
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -325,11 +331,13 @@ export const updateCustomer = createAsyncThunk<ApiResponse<Customer>, UpdateCust
   'customer/update',
   async (customerData, { rejectWithValue, getState }) => {
     try {
-      const api = createAuthenticatedRequest(getState().auth?.token);
+      const api = createAuthenticatedRequest();
       const response = await api.post<ApiResponse<Customer>>(
         `/proxy/customers/update/${customerData.customerId}`,
         customerData
       );
+      const failMsg = getApiErrorMessage(response.data);
+      if (failMsg) return rejectWithValue(failMsg);
       return response.data;
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -342,8 +350,10 @@ export const deleteCustomer = createAsyncThunk<{ id: number; message: string }, 
   'customer/delete',
   async (id, { rejectWithValue, getState }) => {
     try {
-      const api = createAuthenticatedRequest(getState().auth?.token);
+      const api = createAuthenticatedRequest();
       const response = await api.post<ApiResponse<unknown>>(`/proxy/customers/delete/${id}`, { id });
+      const failMsg = getApiErrorMessage(response.data);
+      if (failMsg) return rejectWithValue(failMsg);
       return { id, message: response.data.message || 'Customer deleted successfully' };
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } }; message?: string };

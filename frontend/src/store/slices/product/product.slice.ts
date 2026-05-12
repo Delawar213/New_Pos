@@ -2,20 +2,14 @@
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import axios from "axios";
 import { configureSlice } from "@/lib/utils";
+import { getApiErrorMessage } from "@/lib/apiResult";
 import type { CreateProductRequest, PaginatedProductResponse, Product, UpdateProductRequest } from "@/types/product";
 import type { RootState } from "@/store";
 
-const createAuthenticatedRequest = (token?: string) => {
-  const normalizedToken = token?.startsWith("Bearer ") ? token.slice(7) : token;
+const createAuthenticatedRequest = () => {
   return axios.create({
     headers: {
       "Content-Type": "application/json",
-      ...(normalizedToken
-        ? {
-            Authorization: `Bearer ${normalizedToken}`,
-            "X-Access-Token": normalizedToken,
-          }
-        : {}),
     },
   });
 };
@@ -65,7 +59,7 @@ export const fetchProducts = createAsyncThunk<
   { rejectValue: string; state: RootState }
 >("product/fetchAll", async ({ pageNumber = 1, pageSize = 10 }, { rejectWithValue, getState }) => {
   try {
-    const api = createAuthenticatedRequest(getState().auth?.token);
+    const api = createAuthenticatedRequest();
     const response = await api.get<ApiResponse<PaginatedProductResponse>>(
       `/proxy/products?pageNumber=${pageNumber}&pageSize=${pageSize}`
     );
@@ -82,8 +76,10 @@ export const createProduct = createAsyncThunk<
   { rejectValue: string; state: RootState }
 >("product/create", async (payload, { rejectWithValue, getState }) => {
   try {
-    const api = createAuthenticatedRequest(getState().auth?.token);
+    const api = createAuthenticatedRequest();
     const response = await api.post<ApiResponse<Product>>("/proxy/products", payload);
+    const failMsg = getApiErrorMessage(response.data);
+    if (failMsg) return rejectWithValue(failMsg);
     return response.data;
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -97,11 +93,13 @@ export const updateProduct = createAsyncThunk<
   { rejectValue: string; state: RootState }
 >("product/update", async (payload, { rejectWithValue, getState }) => {
   try {
-    const api = createAuthenticatedRequest(getState().auth?.token);
+    const api = createAuthenticatedRequest();
     const response = await api.post<ApiResponse<Product>>(
       `/proxy/products/update/${payload.productId}`,
       payload
     );
+    const failMsg = getApiErrorMessage(response.data);
+    if (failMsg) return rejectWithValue(failMsg);
     return response.data;
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -115,8 +113,10 @@ export const deleteProduct = createAsyncThunk<
   { rejectValue: string; state: RootState }
 >("product/delete", async (id, { rejectWithValue, getState }) => {
   try {
-    const api = createAuthenticatedRequest(getState().auth?.token);
+    const api = createAuthenticatedRequest();
     const response = await api.post<ApiResponse<unknown>>(`/proxy/products/delete/${id}`, { id });
+    const failMsg = getApiErrorMessage(response.data);
+    if (failMsg) return rejectWithValue(failMsg);
     return { id, message: response.data.message || "Product deleted successfully" };
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string };

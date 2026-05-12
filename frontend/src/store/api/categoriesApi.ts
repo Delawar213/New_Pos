@@ -60,7 +60,7 @@ export const categoriesApi = baseApi.injectEndpoints({
       query: ({ categoryId, ...body }) => ({
         url: `/categories/${categoryId}`,
         method: "POST",
-        body: { categoryId, ...body },
+        body,
       }),
       transformResponse: (response: ApiResponse<Category>) => response.data,
       invalidatesTags: (_result, _error, { categoryId }) => [
@@ -69,12 +69,12 @@ export const categoriesApi = baseApi.injectEndpoints({
       ],
     }),
 
-    // POST /categories/:id/delete
+    // POST /categories/subcategorydelete/:id
     deleteCategory: builder.mutation<void, number>({
       query: (id) => ({
-        url: `/categories/${id}/delete`,
+        url: `/categories/subcategorydelete/${id}`,
         method: "POST",
-        body: { id },
+        body: {},
       }),
       invalidatesTags: [{ type: "Categories", id: "LIST" }],
     }),

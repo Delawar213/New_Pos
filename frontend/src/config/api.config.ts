@@ -1,14 +1,11 @@
-import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
+import axios, { AxiosInstance } from 'axios';
 
 const APIInstances: { [key: string]: AxiosInstance } = {};
 
-// Function to get the store dynamically to avoid circular dependency
-type StoreLike = { getState: () => { auth?: { token?: string } } };
-let getStore: (() => StoreLike) | null = null;
+type StoreLike = { getState: () => unknown };
 
-export const setStoreGetter = (fn: () => StoreLike) => {
-    getStore = fn;
-};
+/** Kept for compatibility; auth headers are not attached on this client. */
+export const setStoreGetter = (_fn: () => StoreLike) => {};
 
 const createAPIInstance = (key: string, baseURL: string, prefix?: string) => {
     const api = prefix ? `${baseURL}/${prefix}` : baseURL;
@@ -17,24 +14,6 @@ const createAPIInstance = (key: string, baseURL: string, prefix?: string) => {
         const instance = axios.create({
             baseURL: `${api}`,
         });
-
-        instance.interceptors.request.use(
-            async (config: InternalAxiosRequestConfig) => {
-                if (getStore) {
-                    const state = getStore().getState();
-                    const token = state.auth?.token;
-                    const normalizedToken = token?.startsWith('Bearer ') ? token.slice(7) : token;
-
-                    if (normalizedToken && config.headers) {
-                        config.headers['Authorization'] = `Bearer ${normalizedToken}`;
-                        config.headers['X-Access-Token'] = normalizedToken;
-                    }
-                }
-
-                return config;
-            },
-            (error: AxiosError) => Promise.reject(error)
-        );
 
         APIInstances[key] = instance;
     }

@@ -15,6 +15,7 @@ export interface Category {
   categoryName: string;
   description?: string;
   parentCategoryId?: number | null;
+  parentCategoryName?: string;
   displayOrder: number;
   vatRate: number;
   isActive: boolean;
@@ -26,6 +27,8 @@ export interface CreateCategoryRequest {
   categoryName: string;
   description?: string;
   parentCategoryId?: number | null;
+  displayOrder?: number;
+  vatRate?: number;
   isActive: boolean;
 }
 
@@ -35,4 +38,15 @@ export interface UpdateCategoryRequest {
   description?: string;
   parentCategoryId?: number | null;
   isActive: boolean;
+}
+
+/** List endpoint may return this shape instead of a bare `Category[]`. */
+export interface PaginatedCategoryResponse {
+  data: Category[];
+  totalRecords: number;
+  pageNumber: number;
+  pageSize: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
 }

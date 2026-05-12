@@ -4,7 +4,7 @@
 // Products Page - Modern Product Management
 // ============================================
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Package,
   Edit2,
@@ -81,6 +81,102 @@ export default function ProductsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [form, setForm] = useState<CreateProductRequest>(emptyForm());
+  const barcodeInputRef = useRef<HTMLInputElement>(null);
+
+  const commitBarcodeValue = useCallback((value: string) => {
+    setForm((f) => ({ ...f, barcode: value }));
+    const el = barcodeInputRef.current;
+    if (el) el.value = value;
+  }, []);
+
+  /**
+   * Focus barcode after the dialog paints. Scanners need a real focused input; Notepad works because it always has focus.
+   */
+  useEffect(() => {
+    if (!modalOpen) return;
+    const t = window.setTimeout(() => {
+      const el = barcodeInputRef.current;
+      el?.focus();
+      el?.select();
+    }, 100);
+    return () => clearTimeout(t);
+  }, [modalOpen]);
+
+  /**
+   * USB scanners = very fast "keyboard" + suffix (Enter or Tab). React controlled inputs often drop characters; the barcode field is uncontrolled (native buffer).
+   * When focus is on a button/select/checkbox, capture the stream here and write into the barcode field.
+   */
+  useEffect(() => {
+    if (!modalOpen) return;
+
+    let buffer = "";
+    let lastKeyAt = 0;
+    let flushTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const clearBuffer = () => {
+      buffer = "";
+    };
+
+    const useGlobalScanBuffer = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement)) return true;
+      const tag = target.tagName;
+      if (tag === "TEXTAREA") return false;
+      if (tag === "INPUT") {
+        const inp = target as HTMLInputElement;
+        if (inp.id === "prod-barcode") return false;
+        const textLike =
+          inp.type === "text" ||
+          inp.type === "search" ||
+          inp.type === "number" ||
+          inp.type === "email" ||
+          inp.type === "url" ||
+          inp.type === "tel" ||
+          inp.type === "";
+        if (textLike) return false;
+      }
+      return true;
+    };
+
+    const finishScan = () => {
+      if (buffer.length < 1) return;
+      const v = buffer;
+      buffer = "";
+      if (flushTimer) clearTimeout(flushTimer);
+      commitBarcodeValue(v);
+      window.requestAnimationFrame(() => {
+        barcodeInputRef.current?.focus();
+        barcodeInputRef.current?.select();
+      });
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!useGlobalScanBuffer(e.target)) return;
+
+      if (e.key === "Enter" || e.key === "Tab") {
+        if (buffer.length >= 1) {
+          e.preventDefault();
+          e.stopPropagation();
+          finishScan();
+        }
+        return;
+      }
+
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const now = performance.now();
+        if (now - lastKeyAt > 200) buffer = "";
+        buffer += e.key;
+        lastKeyAt = now;
+        if (flushTimer) clearTimeout(flushTimer);
+        flushTimer = setTimeout(clearBuffer, 300);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+      if (flushTimer) clearTimeout(flushTimer);
+    };
+  }, [modalOpen, commitBarcodeValue]);
 
   useEffect(() => {
     dispatch(fetchProducts({ pageNumber: 1, pageSize: 10 }));
@@ -198,11 +294,13 @@ export default function ProductsPage() {
       return;
     }
 
+    const barcodeValue = (barcodeInputRef.current?.value ?? form.barcode).trim();
+
     const payloadBase = {
       ...form,
       productCode: form.productCode.trim(),
       productName: form.productName.trim(),
-      barcode: form.barcode.trim(),
+      barcode: barcodeValue,
       description: form.description ?? "",
       subCategoryId: form.subCategoryId || null,
     };
@@ -452,9 +550,22 @@ export default function ProductsPage() {
               Barcode
             </label>
             <input
+              ref={barcodeInputRef}
               id="prod-barcode"
-              value={form.barcode}
-              onChange={(e) => setForm({ ...form, barcode: e.target.value })}
+              name="barcode"
+              defaultValue={form.barcode}
+              onInput={(e) => {
+                const v = (e.currentTarget as HTMLInputElement).value;
+                setForm((f) => (f.barcode === v ? f : { ...f, barcode: v }));
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === "Tab") {
+                  e.preventDefault();
+                }
+              }}
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="Scan barcode (USB scanner) or type here"
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
             />
           </div>

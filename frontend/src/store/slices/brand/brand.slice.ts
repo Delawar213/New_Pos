@@ -2,6 +2,7 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import axios from 'axios';
 import { configureSlice } from '@/lib/utils';
+import { getApiErrorMessage } from '@/lib/apiResult';
 import type { 
   Brand, 
   CreateBrandRequest, 
@@ -15,12 +16,10 @@ import type { RootState } from '@/store';
 // Helper Functions
 // ============================================
 
-// Create axios instance with auth token
-const createAuthenticatedRequest = (token?: string) => {
+const createAuthenticatedRequest = () => {
   return axios.create({
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     },
   });
 };
@@ -85,8 +84,7 @@ export const fetchBrands = createAsyncThunk<
   'brand/fetchAll',
   async ({ pageNumber = 1, pageSize = 10 }, { rejectWithValue, getState }) => {
     try {
-      const token = getState().auth?.token;
-      const api = createAuthenticatedRequest(token);
+      const api = createAuthenticatedRequest();
       const response = await api.get<ApiResponse<PaginatedBrandResponse>>(
         `/proxy/brands?pageNumber=${pageNumber}&pageSize=${pageSize}`
       );
@@ -107,8 +105,7 @@ export const fetchBrandById = createAsyncThunk<
   'brand/fetchById',
   async (id, { rejectWithValue, getState }) => {
     try {
-      const token = getState().auth?.token;
-      const api = createAuthenticatedRequest(token);
+      const api = createAuthenticatedRequest();
       const response = await api.get<ApiResponse<Brand>>(`/proxy/brands/${id}`);
       return response.data;
     } catch (error: unknown) {
@@ -127,8 +124,7 @@ export const fetchActiveBrands = createAsyncThunk<
   'brand/fetchActive',
   async (_, { rejectWithValue, getState }) => {
     try {
-      const token = getState().auth?.token;
-      const api = createAuthenticatedRequest(token);
+      const api = createAuthenticatedRequest();
       const response = await api.get<ApiResponse<Brand[]>>('/proxy/brands/active');
       return response.data;
     } catch (error: unknown) {
@@ -147,8 +143,7 @@ export const fetchBrandsDropdown = createAsyncThunk<
   'brand/fetchDropdown',
   async (_, { rejectWithValue, getState }) => {
     try {
-      const token = getState().auth?.token;
-      const api = createAuthenticatedRequest(token);
+      const api = createAuthenticatedRequest();
       const response = await api.get<ApiResponse<BrandDropdown[]>>('/proxy/brands/dropdown');
       return response.data;
     } catch (error: unknown) {
@@ -167,9 +162,10 @@ export const createBrand = createAsyncThunk<
   'brand/create',
   async (brandData, { rejectWithValue, getState }) => {
     try {
-      const token = getState().auth?.token;
-      const api = createAuthenticatedRequest(token);
+      const api = createAuthenticatedRequest();
       const response = await api.post<ApiResponse<Brand>>('/proxy/brands', brandData);
+      const failMsg = getApiErrorMessage(response.data);
+      if (failMsg) return rejectWithValue(failMsg);
       return response.data;
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -187,12 +183,13 @@ export const updateBrand = createAsyncThunk<
   'brand/update',
   async (brandData, { rejectWithValue, getState }) => {
     try {
-      const token = getState().auth?.token;
-      const api = createAuthenticatedRequest(token);
+      const api = createAuthenticatedRequest();
       const response = await api.post<ApiResponse<Brand>>(
         `/proxy/brands/update/${brandData.brandId}`,
         brandData
       );
+      const failMsg = getApiErrorMessage(response.data);
+      if (failMsg) return rejectWithValue(failMsg);
       return response.data;
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -210,9 +207,10 @@ export const deleteBrand = createAsyncThunk<
   'brand/delete',
   async (id, { rejectWithValue, getState }) => {
     try {
-      const token = getState().auth?.token;
-      const api = createAuthenticatedRequest(token);
+      const api = createAuthenticatedRequest();
       const response = await api.post<ApiResponse<unknown>>(`/proxy/brands/delete/${id}`, { id });
+      const failMsg = getApiErrorMessage(response.data);
+      if (failMsg) return rejectWithValue(failMsg);
       return { id, message: response.data.message || 'Brand deleted successfully' };
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } }; message?: string };

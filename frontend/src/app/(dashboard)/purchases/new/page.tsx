@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Search } from "lucide-react";
@@ -12,6 +12,7 @@ import {
   useGetSuppliersDropdownQuery,
   useGetSuppliersQuery,
 } from "@/store/api";
+import { useLazyGetProductByBarcodeQuery } from "@/store/api/productsApi";
 import { useAppDispatch } from "@/store/hooks";
 import { addToast } from "@/store/slices/ui/ui.slice";
 import { cn, formatCurrency } from "@/lib/utils";
@@ -339,6 +340,8 @@ export default function NewPurchasePage() {
     { refetchOnMountOrArgChange: true }
   );
   const { data: products = [], isLoading: productsLoading } = useGetAllProductsQuery();
+  const [lookupProductByBarcode, { isFetching: barcodeLookupLoading }] =
+    useLazyGetProductByBarcodeQuery();
 
   const suppliers = useMemo(
     () =>
@@ -373,6 +376,28 @@ export default function NewPurchasePage() {
     [products]
   );
 
+  /** Product returned from barcode API may not be in the paged `products` list — inject for the select. */
+  const [barcodeResolvedProduct, setBarcodeResolvedProduct] = useState<Product | null>(null);
+
+  const productOptionsForSelect = useMemo(() => {
+    const list = [...productOptions];
+    if (
+      barcodeResolvedProduct &&
+      !list.some((o) => o.id === barcodeResolvedProduct.productId)
+    ) {
+      const p = barcodeResolvedProduct;
+      list.push({
+        id: p.productId,
+        label: `${p.productCode} — ${p.productName}`,
+        search: `${p.productCode} ${p.productName} ${p.barcode ?? ""}`.toLowerCase(),
+      });
+    }
+    return list;
+  }, [productOptions, barcodeResolvedProduct]);
+
+  const [lineModalMountKey, setLineModalMountKey] = useState(0);
+  const purchaseLineBarcodeRef = useRef<HTMLInputElement>(null);
+
   const [form, setForm] = useState<FormValues>(() => ({
     supplierId: 0,
     purchaseDate: "",
@@ -390,6 +415,8 @@ export default function NewPurchasePage() {
   const openAddLineModal = () => {
     setEditingIndex(null);
     setDraft(emptyDetailRow());
+    setBarcodeResolvedProduct(null);
+    setLineModalMountKey((k) => k + 1);
     setLineModalOpen(true);
   };
 
@@ -398,34 +425,117 @@ export default function NewPurchasePage() {
     if (!row) return;
     setEditingIndex(index);
     setDraft({ ...row });
+    setBarcodeResolvedProduct(null);
+    setLineModalMountKey((k) => k + 1);
     setLineModalOpen(true);
   };
 
-  const applyProductToDraft = (productId: number) => {
-    if (!productId) {
-      setDraft((d) => ({ ...d, productId: 0, barcode: "" }));
-      return;
-    }
-    const p = products.find((x: Product) => x.productId === productId);
-    if (!p) return;
+  const mergeProductIntoDraft = useCallback((p: Product, scannedBarcode?: string) => {
     const purchasePrice =
       p.lastPurchasePrice != null && p.lastPurchasePrice > 0
         ? p.lastPurchasePrice
         : p.costPrice != null && p.costPrice > 0
           ? p.costPrice
           : 0;
+    const barcodeVal = (scannedBarcode?.trim() || p.barcode || "").trim();
     setDraft((d) => ({
       ...d,
       productId: p.productId,
-      barcode: p.barcode ?? "",
+      barcode: barcodeVal || d.barcode || "",
       vatRate: p.vatRate,
       sellingPriceExVat: p.sellingPrice,
       purchasePriceExVat: purchasePrice,
     }));
+    requestAnimationFrame(() => {
+      const el = purchaseLineBarcodeRef.current;
+      if (el) el.value = barcodeVal || p.barcode || "";
+    });
+  }, []);
+
+  const applyProductToDraft = (productId: number) => {
+    setBarcodeResolvedProduct(null);
+    if (!productId) {
+      setDraft((d) => ({ ...d, productId: 0, barcode: "" }));
+      requestAnimationFrame(() => {
+        if (purchaseLineBarcodeRef.current) purchaseLineBarcodeRef.current.value = "";
+      });
+      return;
+    }
+    const p = products.find((x: Product) => x.productId === productId);
+    if (!p) return;
+    mergeProductIntoDraft(p);
   };
 
+  const resolveBarcodeToProduct = useCallback(
+    async (raw: string) => {
+      const code = raw.trim();
+      if (!code || barcodeLookupLoading) return;
+
+      const local = products.find(
+        (p: Product) => (p.barcode ?? "").trim().toLowerCase() === code.toLowerCase()
+      );
+      if (local) {
+        setBarcodeResolvedProduct(null);
+        mergeProductIntoDraft(local, code);
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Product found",
+            message: local.productName,
+            duration: 2500,
+          })
+        );
+        return;
+      }
+
+      try {
+        const p = await lookupProductByBarcode(code).unwrap();
+        setBarcodeResolvedProduct(p);
+        mergeProductIntoDraft(p, code);
+        dispatch(
+          addToast({
+            type: "success",
+            title: "Product found",
+            message: p.productName,
+            duration: 2500,
+          })
+        );
+      } catch {
+        dispatch(
+          addToast({
+            type: "error",
+            title: "Barcode not found",
+            message: `No product matches “${code}”.`,
+            duration: 4000,
+          })
+        );
+      }
+    },
+    [
+      products,
+      lookupProductByBarcode,
+      mergeProductIntoDraft,
+      dispatch,
+      barcodeLookupLoading,
+    ]
+  );
+
+  useEffect(() => {
+    if (!lineModalOpen) return;
+    const t = window.setTimeout(() => {
+      purchaseLineBarcodeRef.current?.focus();
+      purchaseLineBarcodeRef.current?.select();
+    }, 100);
+    return () => clearTimeout(t);
+  }, [lineModalOpen, lineModalMountKey]);
+
   const commitLineFromModal = () => {
-    if (!draft.productId || draft.purchaseQuantity <= 0) {
+    const barcodeLive = String(
+      purchaseLineBarcodeRef.current?.value ?? draft.barcode ?? ""
+    ).trim();
+    const line = { ...draft, barcode: barcodeLive };
+
+    if (!line.productId || line.purchaseQuantity <= 0) {
       dispatch(
         addToast({
           type: "warning",
@@ -438,13 +548,13 @@ export default function NewPurchasePage() {
     if (editingIndex === null) {
       setForm((prev) => ({
         ...prev,
-        purchaseDetails: [...prev.purchaseDetails, { ...draft }],
+        purchaseDetails: [...prev.purchaseDetails, line],
       }));
     } else {
       setForm((prev) => ({
         ...prev,
         purchaseDetails: prev.purchaseDetails.map((row, i) =>
-          i === editingIndex ? { ...draft } : row
+          i === editingIndex ? line : row
         ),
       }));
     }
@@ -749,6 +859,7 @@ export default function NewPurchasePage() {
           setLineModalOpen(false);
           setEditingIndex(null);
           setDraft(emptyDetailRow());
+          setBarcodeResolvedProduct(null);
         }}
         title={editingIndex === null ? "Add line item" : "Edit line item"}
         description="Search for a product, adjust quantities and pricing, then add to this purchase."
@@ -761,6 +872,7 @@ export default function NewPurchasePage() {
                 setLineModalOpen(false);
                 setEditingIndex(null);
                 setDraft(emptyDetailRow());
+                setBarcodeResolvedProduct(null);
               }}
               className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
@@ -780,21 +892,43 @@ export default function NewPurchasePage() {
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">Product *</label>
             <SearchableSelect
-              options={productOptions}
+              options={productOptionsForSelect}
               value={draft.productId}
               onChange={applyProductToDraft}
               placeholder="Search product by code, name, or barcode…"
               disabled={productsLoading || products.length === 0}
               emptyHint="No products match"
             />
+            <p className="text-xs text-gray-500">
+              Tip: scan a barcode in the field below — the product name above updates when the code matches.
+            </p>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">Barcode</label>
+              <label className="mb-1 block text-xs font-medium text-gray-600">
+                Barcode {barcodeLookupLoading ? "(looking up…)" : ""}
+              </label>
               <input
-                value={draft.barcode || ""}
-                onChange={(e) => setDraft((d) => ({ ...d, barcode: e.target.value }))}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                key={lineModalMountKey}
+                ref={purchaseLineBarcodeRef}
+                id="purchase-line-barcode"
+                defaultValue={draft.barcode || ""}
+                onInput={(e) => {
+                  const v = (e.currentTarget as HTMLInputElement).value;
+                  setDraft((d) => (d.barcode === v ? d : { ...d, barcode: v }));
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === "Tab") {
+                    e.preventDefault();
+                    const v = (e.currentTarget as HTMLInputElement).value;
+                    void resolveBarcodeToProduct(v);
+                  }
+                }}
+                autoComplete="off"
+                spellCheck={false}
+                disabled={barcodeLookupLoading}
+                placeholder="Scan or type barcode, then Enter / Tab"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm disabled:opacity-60"
               />
             </div>
             <div>

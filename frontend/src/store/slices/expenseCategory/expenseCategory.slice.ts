@@ -1,6 +1,7 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import axios from 'axios';
 import { configureSlice } from '@/lib/utils';
+import { getApiErrorMessage } from '@/lib/apiResult';
 import type {
   ExpenseCategory,
   CreateExpenseCategoryRequest,
@@ -8,17 +9,10 @@ import type {
 } from '@/types/expenseCategory';
 import type { RootState } from '@/store';
 
-const createAuthenticatedRequest = (token?: string) => {
-  const normalizedToken = token?.startsWith('Bearer ') ? token.slice(7) : token;
+const createAuthenticatedRequest = () => {
   return axios.create({
     headers: {
       'Content-Type': 'application/json',
-      ...(normalizedToken
-        ? {
-            Authorization: `Bearer ${normalizedToken}`,
-            'X-Access-Token': normalizedToken,
-          }
-        : {}),
     },
   });
 };
@@ -56,7 +50,7 @@ export const fetchExpenseCategories = createAsyncThunk<
   { rejectValue: string; state: RootState }
 >('expenseCategory/fetchAll', async (_, { rejectWithValue, getState }) => {
   try {
-    const api = createAuthenticatedRequest(getState().auth?.token);
+    const api = createAuthenticatedRequest();
     const response = await api.get<ApiResponse<ExpenseCategory[]>>('/proxy/expensecategories');
     return response.data;
   } catch (error: unknown) {
@@ -71,7 +65,7 @@ export const fetchExpenseCategoryById = createAsyncThunk<
   { rejectValue: string; state: RootState }
 >('expenseCategory/fetchById', async (id, { rejectWithValue, getState }) => {
   try {
-    const api = createAuthenticatedRequest(getState().auth?.token);
+    const api = createAuthenticatedRequest();
     const response = await api.get<ApiResponse<ExpenseCategory>>(`/proxy/expensecategories/${id}`);
     return response.data;
   } catch (error: unknown) {
@@ -86,8 +80,10 @@ export const createExpenseCategory = createAsyncThunk<
   { rejectValue: string; state: RootState }
 >('expenseCategory/create', async (payload, { rejectWithValue, getState }) => {
   try {
-    const api = createAuthenticatedRequest(getState().auth?.token);
+    const api = createAuthenticatedRequest();
     const response = await api.post<ApiResponse<ExpenseCategory>>('/proxy/expensecategories', payload);
+    const failMsg = getApiErrorMessage(response.data);
+    if (failMsg) return rejectWithValue(failMsg);
     return response.data;
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -101,11 +97,13 @@ export const updateExpenseCategory = createAsyncThunk<
   { rejectValue: string; state: RootState }
 >('expenseCategory/update', async (payload, { rejectWithValue, getState }) => {
   try {
-    const api = createAuthenticatedRequest(getState().auth?.token);
+    const api = createAuthenticatedRequest();
     const response = await api.put<ApiResponse<ExpenseCategory>>(
       `/proxy/expensecategories/${payload.expenseCategoryId}`,
       payload
     );
+    const failMsg = getApiErrorMessage(response.data);
+    if (failMsg) return rejectWithValue(failMsg);
     return response.data;
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -119,8 +117,10 @@ export const deleteExpenseCategory = createAsyncThunk<
   { rejectValue: string; state: RootState }
 >('expenseCategory/delete', async (id, { rejectWithValue, getState }) => {
   try {
-    const api = createAuthenticatedRequest(getState().auth?.token);
+    const api = createAuthenticatedRequest();
     const response = await api.post<ApiResponse<unknown>>(`/proxy/expensecategories/delete/${id}`, { id });
+    const failMsg = getApiErrorMessage(response.data);
+    if (failMsg) return rejectWithValue(failMsg);
     return { id, message: response.data.message || 'Expense category deleted successfully' };
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string };
