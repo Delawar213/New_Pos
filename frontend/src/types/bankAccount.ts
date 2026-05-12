@@ -7,6 +7,7 @@ export interface BankAccount {
   accountName: string;
   accountType: string;
   bankName: string;
+  branchName?: string | null;
   accountNumber: string;
   sortCode?: string;
   openingBalance: number;

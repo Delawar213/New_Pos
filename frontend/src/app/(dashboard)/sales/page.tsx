@@ -1,19 +1,12 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { PageHeader, DataTable, StatusBadge } from "@/components/ui";
 import type { Column } from "@/components/ui/DataTable";
 import type { Sale } from "@/types";
 import { formatCurrency } from "@/lib/utils";
-
-const demoSales: Sale[] = [
-  {
-    id: 1, invoiceNo: "INV-001234", customerId: 1, customerName: "Ahmed Hassan",
-    saleDate: "2026-02-13", status: "completed", subtotal: 1200, taxAmount: 60,
-    discountAmount: 0, grandTotal: 1260, paidAmount: 1260, dueAmount: 0, changeAmount: 0,
-    paymentMethod: "cash", items: [], createdBy: "Admin", createdAt: "2026-02-13",
-  },
-];
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { fetchSales } from "@/store/slices/sale/sale.slice";
 
 const columns: Column<Sale>[] = [
   { key: "invoiceNo", label: "Invoice" },
@@ -48,14 +41,27 @@ const columns: Column<Sale>[] = [
     label: "Actions",
     render: () => (
       <div className="flex items-center gap-2">
-        <button className="text-xs text-blue-600 hover:text-blue-800">View</button>
-        <button className="text-xs text-green-600 hover:text-green-800">Print</button>
+        <button type="button" className="text-xs text-blue-600 hover:text-blue-800">
+          View
+        </button>
+        <button type="button" className="text-xs text-green-600 hover:text-green-800">
+          Print
+        </button>
       </div>
     ),
   },
 ];
 
 export default function SalesPage() {
+  const dispatch = useAppDispatch();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const { sales, totalCount, loading, error } = useAppSelector((s) => s.sale);
+
+  useEffect(() => {
+    void dispatch(fetchSales({ pageNumber: page, pageSize, sortDirection: "desc" }));
+  }, [dispatch, page, pageSize]);
+
   return (
     <div>
       <PageHeader
@@ -66,9 +72,34 @@ export default function SalesPage() {
           { label: "Sales" },
         ]}
       />
-      <DataTable columns={columns} data={demoSales} rowKey="id" title="All Sales"
-        totalCount={demoSales.length} onSearch={(term) => console.log("Search:", term)}
-        onAdd={() => {}} addLabel="New Sale" onFilter={() => {}} onExport={() => {}} />
+      {error && (
+        <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          {error}
+        </p>
+      )}
+      <DataTable
+        columns={columns}
+        data={sales}
+        rowKey="id"
+        title="All Sales"
+        totalCount={totalCount}
+        pageNumber={page}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={(s) => {
+          setPageSize(s);
+          setPage(1);
+        }}
+        onSearch={(term) => console.log("Search:", term)}
+        onAdd={() => {}}
+        addLabel="New Sale"
+        onFilter={() => {}}
+        onExport={() => {}}
+        onRefresh={() =>
+          void dispatch(fetchSales({ pageNumber: page, pageSize, sortDirection: "desc" }))
+        }
+        loading={loading}
+      />
     </div>
   );
 }

@@ -23,6 +23,8 @@ interface SupplierState {
   suppliers: Supplier[];
   activeSuppliers: Supplier[];
   dropdownSuppliers: SupplierDropdown[];
+  /** True when `/suppliers/dropdown` failed (list fetch may still succeed). */
+  dropdownFetchFailed: boolean;
   selectedSupplier: Supplier | null;
   supplierLedger: SupplierLedgerEntry[];
   supplierBalance: number;
@@ -43,6 +45,7 @@ const initialState: SupplierState = {
   suppliers: [],
   activeSuppliers: [],
   dropdownSuppliers: [],
+  dropdownFetchFailed: false,
   selectedSupplier: null,
   supplierLedger: [],
   supplierBalance: 0,
@@ -129,6 +132,8 @@ export const fetchSuppliersDropdown = createAsyncThunk<
     try {
       const api = createAuthenticatedAxios();
     const response = await api.get<ApiResponse<SupplierDropdown[]>>('/proxy/suppliers/dropdown');
+    const failMsg = getApiErrorMessage(response.data);
+    if (failMsg) return rejectWithValue(failMsg);
     return response.data;
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -267,8 +272,15 @@ const supplierSlice = createSlice({
     builder.addCase(fetchActiveSuppliers.fulfilled, (state, { payload }) => {
       state.activeSuppliers = payload.data;
     });
+    builder.addCase(fetchSuppliersDropdown.pending, (state) => {
+      state.dropdownFetchFailed = false;
+    });
     builder.addCase(fetchSuppliersDropdown.fulfilled, (state, { payload }) => {
       state.dropdownSuppliers = payload.data;
+      state.dropdownFetchFailed = false;
+    });
+    builder.addCase(fetchSuppliersDropdown.rejected, (state) => {
+      state.dropdownFetchFailed = true;
     });
     builder.addCase(fetchSupplierLedger.fulfilled, (state, { payload }) => {
       state.supplierLedger = payload.data;

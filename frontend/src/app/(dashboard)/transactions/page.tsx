@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { PageHeader, DataTable, StatusBadge } from "@/components/ui";
 import type { Column } from "@/components/ui/DataTable";
 import type { Transaction } from "@/types";
 import { formatCurrency } from "@/lib/utils";
-import { useGetTransactionsQuery } from "@/store/api";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { fetchTransactions } from "@/store/slices/transaction/transaction.slice";
 
 const columns: Column<Transaction>[] = [
   { key: "transactionCode", label: "Code" },
@@ -51,15 +52,14 @@ const columns: Column<Transaction>[] = [
 ];
 
 export default function TransactionsPage() {
+  const dispatch = useAppDispatch();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const { data, isLoading } = useGetTransactionsQuery({
-    pageNumber: page,
-    pageSize,
-    sortDirection: "desc",
-  });
-  const transactions = data?.data.data || [];
-  const totalCount = data?.data.totalRecords || 0;
+  const { transactions, totalCount, loading } = useAppSelector((s) => s.transaction);
+
+  useEffect(() => {
+    void dispatch(fetchTransactions({ pageNumber: page, pageSize, sortDirection: "desc" }));
+  }, [dispatch, page, pageSize]);
 
   return (
     <div>
@@ -89,7 +89,10 @@ export default function TransactionsPage() {
         addLabel="Add Transaction"
         onFilter={() => {}}
         onExport={() => {}}
-        loading={isLoading}
+        onRefresh={() =>
+          void dispatch(fetchTransactions({ pageNumber: page, pageSize, sortDirection: "desc" }))
+        }
+        loading={loading}
       />
     </div>
   );

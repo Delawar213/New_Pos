@@ -15,8 +15,12 @@ interface ApiResponse<T> {
 
 interface ProductState {
   products: Product[];
+  /** Large product list for dropdowns (e.g. purchase lines). */
+  allProducts: Product[];
   selectedProduct: Product | null;
   loading: boolean;
+  catalogLoading: boolean;
+  barcodeLookupLoading: boolean;
   actionLoading: boolean;
   error: string | null;
   success: boolean;
@@ -31,8 +35,11 @@ interface ProductState {
 
 const initialState: ProductState = {
   products: [],
+  allProducts: [],
   selectedProduct: null,
   loading: false,
+  catalogLoading: false,
+  barcodeLookupLoading: false,
   actionLoading: false,
   error: null,
   success: false,
@@ -116,6 +123,44 @@ export const deleteProduct = createAsyncThunk<
   }
 });
 
+export const fetchAllProducts = createAsyncThunk<
+  ApiResponse<PaginatedProductResponse>,
+  void,
+  { rejectValue: string; state: RootState }
+>("product/fetchAllCatalog", async (_, { rejectWithValue }) => {
+  try {
+    const api = createAuthenticatedAxios();
+    const response = await api.get<ApiResponse<PaginatedProductResponse>>(
+      `/proxy/products?pageNumber=1&pageSize=500&sortDirection=desc`
+    );
+    const failMsg = getApiErrorMessage(response.data);
+    if (failMsg) return rejectWithValue(failMsg);
+    return response.data;
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string };
+    return rejectWithValue(err.response?.data?.message || err.message || "Failed to fetch products");
+  }
+});
+
+export const fetchProductByBarcode = createAsyncThunk<
+  Product,
+  string,
+  { rejectValue: string; state: RootState }
+>("product/fetchByBarcode", async (barcode, { rejectWithValue }) => {
+  try {
+    const api = createAuthenticatedAxios();
+    const response = await api.get<ApiResponse<Product>>(
+      `/proxy/products/barcode/${encodeURIComponent(barcode.trim())}`
+    );
+    const failMsg = getApiErrorMessage(response.data);
+    if (failMsg) return rejectWithValue(failMsg);
+    return response.data.data;
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string };
+    return rejectWithValue(err.response?.data?.message || err.message || "Product not found");
+  }
+});
+
 const productSlice = createSlice({
   name: "product",
   initialState,
@@ -150,6 +195,28 @@ const productSlice = createSlice({
     builder.addCase(fetchProducts.rejected, (state, { payload }) => {
       state.loading = false;
       state.error = payload || "Failed to fetch products";
+    });
+
+    builder.addCase(fetchAllProducts.pending, (state) => {
+      state.catalogLoading = true;
+    });
+    builder.addCase(fetchAllProducts.fulfilled, (state, { payload }) => {
+      state.catalogLoading = false;
+      state.allProducts = payload.data.data;
+    });
+    builder.addCase(fetchAllProducts.rejected, (state, { payload }) => {
+      state.catalogLoading = false;
+      state.error = payload || "Failed to load product catalog";
+    });
+
+    builder.addCase(fetchProductByBarcode.pending, (state) => {
+      state.barcodeLookupLoading = true;
+    });
+    builder.addCase(fetchProductByBarcode.fulfilled, (state) => {
+      state.barcodeLookupLoading = false;
+    });
+    builder.addCase(fetchProductByBarcode.rejected, (state) => {
+      state.barcodeLookupLoading = false;
     });
 
     builder.addCase(createProduct.pending, (state) => {

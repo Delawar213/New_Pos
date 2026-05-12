@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PageHeader, DataTable, StatusBadge } from "@/components/ui";
 import type { Column } from "@/components/ui/DataTable";
 import type { Purchase } from "@/types";
 import { formatCurrency } from "@/lib/utils";
-import { useGetPurchasesQuery } from "@/store/api";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { fetchPurchases } from "@/store/slices/purchases/purchases.slice";
 
 function lineTotalFromDetails(item: Purchase): number | null {
   const details = item.purchaseDetails;
@@ -93,14 +94,14 @@ const columns: Column<Purchase>[] = [
 
 export default function PurchasesPage() {
   const router = useRouter();
+  const dispatch = useAppDispatch();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-  const { data, isLoading } = useGetPurchasesQuery(
-    { pageNumber: page, pageSize, sortDirection: "desc" },
-    { refetchOnMountOrArgChange: true }
-  );
-  const purchases = data?.data?.data ?? [];
-  const totalCount = data?.data?.totalRecords ?? 0;
+  const { purchases, totalCount, loading } = useAppSelector((s) => s.purchases);
+
+  useEffect(() => {
+    void dispatch(fetchPurchases({ pageNumber: page, pageSize, sortDirection: "desc" }));
+  }, [dispatch, page, pageSize]);
 
   return (
     <div>
@@ -130,7 +131,10 @@ export default function PurchasesPage() {
         addLabel="Add Purchase"
         onFilter={() => {}}
         onExport={() => {}}
-        loading={isLoading}
+        onRefresh={() =>
+          void dispatch(fetchPurchases({ pageNumber: page, pageSize, sortDirection: "desc" }))
+        }
+        loading={loading}
       />
     </div>
   );

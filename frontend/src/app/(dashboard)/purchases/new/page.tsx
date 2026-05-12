@@ -6,15 +6,11 @@ import { useRouter } from "next/navigation";
 import { ChevronDown, Search } from "lucide-react";
 import { PageHeader, Modal } from "@/components/ui";
 import type { CreatePurchaseRequest, PurchaseDetail, Product } from "@/types";
-import {
-  useCreatePurchaseMutation,
-  useGetAllProductsQuery,
-  useGetSuppliersDropdownQuery,
-  useGetSuppliersQuery,
-} from "@/store/api";
-import { useLazyGetProductByBarcodeQuery } from "@/store/api/productsApi";
-import { useAppDispatch } from "@/store/hooks";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { addToast } from "@/store/slices/ui/ui.slice";
+import { createPurchase } from "@/store/slices/purchases/purchases.slice";
+import { fetchAllProducts, fetchProductByBarcode } from "@/store/slices/product/product.slice";
+import { fetchSuppliers, fetchSuppliersDropdown } from "@/store/slices/supplier/supplier.slice";
 import { cn, formatCurrency } from "@/lib/utils";
 
 const VAT_RATE_OPTIONS = [0, 5, 20] as const;
@@ -131,20 +127,6 @@ function lineExVatTotal(d: PurchaseDetail): number {
   const qty = Number(d.purchaseQuantity || 0);
   const unit = Number(d.purchasePriceExVat || 0);
   return qty * unit;
-}
-
-function formatRequestError(err: unknown): string {
-  if (typeof err !== "object" || err === null) return "Request failed.";
-  const e = err as Record<string, unknown>;
-  const data = e.data as Record<string, unknown> | undefined;
-  if (typeof data?.message === "string" && data.message) return data.message;
-  if (Array.isArray(data?.errors) && data.errors.length) {
-    return data.errors.map(String).join(" ");
-  }
-  if (typeof e.error === "string" && e.error) return e.error;
-  if (typeof e.status === "number") return `Server responded with ${e.status}.`;
-  if (typeof e.status === "string" && e.status !== "PARSING_ERROR") return e.status;
-  return "Request failed. Check network and API configuration.";
 }
 
 function isSuccessFlag(v: unknown): boolean {
@@ -329,32 +311,33 @@ function toApiPurchaseDetail(d: PurchaseDetail) {
 export default function NewPurchasePage() {
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const [createPurchase, { isLoading: creating }] = useCreatePurchaseMutation();
+  const creating = useAppSelector((s) => s.purchases.actionLoading);
 
-  const {
-    data: suppliersDropdown = [],
-    isError: isSuppliersDropdownError,
-  } = useGetSuppliersDropdownQuery(undefined, { refetchOnMountOrArgChange: true });
-  const { data: suppliersListResponse } = useGetSuppliersQuery(
-    { pageNumber: 1, pageSize: 100 },
-    { refetchOnMountOrArgChange: true }
-  );
-  const { data: products = [], isLoading: productsLoading } = useGetAllProductsQuery();
-  const [lookupProductByBarcode, { isFetching: barcodeLookupLoading }] =
-    useLazyGetProductByBarcodeQuery();
+  const { dropdownSuppliers, suppliers: suppliersFromList, loading: suppliersListLoading, dropdownFetchFailed } =
+    useAppSelector((s) => s.supplier);
+  const { allProducts, catalogLoading, barcodeLookupLoading } = useAppSelector((s) => s.product);
+
+  useEffect(() => {
+    void dispatch(fetchSuppliersDropdown());
+    void dispatch(fetchSuppliers({ pageNumber: 1, pageSize: 100 }));
+    void dispatch(fetchAllProducts());
+  }, [dispatch]);
 
   const suppliers = useMemo(
     () =>
-      suppliersDropdown.length > 0
-        ? suppliersDropdown
-        : (suppliersListResponse?.data.data || []).map((s) => ({
+      dropdownSuppliers.length > 0
+        ? dropdownSuppliers
+        : suppliersFromList.map((s) => ({
             supplierId: s.supplierId,
             supplierCode: s.supplierCode,
             supplierName: s.supplierName,
             currentBalance: s.currentBalance ?? 0,
           })),
-    [suppliersDropdown, suppliersListResponse]
+    [dropdownSuppliers, suppliersFromList]
   );
+
+  const products = allProducts;
+  const productsLoading = catalogLoading || suppliersListLoading;
 
   const supplierOptions: SelectOption[] = useMemo(
     () =>
@@ -461,7 +444,7 @@ export default function NewPurchasePage() {
       });
       return;
     }
-    const p = products.find((x: Product) => x.productId === productId);
+    const p = allProducts.find((x: Product) => x.productId === productId);
     if (!p) return;
     mergeProductIntoDraft(p);
   };
@@ -489,7 +472,7 @@ export default function NewPurchasePage() {
       }
 
       try {
-        const p = await lookupProductByBarcode(code).unwrap();
+        const p = await dispatch(fetchProductByBarcode(code)).unwrap();
         setBarcodeResolvedProduct(p);
         mergeProductIntoDraft(p, code);
         dispatch(
@@ -511,13 +494,7 @@ export default function NewPurchasePage() {
         );
       }
     },
-    [
-      products,
-      lookupProductByBarcode,
-      mergeProductIntoDraft,
-      dispatch,
-      barcodeLookupLoading,
-    ]
+    [products, mergeProductIntoDraft, dispatch, barcodeLookupLoading]
   );
 
   useEffect(() => {
@@ -607,23 +584,27 @@ export default function NewPurchasePage() {
       purchaseDetails: validDetails.map(toApiPurchaseDetail),
     };
 
-    const result = await createPurchase(payload);
-    if ("error" in result) {
+    const result = await dispatch(createPurchase(payload));
+    if (createPurchase.rejected.match(result)) {
       dispatch(
         addToast({
           type: "error",
           title: "Could not create purchase",
-          message: formatRequestError(result.error),
+          message: result.payload || "Request failed.",
         })
       );
       return;
     }
 
-    if (process.env.NODE_ENV === "development") {
-      console.debug("[createPurchase] response body:", result.data);
+    if (!createPurchase.fulfilled.match(result)) {
+      return;
     }
 
-    const outcome = interpretCreatePurchaseResponse(result.data);
+    if (process.env.NODE_ENV === "development") {
+      console.debug("[createPurchase] response body:", result.payload);
+    }
+
+    const outcome = interpretCreatePurchaseResponse(result.payload);
     if (!outcome.ok) {
       dispatch(
         addToast({
@@ -673,7 +654,7 @@ export default function NewPurchasePage() {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">Supplier *</label>
-            {isSuppliersDropdownError && suppliers.length > 0 && (
+            {dropdownFetchFailed && suppliers.length > 0 && (
               <p className="mb-1 text-xs text-amber-600">
                 Dropdown endpoint unavailable; using supplier list.
               </p>
