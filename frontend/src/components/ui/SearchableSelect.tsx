@@ -20,6 +20,7 @@ export default function SearchableSelect<V extends string | number>({
   emptyHint,
   id,
   "aria-labelledby": ariaLabelledBy,
+  triggerClassName,
 }: {
   options: SearchableSelectOption<V>[];
   value: V;
@@ -29,6 +30,8 @@ export default function SearchableSelect<V extends string | number>({
   emptyHint?: string;
   id?: string;
   "aria-labelledby"?: string;
+  /** Merged onto the trigger button (e.g. height/border to match text inputs). */
+  triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -63,7 +66,8 @@ export default function SearchableSelect<V extends string | number>({
         className={cn(
           "flex w-full items-center justify-between gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-sm",
           disabled && "cursor-not-allowed opacity-60",
-          !selected && "text-gray-500"
+          !selected && "text-gray-500",
+          triggerClassName
         )}
       >
         <span className="truncate">{selected ? selected.label : placeholder}</span>

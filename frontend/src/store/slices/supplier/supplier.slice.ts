@@ -9,6 +9,7 @@ import type {
   SupplierDropdown,
   SupplierLedgerEntry,
   PaginatedSupplierResponse,
+  SupplierBulkPaymentRequest,
 } from '@/types/supplier';
 import type { RootState } from '@/store';
 import type { PaginationParams } from '@/types/common';
@@ -230,6 +231,23 @@ export const deleteSupplier = createAsyncThunk<
   }
 });
 
+export const supplierBulkPayment = createAsyncThunk<
+  ApiResponse<unknown>,
+  SupplierBulkPaymentRequest,
+  { rejectValue: string; state: RootState }
+>('supplier/bulkPayment', async (payload, { rejectWithValue }) => {
+  try {
+    const api = createAuthenticatedAxios();
+    const response = await api.post<ApiResponse<unknown>>('/proxy/Suppliers/bulk-payment', payload);
+    const failMsg = getApiErrorMessage(response.data);
+    if (failMsg) return rejectWithValue(failMsg);
+    return response.data;
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string };
+    return rejectWithValue(err.response?.data?.message || err.message || 'Bulk payment failed');
+  }
+});
+
 const supplierSlice = createSlice({
   name: 'supplier',
   initialState,
@@ -339,6 +357,16 @@ const supplierSlice = createSlice({
     builder.addCase(deleteSupplier.rejected, (state, { payload }) => {
       state.actionLoading = false;
       state.error = payload || 'Failed to delete supplier';
+    });
+
+    builder.addCase(supplierBulkPayment.pending, (state) => {
+      state.actionLoading = true;
+    });
+    builder.addCase(supplierBulkPayment.fulfilled, (state) => {
+      state.actionLoading = false;
+    });
+    builder.addCase(supplierBulkPayment.rejected, (state) => {
+      state.actionLoading = false;
     });
   },
 });

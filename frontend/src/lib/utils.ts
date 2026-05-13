@@ -27,11 +27,14 @@ export function cn(...inputs: ClassValue[]) {
   return clsx(inputs);
 }
 
+/** Default display currency (UK sterling). */
+export const APP_CURRENCY_CODE = "GBP" as const;
+
 /**
- * Format currency
+ * Format currency (defaults to UK GBP via en-GB).
  */
-export function formatCurrency(amount: number, currency = "AED"): string {
-  return new Intl.NumberFormat("en-AE", {
+export function formatCurrency(amount: number, currency: string = APP_CURRENCY_CODE): string {
+  return new Intl.NumberFormat("en-GB", {
     style: "currency",
     currency,
     minimumFractionDigits: 2,

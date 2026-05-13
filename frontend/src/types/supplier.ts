@@ -58,3 +58,13 @@ export interface PaginatedSupplierResponse {
   hasPreviousPage: boolean;
   hasNextPage: boolean;
 }
+
+/** POST `/api/Suppliers/bulk-payment` — apply a single payment to a supplier from a bank account. */
+export interface SupplierBulkPaymentRequest {
+  supplierId: number;
+  paymentAmount: number;
+  paymentDate: string;
+  bankAccountId: number;
+  description: string;
+  createdBy: number;
+}

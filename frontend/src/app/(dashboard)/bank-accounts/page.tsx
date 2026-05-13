@@ -407,7 +407,7 @@ export default function BankAccountsPage() {
         <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">Balance summary</h2>
-            <p className="mt-0.5 text-xs text-slate-400">All amounts in AED · Updated when you refresh or save changes</p>
+            <p className="mt-0.5 text-xs text-slate-400">All amounts in GBP (£) · Updated when you refresh or save changes</p>
           </div>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

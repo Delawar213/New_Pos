@@ -34,7 +34,7 @@ export default function Header() {
   const notifications = [
     { id: 1, title: "New order received", message: "Order #1234 from Ahmed Hassan", time: "2m ago", unread: true },
     { id: 2, title: "Low stock alert", message: "Premium Wall Paint is running low", time: "1h ago", unread: true },
-    { id: 3, title: "Payment received", message: "AED 450.00 from walk-in customer", time: "3h ago", unread: false },
+    { id: 3, title: "Payment received", message: "£450.00 from walk-in customer", time: "3h ago", unread: false },
   ];
 
   const unreadCount = notifications.filter(n => n.unread).length;
