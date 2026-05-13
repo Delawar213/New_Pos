@@ -52,9 +52,9 @@ interface CartState {
 const initialState: CartState = {
   items: [],
   customerId: 1,
-  customerName: "Walk-in",
-  paymentMethod: "cash",
-  posBankAccountId: 0,
+  customerName: "Walking customer",
+  paymentMethod: "walking",
+  posBankAccountId: 1,
   discountType: "fixed",
   discountValue: 0,
   paidAmount: 0,
@@ -191,10 +191,12 @@ const cartSlice = createSlice({
     sanitizeCartLinesForPos: (state) => {
       if (typeof state.customerId !== "number" || state.customerId < 1) {
         state.customerId = 1;
-        state.customerName = "Walk-in";
+        state.customerName = "Walking customer";
       }
-      if (typeof state.posBankAccountId !== "number" || state.posBankAccountId < 0) {
-        state.posBankAccountId = 0;
+      const pm = String(state.paymentMethod ?? "").toLowerCase();
+      state.paymentMethod = pm === "credit" ? "credit" : "walking";
+      if (typeof state.posBankAccountId !== "number" || state.posBankAccountId < 1) {
+        state.posBankAccountId = 1;
       }
       state.items.forEach((raw, index) => {
         const item = raw as CartItem & { price?: number };

@@ -10,9 +10,7 @@ import {
   Trash2,
   Loader2,
   Receipt,
-  CreditCard,
   Banknote,
-  Building2,
   Wallet,
   AlertTriangle,
   Check,
@@ -57,12 +55,12 @@ import { BarcodeCameraScanner } from "@/components/pos/BarcodeCameraScanner";
 
 /** Default retail / walk-in customer id expected by the sales API. */
 const WALK_IN_CUSTOMER_ID = 1;
+/** Till / cash ledger — default “receive into” account for POS. */
+const CASH_DEPOSIT_ACCOUNT_ID = 1;
 
 const PAYMENT_OPTIONS = [
-  { value: "cash", label: "Cash", icon: Banknote },
-  { value: "card", label: "Card", icon: CreditCard },
+  { value: "walking", label: "Walking customer", icon: Banknote },
   { value: "credit", label: "Credit", icon: Wallet },
-  { value: "bank", label: "Bank", icon: Building2 },
 ] as const;
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -118,7 +116,9 @@ function buildCreateSaleRequest(cart: RootState["cart"]): CreatePosSaleRequest {
   if (cart.paymentMethod === "credit") {
     const onAccount = round2(Math.max(0, grandTotal - paidForApi));
     if (paidForApi > 0 && onAccount > 0) {
-      description = [description, `Part cash ${paidForApi}; on account ${onAccount}`].join(" · ");
+      description = [description, `Part paid now ${paidForApi}; on account ${onAccount}`].join(
+        " · "
+      );
     } else if (onAccount > 0 && paidForApi <= 0) {
       description = [description, `On account ${onAccount}`].join(" · ");
     }
@@ -133,11 +133,9 @@ function buildCreateSaleRequest(cart: RootState["cart"]): CreatePosSaleRequest {
     items,
     payment: {
       bankAccountId:
-        cart.paymentMethod === "bank"
-          ? cart.posBankAccountId
-          : cart.paymentMethod === "cash"
-            ? 1
-            : 0,
+        paidForApi > 0
+          ? Math.max(CASH_DEPOSIT_ACCOUNT_ID, cart.posBankAccountId || CASH_DEPOSIT_ACCOUNT_ID)
+          : 0,
       paidAmount: paidForApi,
     },
   };
@@ -189,27 +187,35 @@ export default function POSPage() {
     dispatch(sanitizeCartLinesForPos());
   }, [dispatch]);
 
+  useEffect(() => {
+    void dispatch(fetchBankAccountsDropdown());
+  }, [dispatch]);
+
   const applyPaymentMethod = useCallback(
     (value: string) => {
       dispatch(setPaymentMethod(value));
+      void dispatch(fetchBankAccountsDropdown());
+      dispatch(setPosBankAccountId(CASH_DEPOSIT_ACCOUNT_ID));
       if (value === "credit") {
         dispatch(setPaidAmount(0));
         void dispatch(fetchCustomersDropdown());
         return;
       }
-      if (value === "bank") {
-        void dispatch(fetchBankAccountsDropdown());
-      }
-      dispatch(setCustomer({ id: WALK_IN_CUSTOMER_ID, name: "Walk-in" }));
-      if (value !== "bank") {
-        dispatch(setPosBankAccountId(0));
-      }
-      if (value === "cash" || value === "card" || value === "bank") {
+      if (value === "walking") {
+        dispatch(setCustomer({ id: WALK_IN_CUSTOMER_ID, name: "Walking customer" }));
         const gt = round2(selectCartTotal(store.getState()));
         dispatch(setPaidAmount(gt));
       }
     },
     [dispatch]
+  );
+
+  const depositSelectValue =
+    posBankAccountId >= CASH_DEPOSIT_ACCOUNT_ID ? posBankAccountId : CASH_DEPOSIT_ACCOUNT_ID;
+  const bankAccountsExcludingCash = useMemo(
+    () =>
+      bankDropdownAccounts.filter((a) => a.bankAccountId !== CASH_DEPOSIT_ACCOUNT_ID),
+    [bankDropdownAccounts]
   );
 
   const submitScanWithCode = useCallback(
@@ -355,12 +361,17 @@ export default function POSPage() {
       );
       return;
     }
-    if (paymentMethod === "bank" && posBankAccountId <= 0) {
+    const tenderCheck = round2(Math.max(0, paidAmount));
+    let paidForApiCheck = tenderCheck;
+    if (paymentMethod === "credit") {
+      paidForApiCheck = round2(Math.min(tenderCheck, grandTotal));
+    }
+    if (paidForApiCheck > 0 && posBankAccountId < CASH_DEPOSIT_ACCOUNT_ID) {
       dispatch(
         addToast({
           type: "warning",
-          title: "Bank account required",
-          message: "Select which bank account this payment was received into.",
+          title: "Receive-into account required",
+          message: "Choose Cash or a bank account for the amount paid now.",
         })
       );
       return;
@@ -468,7 +479,7 @@ export default function POSPage() {
                 />
               ) : (
                 <div className="flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700">
-                  <span className="font-semibold">Walk-in</span>
+                  <span className="font-semibold">Walking customer</span>
                   <span className="ml-2 text-xs tabular-nums text-slate-400">
                     ID {WALK_IN_CUSTOMER_ID}
                   </span>
@@ -580,7 +591,7 @@ export default function POSPage() {
 
           <div className="rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm sm:p-3">
             <p className="mb-2 text-xs font-bold text-slate-600 sm:text-sm">Payment</p>
-            <div className="grid grid-cols-4 gap-1 sm:gap-1.5">
+            <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
               {PAYMENT_OPTIONS.map(({ value, label, icon: Icon }) => (
                 <button
                   key={value}
@@ -598,33 +609,35 @@ export default function POSPage() {
                 </button>
               ))}
             </div>
-            {paymentMethod === "bank" && (
-              <div className="mt-2">
-                <label className="mb-1 block text-[10px] font-semibold text-slate-500 sm:text-xs">
-                  Receive into account
-                </label>
-                <select
-                  value={posBankAccountId || ""}
-                  onChange={(e) =>
-                    dispatch(setPosBankAccountId(Number(e.target.value) || 0))
-                  }
-                  className="h-9 w-full max-w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:text-sm"
-                >
-                  <option value="">Select bank account…</option>
-                  {bankDropdownAccounts.map((a) => (
-                    <option key={a.bankAccountId} value={a.bankAccountId}>
-                      {a.accountName} ({a.accountType})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+            <div className="mt-2">
+              <label className="mb-1 block text-[10px] font-semibold text-slate-500 sm:text-xs">
+                Payment received into
+              </label>
+              <select
+                value={depositSelectValue}
+                onChange={(e) =>
+                  dispatch(
+                    setPosBankAccountId(
+                      Number(e.target.value) || CASH_DEPOSIT_ACCOUNT_ID
+                    )
+                  )
+                }
+                className="h-9 w-full max-w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:text-sm"
+              >
+                <option value={CASH_DEPOSIT_ACCOUNT_ID}>Cash</option>
+                {bankAccountsExcludingCash.map((a) => (
+                  <option key={a.bankAccountId} value={a.bankAccountId}>
+                    {a.accountName} ({a.accountType})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm sm:p-3">
             <div className="mb-1.5 flex flex-wrap items-center justify-between gap-1">
               <label className="text-xs font-bold text-slate-600 sm:text-sm">
-                {paymentMethod === "credit" ? "Cash paid now" : "Paid"}
+                {paymentMethod === "credit" ? "Amount paid now" : "Paid"}
               </label>
               {paymentMethod === "credit" && grandTotal > 0 && (
                 <button
@@ -632,7 +645,7 @@ export default function POSPage() {
                   onClick={() => dispatch(setPaidAmount(grandTotal))}
                   className="text-[10px] font-semibold text-blue-600 hover:underline sm:text-xs"
                 >
-                  Full cash
+                  Pay full amount
                 </button>
               )}
             </div>
@@ -646,7 +659,9 @@ export default function POSPage() {
             />
             {paymentMethod === "credit" && (
               <p className="mb-1 text-[10px] leading-snug text-slate-500 sm:text-xs">
-                Below total → <span className="font-semibold text-slate-700">on account</span>.
+                Use <span className="font-semibold text-slate-700">Payment received into</span> for
+                cash or bank. Below total →{" "}
+                <span className="font-semibold text-slate-700">on account</span>.
               </p>
             )}
             {paymentMethod === "credit" && onAccountAmount > 0 && (

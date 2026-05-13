@@ -4,6 +4,10 @@
 
 export type SaleStatus = "completed" | "pending" | "cancelled" | "returned";
 
+/**
+ * Normalized sale for UI / Redux. Populated from `GET /api/Sales` (list + detail) via mapper:
+ * `saleId`→`id`, `invoiceNumber`→`invoiceNo`, `totalAmountIncVat`→`grandTotal`, etc.
+ */
 export interface Sale {
   id: number;
   invoiceNo: string;
@@ -18,6 +22,7 @@ export interface Sale {
   paidAmount: number;
   dueAmount: number;
   changeAmount: number;
+  /** From API `paymentStatus` (e.g. Paid, Partial). */
   paymentMethod: string;
   note?: string;
   items: SaleItem[];
@@ -26,16 +31,19 @@ export interface Sale {
   updatedAt?: string;
 }
 
+/** Line from API `saleDetails` or legacy `items`. */
 export interface SaleItem {
   id: number;
   productId: number;
   productName?: string;
   sku?: string;
   quantity: number;
+  /** Unit selling price ex VAT (API: `sellingPriceExVat`). */
   unitPrice: number;
   taxPercentage: number;
   taxAmount: number;
   discount: number;
+  /** Line total inc VAT (API: `lineTotalIncVat`). */
   total: number;
   purchaseDetailId?: number;
 }

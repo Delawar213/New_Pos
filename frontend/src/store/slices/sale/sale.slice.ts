@@ -11,10 +11,107 @@ import type {
   PosPriceOverrideValidateRequest,
   Sale,
   SaleBarcodeScanData,
+  SaleItem,
+  SaleStatus,
   UpdateSaleRequest,
 } from "@/types/sale";
 import type { RootState } from "@/store";
 import { listQueryParams } from "@/lib/listQueryParams";
+
+function num(v: unknown, fallback = 0): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function str(v: unknown, fallback = ""): string {
+  return typeof v === "string" ? v : fallback;
+}
+
+function normalizeSaleStatus(api: string | undefined): SaleStatus {
+  const s = (api ?? "").toLowerCase();
+  if (s === "pending") return "pending";
+  if (s === "cancelled" || s === "canceled") return "cancelled";
+  if (s === "returned") return "returned";
+  if (s === "completed") return "completed";
+  return "completed";
+}
+
+function mapApiSaleDetailToSaleItem(row: Record<string, unknown>): SaleItem {
+  const itemDisc = num(row.itemDiscount);
+  const propDisc = num(row.proportionalDiscount);
+  const totalDisc =
+    num(row.totalDiscount) || (itemDisc || propDisc ? itemDisc + propDisc : 0);
+  return {
+    id: num(row.saleDetailId ?? row.id),
+    productId: num(row.productId),
+    productName: str(row.productName) || undefined,
+    sku: str(row.productCode ?? row.sku) || undefined,
+    quantity: num(row.quantity),
+    unitPrice: num(row.sellingPriceExVat ?? row.unitPrice),
+    taxPercentage: num(row.vatRate ?? row.taxPercentage),
+    taxAmount: num(row.lineVatAmount ?? row.taxAmount),
+    discount: totalDisc,
+    total: num(row.lineTotalIncVat ?? row.total),
+    purchaseDetailId:
+      row.purchaseDetailId != null && row.purchaseDetailId !== ""
+        ? num(row.purchaseDetailId)
+        : undefined,
+  };
+}
+
+/** Maps `GET /api/Sales` list row or `GET /api/Sales/{id}` body to UI `Sale`. */
+export function mapApiSalePayloadToSale(raw: unknown): Sale | null {
+  if (raw == null || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const saleId = num(o.saleId ?? o.id);
+  if (!saleId) return null;
+
+  let items: SaleItem[] = [];
+  if (Array.isArray(o.saleDetails)) {
+    items = o.saleDetails.map((d) =>
+      mapApiSaleDetailToSaleItem(
+        typeof d === "object" && d != null ? (d as Record<string, unknown>) : {}
+      )
+    );
+  } else if (Array.isArray(o.items)) {
+    items = o.items.map((d) =>
+      mapApiSaleDetailToSaleItem(
+        typeof d === "object" && d != null ? (d as Record<string, unknown>) : {}
+      )
+    );
+  }
+
+  const statusRaw = str(o.status, "completed");
+  const createdByRaw = o.createdBy;
+  const createdBy =
+    typeof createdByRaw === "string"
+      ? createdByRaw
+      : createdByRaw != null && String(createdByRaw).trim() !== ""
+        ? String(createdByRaw)
+        : "—";
+
+  return {
+    id: saleId,
+    invoiceNo: str(o.invoiceNumber ?? o.invoiceNo),
+    customerId: o.customerId != null ? num(o.customerId) : undefined,
+    customerName: str(o.customerName) || undefined,
+    saleDate: str(o.saleDate ?? o.createdDatetime ?? o.createdAt),
+    status: normalizeSaleStatus(statusRaw),
+    subtotal: num(o.subtotalExVat ?? o.subtotal ?? o.netAmountExVat),
+    taxAmount: num(o.totalVatAmount ?? o.taxAmount),
+    discountAmount: num(o.discountAmount),
+    grandTotal: num(o.totalAmountIncVat ?? o.grandTotal),
+    paidAmount: num(o.paidAmount),
+    dueAmount: num(o.remainingAmount ?? o.dueAmount),
+    changeAmount: num(o.returnAmount ?? o.changeAmount),
+    paymentMethod: str(o.paymentStatus ?? o.paymentMethod, ""),
+    note: str(o.description ?? o.note) || undefined,
+    items,
+    createdBy,
+    createdAt: str(o.createdDatetime ?? o.createdAt ?? o.saleDate),
+    updatedAt: o.updatedAt ? str(o.updatedAt) : undefined,
+  };
+}
 
 function extractSalesPage(raw: unknown): PaginatedResponse<Sale> | null {
   if (raw == null || typeof raw !== "object") return null;
@@ -23,11 +120,24 @@ function extractSalesPage(raw: unknown): PaginatedResponse<Sale> | null {
     o.data != null && typeof o.data === "object" && !Array.isArray(o.data)
       ? (o.data as Record<string, unknown>)
       : o;
-  const items = inner.items;
-  if (!Array.isArray(items)) return null;
+
+  const rawList: unknown[] | null = Array.isArray(inner.data)
+    ? (inner.data as unknown[])
+    : Array.isArray(inner.items)
+      ? (inner.items as unknown[])
+      : null;
+
+  if (!rawList) return null;
+
+  const items: Sale[] = [];
+  for (const row of rawList) {
+    const s = mapApiSalePayloadToSale(row);
+    if (s) items.push(s);
+  }
+
   return {
-    items: items as Sale[],
-    totalCount: Number(inner.totalCount) || 0,
+    items,
+    totalCount: Number(inner.totalRecords ?? inner.totalCount) || 0,
     pageNumber: Number(inner.pageNumber) || 1,
     pageSize: Number(inner.pageSize) || 10,
     totalPages: Number(inner.totalPages) || 0,
@@ -215,24 +325,42 @@ export const fetchSales = createAsyncThunk<
   FetchSalesArgs | undefined,
   { rejectValue: string; state: RootState }
 >("sale/fetchList", async (params = {}, { rejectWithValue }) => {
-  try {
-    const api = createAuthenticatedAxios();
-    const response = await api.get<unknown>("/proxy/sales", {
-      params: {
-        ...listQueryParams(params),
-        ...(params.status ? { status: params.status } : {}),
-      },
-    });
-    const body = response.data as { success?: boolean; message?: string; errors?: string[] | null };
-    const failMsg = getApiErrorMessage(body);
-    if (failMsg) return rejectWithValue(failMsg);
-    const page = extractSalesPage(response.data);
-    if (!page) return rejectWithValue("Unexpected sales list response from server.");
-    return page;
-  } catch (error: unknown) {
-    const err = error as { response?: { data?: { message?: string } }; message?: string };
-    return rejectWithValue(err.response?.data?.message || err.message || "Failed to fetch sales");
+  const api = createAuthenticatedAxios();
+  const query = {
+    ...listQueryParams(params),
+    ...(params.status ? { status: params.status } : {}),
+  };
+  const paths = ["/proxy/Sales", "/proxy/sales"];
+  let lastMessage = "Failed to fetch sales";
+
+  for (const path of paths) {
+    try {
+      const response = await api.get<unknown>(path, { params: query });
+      const body = response.data as {
+        success?: boolean;
+        message?: string;
+        errors?: string[] | null;
+      };
+      const failMsg = getApiErrorMessage(body);
+      if (failMsg) return rejectWithValue(failMsg);
+      const page = extractSalesPage(response.data);
+      if (page) return page;
+      lastMessage = "Unexpected sales list response from server.";
+    } catch (error: unknown) {
+      if (isAxiosError(error) && error.response?.status === 404) {
+        continue;
+      }
+      const err = error as { response?: { data?: { message?: string } }; message?: string };
+      lastMessage =
+        err.response?.data?.message || err.message || "Failed to fetch sales";
+      if (isAxiosError(error) && error.response?.status === 404) {
+        continue;
+      }
+      return rejectWithValue(lastMessage);
+    }
   }
+
+  return rejectWithValue(lastMessage);
 });
 
 export const fetchSaleById = createAsyncThunk<
@@ -240,19 +368,40 @@ export const fetchSaleById = createAsyncThunk<
   number,
   { rejectValue: string; state: RootState }
 >("sale/fetchById", async (id, { rejectWithValue }) => {
-  try {
-    const api = createAuthenticatedAxios();
-    const response = await api.get<unknown>(`/proxy/sales/${id}`);
-    const raw = response.data as Record<string, unknown>;
-    const failMsg = getApiErrorMessage(raw as { success?: boolean; message?: string; errors?: string[] | null });
-    if (failMsg) return rejectWithValue(failMsg);
-    const data = raw.data ?? raw;
-    if (!data || typeof data !== "object") return rejectWithValue("Unexpected sale response.");
-    return data as Sale;
-  } catch (error: unknown) {
-    const err = error as { response?: { data?: { message?: string } }; message?: string };
-    return rejectWithValue(err.response?.data?.message || err.message || "Failed to fetch sale");
+  const api = createAuthenticatedAxios();
+  const paths = [`/proxy/Sales/${id}`, `/proxy/sales/${id}`];
+  let lastMessage = "Failed to fetch sale";
+
+  for (const path of paths) {
+    try {
+      const response = await api.get<unknown>(path);
+      const raw = response.data as Record<string, unknown>;
+      const failMsg = getApiErrorMessage(
+        raw as { success?: boolean; message?: string; errors?: string[] | null }
+      );
+      if (failMsg) return rejectWithValue(failMsg);
+      const inner = raw.data ?? raw;
+      if (!inner || typeof inner !== "object") {
+        lastMessage = "Unexpected sale response.";
+        continue;
+      }
+      const sale = mapApiSalePayloadToSale(inner);
+      if (sale) return sale;
+      lastMessage = "Unexpected sale response.";
+    } catch (error: unknown) {
+      if (isAxiosError(error) && error.response?.status === 404) {
+        continue;
+      }
+      const err = error as { response?: { data?: { message?: string } }; message?: string };
+      lastMessage = err.response?.data?.message || err.message || lastMessage;
+      if (isAxiosError(error) && error.response?.status === 404) {
+        continue;
+      }
+      return rejectWithValue(lastMessage);
+    }
   }
+
+  return rejectWithValue(lastMessage);
 });
 
 export const createSale = createAsyncThunk<
@@ -285,17 +434,28 @@ export const updateSale = createAsyncThunk<
   UpdateSaleRequest,
   { rejectValue: string; state: RootState }
 >("sale/update", async (payload, { rejectWithValue }) => {
-  try {
-    const api = createAuthenticatedAxios();
-    const { id, ...body } = payload;
-    const response = await api.put<ApiResponse<Sale>>(`/proxy/sales/${id}`, body);
-    const failMsg = getApiErrorMessage(response.data);
-    if (failMsg) return rejectWithValue(failMsg);
-    return response.data;
-  } catch (error: unknown) {
-    const err = error as { response?: { data?: { message?: string } }; message?: string };
-    return rejectWithValue(err.response?.data?.message || err.message || "Failed to update sale");
+  const api = createAuthenticatedAxios();
+  const { id, ...body } = payload;
+  const paths = [`/proxy/Sales/${id}`, `/proxy/sales/${id}`];
+  let lastMessage = "Failed to update sale";
+
+  for (const path of paths) {
+    try {
+      const response = await api.put<ApiResponse<Sale>>(path, body);
+      const failMsg = getApiErrorMessage(response.data);
+      if (failMsg) return rejectWithValue(failMsg);
+      return response.data;
+    } catch (error: unknown) {
+      if (isAxiosError(error) && error.response?.status === 404) {
+        continue;
+      }
+      const err = error as { response?: { data?: { message?: string } }; message?: string };
+      lastMessage = err.response?.data?.message || err.message || lastMessage;
+      return rejectWithValue(lastMessage);
+    }
   }
+
+  return rejectWithValue(lastMessage);
 });
 
 export const deleteSale = createAsyncThunk<
@@ -303,16 +463,27 @@ export const deleteSale = createAsyncThunk<
   number,
   { rejectValue: string; state: RootState }
 >("sale/delete", async (id, { rejectWithValue }) => {
-  try {
-    const api = createAuthenticatedAxios();
-    const response = await api.delete<ApiResponse<null>>(`/proxy/sales/${id}`);
-    const failMsg = getApiErrorMessage(response.data);
-    if (failMsg) return rejectWithValue(failMsg);
-    return { id, message: response.data.message || "Sale deleted successfully" };
-  } catch (error: unknown) {
-    const err = error as { response?: { data?: { message?: string } }; message?: string };
-    return rejectWithValue(err.response?.data?.message || err.message || "Failed to delete sale");
+  const api = createAuthenticatedAxios();
+  const paths = [`/proxy/Sales/${id}`, `/proxy/sales/${id}`];
+  let lastMessage = "Failed to delete sale";
+
+  for (const path of paths) {
+    try {
+      const response = await api.delete<ApiResponse<null>>(path);
+      const failMsg = getApiErrorMessage(response.data);
+      if (failMsg) return rejectWithValue(failMsg);
+      return { id, message: response.data.message || "Sale deleted successfully" };
+    } catch (error: unknown) {
+      if (isAxiosError(error) && error.response?.status === 404) {
+        continue;
+      }
+      const err = error as { response?: { data?: { message?: string } }; message?: string };
+      lastMessage = err.response?.data?.message || err.message || lastMessage;
+      return rejectWithValue(lastMessage);
+    }
   }
+
+  return rejectWithValue(lastMessage);
 });
 
 const saleSlice = createSlice({
@@ -386,11 +557,14 @@ const saleSlice = createSlice({
       state.actionLoading = false;
       state.success = true;
       state.message = payload.message || "Sale updated successfully";
-      const updated = payload.data;
-      const idx = state.sales.findIndex((s) => s.id === updated.id);
-      if (idx >= 0) state.sales[idx] = { ...state.sales[idx], ...updated };
-      if (state.selectedSale?.id === updated.id) {
-        state.selectedSale = { ...state.selectedSale, ...updated };
+      const mapped = mapApiSalePayloadToSale(payload.data as unknown);
+      const updated = mapped ?? (payload.data as Sale | null);
+      if (updated?.id) {
+        const idx = state.sales.findIndex((s) => s.id === updated.id);
+        if (idx >= 0) state.sales[idx] = { ...state.sales[idx], ...updated };
+        if (state.selectedSale?.id === updated.id) {
+          state.selectedSale = { ...state.selectedSale, ...updated };
+        }
       }
     });
     builder.addCase(updateSale.rejected, (state, { payload }) => {

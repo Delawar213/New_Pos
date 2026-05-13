@@ -88,6 +88,13 @@ const statusConfig: Record<string, {
     dot: "bg-cyan-500",
     icon: Clock 
   },
+  paid: {
+    bg: "bg-emerald-100",
+    text: "text-emerald-800",
+    border: "border-emerald-200",
+    dot: "bg-emerald-500",
+    icon: Check,
+  },
   // Transactions
   income: { 
     bg: "bg-emerald-100", 
