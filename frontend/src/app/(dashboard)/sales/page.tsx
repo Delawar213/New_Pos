@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { PageHeader, DataTable, StatusBadge } from "@/components/ui";
 import type { Column } from "@/components/ui/DataTable";
 import type { Sale } from "@/types";
@@ -122,6 +123,12 @@ export default function SalesPage() {
             >
               View
             </button>
+            <Link
+              href={`/sales/edit?saleId=${item.id}`}
+              className="text-xs font-semibold text-slate-700 hover:text-slate-900"
+            >
+              Edit
+            </Link>
             <button
               type="button"
               onClick={(e) => {

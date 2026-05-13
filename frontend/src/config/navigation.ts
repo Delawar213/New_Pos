@@ -21,6 +21,8 @@ import {
   List,
   PlusCircle,
   Wallet,
+  Undo2,
+  Pencil,
   type LucideIcon,
 } from "lucide-react";
 
@@ -157,6 +159,11 @@ export const sidebarNavigation: NavGroup[] = [
         label: "Sales",
         href: "/sales",
         icon: ShoppingBag,
+        children: [
+          { label: "Sales list", href: "/sales", icon: List },
+          { label: "Edit sale", href: "/sales/edit", icon: Pencil },
+          { label: "Sale return", href: "/sales/return", icon: Undo2 },
+        ],
       },
     ],
   },

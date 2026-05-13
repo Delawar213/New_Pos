@@ -12,11 +12,14 @@ import type {
   Sale,
   SaleBarcodeScanData,
   SaleItem,
+  SaleReturnRequest,
+  SaleReturnResultData,
   SaleStatus,
-  UpdateSaleRequest,
+  SaleUpdateThunkArg,
 } from "@/types/sale";
 import type { RootState } from "@/store";
 import { listQueryParams } from "@/lib/listQueryParams";
+import { authUserIsAdmin } from "@/lib/saleEdit";
 
 function num(v: unknown, fallback = 0): number {
   const n = Number(v);
@@ -41,12 +44,21 @@ function mapApiSaleDetailToSaleItem(row: Record<string, unknown>): SaleItem {
   const propDisc = num(row.proportionalDiscount);
   const totalDisc =
     num(row.totalDiscount) || (itemDisc || propDisc ? itemDisc + propDisc : 0);
+  const idAmtRaw = row.itemDiscountAmount;
+  const idPctRaw = row.itemDiscountPercentage;
+  const itemDiscountAmount =
+    idAmtRaw != null && idAmtRaw !== "" && Number(idAmtRaw) !== 0 ? num(idAmtRaw) : null;
+  const itemDiscountPercentage =
+    idPctRaw != null && idPctRaw !== "" && Number(idPctRaw) !== 0 ? num(idPctRaw) : null;
+
   return {
     id: num(row.saleDetailId ?? row.id),
     productId: num(row.productId),
     productName: str(row.productName) || undefined,
     sku: str(row.productCode ?? row.sku) || undefined,
     quantity: num(row.quantity),
+    returnQuantity: num(row.returnQuantity),
+    isReturned: Boolean(row.isReturned),
     unitPrice: num(row.sellingPriceExVat ?? row.unitPrice),
     taxPercentage: num(row.vatRate ?? row.taxPercentage),
     taxAmount: num(row.lineVatAmount ?? row.taxAmount),
@@ -56,6 +68,8 @@ function mapApiSaleDetailToSaleItem(row: Record<string, unknown>): SaleItem {
       row.purchaseDetailId != null && row.purchaseDetailId !== ""
         ? num(row.purchaseDetailId)
         : undefined,
+    itemDiscountAmount,
+    itemDiscountPercentage,
   };
 }
 
@@ -90,6 +104,10 @@ export function mapApiSalePayloadToSale(raw: unknown): Sale | null {
         ? String(createdByRaw)
         : "—";
 
+  const discPct = o.discountPercentage;
+  const desc = str(o.description);
+  const notesRaw = o.notes;
+
   return {
     id: saleId,
     invoiceNo: str(o.invoiceNumber ?? o.invoiceNo),
@@ -100,12 +118,16 @@ export function mapApiSalePayloadToSale(raw: unknown): Sale | null {
     subtotal: num(o.subtotalExVat ?? o.subtotal ?? o.netAmountExVat),
     taxAmount: num(o.totalVatAmount ?? o.taxAmount),
     discountAmount: num(o.discountAmount),
+    discountPercentage:
+      discPct != null && discPct !== "" && Number(discPct) !== 0 ? num(discPct) : undefined,
     grandTotal: num(o.totalAmountIncVat ?? o.grandTotal),
     paidAmount: num(o.paidAmount),
     dueAmount: num(o.remainingAmount ?? o.dueAmount),
     changeAmount: num(o.returnAmount ?? o.changeAmount),
     paymentMethod: str(o.paymentStatus ?? o.paymentMethod, ""),
-    note: str(o.description ?? o.note) || undefined,
+    description: desc || undefined,
+    notes: notesRaw === null ? null : str(notesRaw) || undefined,
+    note: str(o.notes ?? o.description ?? o.note) || undefined,
     items,
     createdBy,
     createdAt: str(o.createdDatetime ?? o.createdAt ?? o.saleDate),
@@ -444,18 +466,27 @@ export const createSale = createAsyncThunk<
 });
 
 export const updateSale = createAsyncThunk<
-  ApiResponse<Sale>,
-  UpdateSaleRequest,
+  ApiResponse<unknown>,
+  SaleUpdateThunkArg,
   { rejectValue: string; state: RootState }
->("sale/update", async (payload, { rejectWithValue }) => {
+>("sale/update", async (payload, { getState, rejectWithValue }) => {
   const api = createAuthenticatedAxios();
-  const { id, ...body } = payload;
+  const { id, saleDate, ...rest } = payload;
+  const user = getState().auth.user as Record<string, unknown> | undefined;
+  const updatedBy = Number(user?.id ?? user?.userId) || 0;
+  const body = {
+    saleId: id,
+    ...rest,
+    saleDate: saleDate.includes("T") ? saleDate : `${saleDate}T00:00:00`,
+    updatedBy,
+    roleId: authUserIsAdmin(user) ? 1 : null,
+  };
   const paths = [`/proxy/Sales/${id}`, `/proxy/sales/${id}`];
   let lastMessage = "Failed to update sale";
 
   for (const path of paths) {
     try {
-      const response = await api.put<ApiResponse<Sale>>(path, body);
+      const response = await api.put<ApiResponse<unknown>>(path, body);
       const failMsg = getApiErrorMessage(response.data);
       if (failMsg) return rejectWithValue(failMsg);
       return response.data;
@@ -493,6 +524,95 @@ export const deleteSale = createAsyncThunk<
       }
       const err = error as { response?: { data?: { message?: string } }; message?: string };
       lastMessage = err.response?.data?.message || err.message || lastMessage;
+      return rejectWithValue(lastMessage);
+    }
+  }
+
+  return rejectWithValue(lastMessage);
+});
+
+/** GET sale by invoice number (e.g. `INV-20260513-7402`). Does not update `selectedSale`. */
+export const fetchSaleByInvoiceNumber = createAsyncThunk<
+  Sale,
+  string,
+  { rejectValue: string; state: RootState }
+>("sale/fetchByInvoice", async (invoiceRaw, { rejectWithValue }) => {
+  const invoice = invoiceRaw.trim();
+  if (!invoice) return rejectWithValue("Enter an invoice number.");
+
+  const api = createAuthenticatedAxios();
+  const enc = encodeURIComponent(invoice);
+  const paths = [`/proxy/Sales/invoice/${enc}`, `/proxy/sales/invoice/${enc}`];
+  let lastMessage = "Sale not found.";
+
+  for (const path of paths) {
+    try {
+      const response = await api.get<unknown>(path);
+      const raw = response.data as Record<string, unknown>;
+      const failMsg = getApiErrorMessage(
+        raw as { success?: boolean; message?: string; errors?: string[] | null }
+      );
+      if (failMsg) return rejectWithValue(failMsg);
+      const inner = raw.data ?? raw;
+      if (!inner || typeof inner !== "object") {
+        lastMessage = "Unexpected sale response.";
+        continue;
+      }
+      const sale = mapApiSalePayloadToSale(inner);
+      if (sale) return sale;
+      lastMessage = "Unexpected sale response.";
+    } catch (error: unknown) {
+      if (isAxiosError(error) && error.response?.status === 404) {
+        continue;
+      }
+      const err = error as { response?: { data?: { message?: string } }; message?: string };
+      lastMessage =
+        err.response?.data?.message || err.message || "Failed to load sale by invoice.";
+      if (isAxiosError(error) && error.response?.status === 404) {
+        continue;
+      }
+      return rejectWithValue(lastMessage);
+    }
+  }
+
+  return rejectWithValue(lastMessage);
+});
+
+/** POST `/api/sales/return` — partial cash or full credit per API contract. */
+export const processSaleReturn = createAsyncThunk<
+  { message: string; data: SaleReturnResultData | null },
+  SaleReturnRequest,
+  { rejectValue: string; state: RootState }
+>("sale/processReturn", async (payload, { rejectWithValue }) => {
+  const api = createAuthenticatedAxios();
+  const paths = ["/proxy/Sales/return", "/proxy/sales/return"];
+  let lastMessage = "Return failed.";
+
+  for (const path of paths) {
+    try {
+      const response = await api.post<ApiResponse<SaleReturnResultData | null>>(path, payload);
+      const failMsg = getApiErrorMessage(response.data);
+      if (failMsg) return rejectWithValue(failMsg);
+      return {
+        message: response.data.message || "Sale return processed successfully",
+        data: (response.data.data ?? null) as SaleReturnResultData | null,
+      };
+    } catch (error: unknown) {
+      if (isAxiosError(error) && error.response?.status === 404) {
+        continue;
+      }
+      const body = isAxiosError(error) ? error.response?.data : undefined;
+      const msg =
+        body &&
+        typeof body === "object" &&
+        "message" in body &&
+        typeof (body as { message?: string }).message === "string"
+          ? (body as { message: string }).message
+          : undefined;
+      lastMessage = msg || (error instanceof Error ? error.message : lastMessage);
+      if (isAxiosError(error) && error.response?.status === 404) {
+        continue;
+      }
       return rejectWithValue(lastMessage);
     }
   }
@@ -551,6 +671,34 @@ const saleSlice = createSlice({
       state.error = payload || "Failed to fetch sale";
     });
 
+    builder.addCase(fetchSaleByInvoiceNumber.pending, (state) => {
+      state.actionLoading = true;
+      state.error = null;
+    });
+    builder.addCase(fetchSaleByInvoiceNumber.fulfilled, (state) => {
+      state.actionLoading = false;
+    });
+    builder.addCase(fetchSaleByInvoiceNumber.rejected, (state, { payload }) => {
+      state.actionLoading = false;
+      state.error = payload || "Failed to fetch sale by invoice";
+    });
+
+    builder.addCase(processSaleReturn.pending, (state) => {
+      state.actionLoading = true;
+      state.error = null;
+      state.success = false;
+      state.message = "";
+    });
+    builder.addCase(processSaleReturn.fulfilled, (state, { payload }) => {
+      state.actionLoading = false;
+      state.success = true;
+      state.message = payload.message;
+    });
+    builder.addCase(processSaleReturn.rejected, (state, { payload }) => {
+      state.actionLoading = false;
+      state.error = payload || "Return failed";
+    });
+
     builder.addCase(createSale.pending, (state) => {
       state.actionLoading = true;
       state.error = null;
@@ -577,9 +725,17 @@ const saleSlice = createSlice({
       const updated = mapped ?? (payload.data as Sale | null);
       if (updated?.id) {
         const idx = state.sales.findIndex((s) => s.id === updated.id);
-        if (idx >= 0) state.sales[idx] = { ...state.sales[idx], ...updated };
+        if (idx >= 0) {
+          const prev = state.sales[idx];
+          const mergedItems =
+            mapped?.items?.length && mapped.items.length > 0 ? mapped.items : prev.items;
+          state.sales[idx] = { ...prev, ...updated, items: mergedItems };
+        }
         if (state.selectedSale?.id === updated.id) {
-          state.selectedSale = { ...state.selectedSale, ...updated };
+          const prevSel = state.selectedSale;
+          const mergedItems =
+            mapped?.items?.length && mapped.items.length > 0 ? mapped.items : prevSel.items;
+          state.selectedSale = { ...prevSel, ...updated, items: mergedItems };
         }
       }
     });

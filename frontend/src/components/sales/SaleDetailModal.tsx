@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { StatusBadge } from "@/components/ui";
 import type { Sale, SaleItem } from "@/types";
 import { formatCurrency, cn } from "@/lib/utils";
@@ -16,6 +17,7 @@ import {
   Package,
   Search,
   FileText,
+  Pencil,
 } from "lucide-react";
 
 function formatSaleDate(iso: string | undefined): string {
@@ -375,6 +377,14 @@ export function SaleDetailModal({ open, onClose, sale, loading }: SaleDetailModa
                 <Printer className="h-4 w-4" aria-hidden />
                 Print receipt
               </button>
+              <Link
+                href={`/sales/edit?saleId=${sale.id}`}
+                onClick={onClose}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
+              >
+                <Pencil className="h-4 w-4" aria-hidden />
+                Edit sale
+              </Link>
             </div>
           </div>
         ) : null}
