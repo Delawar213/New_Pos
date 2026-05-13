@@ -4,7 +4,6 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import Link from "next/link";
 import {
   Barcode,
-  Camera,
   Minus,
   Plus,
   Trash2,
@@ -49,9 +48,12 @@ import {
   type CartItem,
 } from "@/store/slices/cart/cart.slice";
 import { createSale, scanPosBarcode, validatePosPriceOverride } from "@/store/slices/sale/sale.slice";
+import { buildPosReceiptSnapshot } from "@/lib/posReceipt";
+import type { PosReceiptSnapshot } from "@/lib/posReceipt";
+import { PosSaleReceiptDialog } from "@/components/pos/PosSaleReceiptDialog";
 import { fetchCustomersDropdown } from "@/store/slices/customer/customer.slice";
 import { fetchBankAccountsDropdown } from "@/store/slices/bankAccount/bankAccount.slice";
-import { BarcodeCameraScanner } from "@/components/pos/BarcodeCameraScanner";
+// import { BarcodeCameraScanner } from "@/components/pos/BarcodeCameraScanner";
 
 /** Default retail / walk-in customer id expected by the sales API. */
 const WALK_IN_CUSTOMER_ID = 1;
@@ -153,9 +155,11 @@ export default function POSPage() {
   const dispatch = useAppDispatch();
   const barcodeRef = useRef<HTMLInputElement>(null);
   const scanLockRef = useRef(false);
+  const refocusBarcodeAfterScanRef = useRef(false);
+  const walkingPaidTouchedRef = useRef(false);
   const [barcodeInput, setBarcodeInput] = useState("");
   const [scanning, setScanning] = useState(false);
-  const [cameraScannerOpen, setCameraScannerOpen] = useState(false);
+  const [receiptSnapshot, setReceiptSnapshot] = useState<PosReceiptSnapshot | null>(null);
 
   const items = useAppSelector((s) => s.cart.items);
   const cart = useAppSelector((s) => s.cart);
@@ -180,8 +184,22 @@ export default function POSPage() {
   const itemCount = items.reduce((a, i) => a + i.quantity, 0);
 
   useEffect(() => {
-    barcodeRef.current?.focus();
+    barcodeRef.current?.focus({ preventScroll: true });
   }, []);
+
+  /** After scan, `disabled={scanning}` drops focus; refocus once input is enabled again. */
+  useLayoutEffect(() => {
+    if (scanning || !refocusBarcodeAfterScanRef.current) return;
+    refocusBarcodeAfterScanRef.current = false;
+    barcodeRef.current?.focus({ preventScroll: true });
+  }, [scanning]);
+
+  /** Walking customer: keep Paid in sync with total unless cashier entered a different tender (e.g. overpay for change). */
+  useEffect(() => {
+    if (paymentMethod !== "walking") return;
+    if (walkingPaidTouchedRef.current) return;
+    dispatch(setPaidAmount(round2(grandTotal)));
+  }, [paymentMethod, grandTotal, dispatch]);
 
   useLayoutEffect(() => {
     dispatch(sanitizeCartLinesForPos());
@@ -197,11 +215,13 @@ export default function POSPage() {
       void dispatch(fetchBankAccountsDropdown());
       dispatch(setPosBankAccountId(CASH_DEPOSIT_ACCOUNT_ID));
       if (value === "credit") {
+        walkingPaidTouchedRef.current = false;
         dispatch(setPaidAmount(0));
         void dispatch(fetchCustomersDropdown());
         return;
       }
       if (value === "walking") {
+        walkingPaidTouchedRef.current = false;
         dispatch(setCustomer({ id: WALK_IN_CUSTOMER_ID, name: "Walking customer" }));
         const gt = round2(selectCartTotal(store.getState()));
         dispatch(setPaidAmount(gt));
@@ -319,9 +339,9 @@ export default function POSPage() {
         }
       } finally {
         scanLockRef.current = false;
+        refocusBarcodeAfterScanRef.current = true;
         setScanning(false);
         setBarcodeInput("");
-        barcodeRef.current?.focus();
       }
     },
     [dispatch]
@@ -390,20 +410,51 @@ export default function POSPage() {
       return;
     }
     const msg = result.payload?.message || "Sale completed.";
-    dispatch(addToast({ type: "success", title: "Sale saved", message: msg }));
+    const tenderForReceipt = round2(Math.max(0, paidAmount));
+    let paidTowardInvoice = tenderForReceipt;
+    if (paymentMethod === "credit") {
+      paidTowardInvoice = round2(Math.min(tenderForReceipt, grandTotal));
+    }
+    const snapshot = buildPosReceiptSnapshot({
+      cart: store.getState().cart,
+      items: [...items],
+      bankDropdownAccounts,
+      cashDepositAccountId: CASH_DEPOSIT_ACCOUNT_ID,
+      grandTotal,
+      paidAmount: paidTowardInvoice,
+      onAccountAmount,
+      changeDue,
+      netExVat,
+      vatTotal,
+      saleDiscountAmount,
+      apiData: result.payload?.data,
+    });
+    dispatch(addToast({ type: "success", title: "Sale saved", message: msg, duration: 2800 }));
+    walkingPaidTouchedRef.current = false;
     dispatch(clearCart());
+    setReceiptSnapshot(snapshot);
     setBarcodeInput("");
-    barcodeRef.current?.focus();
+    queueMicrotask(() => barcodeRef.current?.focus({ preventScroll: true }));
   };
 
   return (
     <>
+      {/*
       <BarcodeCameraScanner
         open={cameraScannerOpen}
         onClose={() => setCameraScannerOpen(false)}
         onDetected={(code) => {
           setCameraScannerOpen(false);
           void submitScanWithCode(code);
+        }}
+      />
+      */}
+      <PosSaleReceiptDialog
+        open={receiptSnapshot != null}
+        receipt={receiptSnapshot}
+        onDismiss={() => {
+          setReceiptSnapshot(null);
+          queueMicrotask(() => barcodeRef.current?.focus({ preventScroll: true }));
         }}
       />
     <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden bg-slate-50/80 px-2 pb-2 pt-2 sm:gap-3 sm:px-3 sm:pb-3 sm:pt-3">
@@ -437,6 +488,7 @@ export default function POSPage() {
                   />
                 </div>
                 <div className="flex w-full shrink-0 gap-2 sm:w-auto">
+                  {/*
                   <button
                     type="button"
                     disabled={scanning}
@@ -447,6 +499,7 @@ export default function POSPage() {
                     <Camera className="h-4 w-4 shrink-0 text-blue-600" />
                     <span>Camera</span>
                   </button>
+                  */}
                   <button
                     type="button"
                     disabled={scanning || !barcodeInput.trim()}
@@ -459,8 +512,8 @@ export default function POSPage() {
                 </div>
               </div>
               <p className="mt-1 hidden text-[10px] text-slate-500 sm:block sm:text-xs">
-                USB scanner: keep this field focused. Camera: use the camera button. Repeat scan adds
-                qty; at batch max, scan again for next batch.
+                USB scanner: keep this field focused — it refocuses after each scan. Repeat scan adds qty;
+                at batch max, scan again for the next batch.
               </p>
             </div>
             <div className="min-w-0 md:col-span-4 lg:col-span-3">
@@ -654,9 +707,21 @@ export default function POSPage() {
               min={0}
               step="0.01"
               value={paidAmount || ""}
-              onChange={(e) => dispatch(setPaidAmount(Number(e.target.value) || 0))}
+              onChange={(e) => {
+                const n = Number(e.target.value) || 0;
+                if (paymentMethod === "walking") {
+                  const g = round2(grandTotal);
+                  walkingPaidTouchedRef.current = Math.abs(round2(n) - g) > 0.01;
+                }
+                dispatch(setPaidAmount(n));
+              }}
               className="mb-1.5 h-10 w-full rounded-lg border border-slate-200 px-3 text-right text-lg font-bold tabular-nums focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:h-11 sm:text-xl"
             />
+            {paymentMethod === "walking" && grandTotal > 0 && (
+              <p className="mb-1 text-[10px] text-slate-500 sm:text-xs">
+                Paid defaults to the sale total. Enter a higher amount to show change to give back.
+              </p>
+            )}
             {paymentMethod === "credit" && (
               <p className="mb-1 text-[10px] leading-snug text-slate-500 sm:text-xs">
                 Use <span className="font-semibold text-slate-700">Payment received into</span> for
@@ -669,7 +734,22 @@ export default function POSPage() {
                 On account: <strong>{formatCurrency(onAccountAmount)}</strong>
               </p>
             )}
-            {changeDue > 0 && (
+            {changeDue > 0 && grandTotal > 0 && (
+              <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50/90 px-3 py-2.5 text-xs shadow-sm sm:text-sm">
+                <p className="font-bold uppercase tracking-wide text-emerald-900">Change to return</p>
+                <p className="mt-1.5 flex flex-wrap items-baseline justify-between gap-2 tabular-nums text-emerald-950">
+                  <span>
+                    Tendered <strong>{formatCurrency(tender)}</strong>
+                    <span className="mx-1 text-emerald-700">−</span>
+                    Total <strong>{formatCurrency(grandTotal)}</strong>
+                  </span>
+                  <span className="text-base font-extrabold text-emerald-800 sm:text-lg">
+                    = {formatCurrency(changeDue)}
+                  </span>
+                </p>
+              </div>
+            )}
+            {changeDue > 0 && grandTotal <= 0 && (
               <p className="mt-0.5 text-xs text-emerald-800 sm:text-sm">
                 Change: <strong>{formatCurrency(changeDue)}</strong>
               </p>
@@ -835,6 +915,7 @@ function LineRow({ item }: { item: CartItem }) {
   );
   const [overrideUi, setOverrideUi] = useState<"idle" | "checking" | "allowed" | "blocked">("idle");
   const [overrideHint, setOverrideHint] = useState("");
+  const [qtyInput, setQtyInput] = useState(() => String(item.quantity));
 
   useEffect(() => {
     setPriceInput(Number(item.unitPriceIncVat ?? 0).toFixed(2));
@@ -842,9 +923,26 @@ function LineRow({ item }: { item: CartItem }) {
     setOverrideHint("");
   }, [item.cartLineId, item.purchaseDetailId]);
 
+  useEffect(() => {
+    setQtyInput(String(item.quantity));
+  }, [item.cartLineId, item.purchaseDetailId, item.quantity]);
+
   const batches = item.availableBatches ?? [];
   const batchCount = batches.filter((b) => (b.remainingQuantity ?? 0) > 0).length;
   const showBatchPicker = Boolean(item.hasMultipleBatches) && batchCount > 1;
+  const maxQty = Math.max(1, item.maxQuantity > 0 ? item.maxQuantity : Math.max(1, item.quantity));
+
+  const commitQtyInput = () => {
+    if (!lineId) return;
+    const raw = String(qtyInput).trim();
+    let n = parseInt(raw, 10);
+    if (!Number.isFinite(n) || raw === "") n = item.quantity < 1 ? 1 : item.quantity;
+    n = Math.max(1, Math.min(n, maxQty));
+    if (n !== item.quantity) {
+      dispatch(updateQuantity({ cartLineId: lineId, quantity: n }));
+    }
+    setQtyInput(String(n));
+  };
 
   const validateAndApplyPrice = async () => {
     if (!lineId) return;
@@ -937,10 +1035,10 @@ function LineRow({ item }: { item: CartItem }) {
           <label className="mb-0.5 block text-[10px] font-bold uppercase tracking-wide text-slate-500">
             Qty
           </label>
-          <div className="flex h-10 items-center rounded-md border border-slate-200 bg-slate-50">
+          <div className="flex h-10 min-w-0 flex-1 items-stretch rounded-md border border-slate-200 bg-slate-50">
             <button
               type="button"
-              className="flex h-10 w-10 shrink-0 items-center justify-center text-slate-600 hover:bg-white active:bg-slate-100"
+              className="flex h-10 w-9 shrink-0 items-center justify-center text-slate-600 hover:bg-white active:bg-slate-100 sm:w-10"
               onClick={() => {
                 if (!lineId) return;
                 if (item.quantity <= 1) dispatch(removeFromCart(lineId));
@@ -950,13 +1048,34 @@ function LineRow({ item }: { item: CartItem }) {
             >
               <Minus className="h-4 w-4" />
             </button>
-            <span className="min-w-[2rem] flex-1 text-center text-sm font-bold tabular-nums sm:text-base">
-              {item.quantity}
-            </span>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              aria-label="Quantity"
+              value={qtyInput}
+              onChange={(e) => {
+                const v = e.target.value.trim();
+                if (v === "") {
+                  setQtyInput("");
+                  return;
+                }
+                if (!/^\d+$/.test(v)) return;
+                setQtyInput(v);
+              }}
+              onBlur={() => commitQtyInput()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
+              className="min-w-0 flex-1 border-x border-slate-200 bg-white py-0 text-center text-sm font-bold tabular-nums text-slate-900 outline-none focus:ring-1 focus:ring-inset focus:ring-blue-500 sm:text-base"
+            />
             <button
               type="button"
               className={cn(
-                "flex h-10 w-10 shrink-0 items-center justify-center hover:bg-white active:bg-slate-100",
+                "flex h-10 w-9 shrink-0 items-center justify-center hover:bg-white active:bg-slate-100 sm:w-10",
                 isAtQtyLimit ? "cursor-not-allowed text-rose-400" : "text-slate-600"
               )}
               disabled={isAtQtyLimit}

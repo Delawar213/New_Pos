@@ -363,11 +363,25 @@ export const fetchSales = createAsyncThunk<
   return rejectWithValue(lastMessage);
 });
 
+export type FetchSaleByIdArg = number | { id: number; updateSelection?: boolean };
+
+function normalizeFetchSaleByIdArg(arg: FetchSaleByIdArg): {
+  id: number;
+  updateSelection: boolean;
+} {
+  if (typeof arg === "number") return { id: arg, updateSelection: true };
+  return {
+    id: arg.id,
+    updateSelection: arg.updateSelection !== false,
+  };
+}
+
 export const fetchSaleById = createAsyncThunk<
   Sale,
-  number,
+  FetchSaleByIdArg,
   { rejectValue: string; state: RootState }
->("sale/fetchById", async (id, { rejectWithValue }) => {
+>("sale/fetchById", async (arg, { rejectWithValue }) => {
+  const { id } = normalizeFetchSaleByIdArg(arg);
   const api = createAuthenticatedAxios();
   const paths = [`/proxy/Sales/${id}`, `/proxy/sales/${id}`];
   let lastMessage = "Failed to fetch sale";
@@ -526,9 +540,11 @@ const saleSlice = createSlice({
       state.actionLoading = true;
       state.error = null;
     });
-    builder.addCase(fetchSaleById.fulfilled, (state, { payload }) => {
+    builder.addCase(fetchSaleById.fulfilled, (state, action) => {
       state.actionLoading = false;
-      state.selectedSale = payload;
+      if (normalizeFetchSaleByIdArg(action.meta.arg).updateSelection) {
+        state.selectedSale = action.payload;
+      }
     });
     builder.addCase(fetchSaleById.rejected, (state, { payload }) => {
       state.actionLoading = false;
