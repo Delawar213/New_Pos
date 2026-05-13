@@ -37,6 +37,19 @@ export interface SaleItem {
   taxAmount: number;
   discount: number;
   total: number;
+  purchaseDetailId?: number;
+}
+
+/** Line payload for POST `/api/Sales` (and related). */
+export interface CreateSaleLineRequest {
+  productId: number;
+  purchaseDetailId?: number;
+  quantity: number;
+  /** Unit price excluding VAT (matches scan `sellingPriceExVat`). */
+  unitPrice: number;
+  taxPercentage: number;
+  /** Line discount amount (currency). */
+  discount: number;
 }
 
 export interface CreateSaleRequest {
@@ -47,9 +60,83 @@ export interface CreateSaleRequest {
   paymentMethod: string;
   paidAmount: number;
   note?: string;
-  items: Omit<SaleItem, "id" | "productName" | "sku" | "taxAmount" | "total">[];
+  items: CreateSaleLineRequest[];
+}
+
+/** Line payload for POST `/api/Sales/pos`. */
+export interface CreatePosSaleLineRequest {
+  productId: number;
+  purchaseDetailId: number;
+  quantity: number;
+  sellingPriceExVat: number;
+  itemDiscountAmount: number;
+  itemDiscountPercentage: number;
+}
+
+/** Payload for POST `/api/Sales/pos`. */
+export interface CreatePosSaleRequest {
+  customerId: number;
+  discountAmount: number;
+  discountPercentage: number;
+  description: string;
+  createdBy: number;
+  items: CreatePosSaleLineRequest[];
+  payment: {
+    bankAccountId: number;
+    paidAmount: number;
+  };
+}
+
+// ---- Barcode scan (GET /api/Sales/scan/{barcode}) ----
+
+export interface SaleScanBatch {
+  purchaseDetailId: number;
+  batchNumber: string;
+  expiryDate: string | null;
+  sellingPrice: number;
+  sellingPriceExVat: number;
+  remainingQuantity: number;
+  purchaseDate: string | null;
+}
+
+export interface SaleBarcodeScanData {
+  productId: number;
+  productCode: string;
+  productName: string;
+  barcode: string;
+  unitOfMeasurement: string;
+  qtyInStock: number;
+  vatRate: number;
+  isVatExempt: boolean;
+  purchaseDetailId: number;
+  batchNumber: string;
+  expiryDate: string | null;
+  sellingPrice: number;
+  sellingPriceExVat: number;
+  remainingQuantity: number;
+  totalBatches: number;
+  hasMultipleBatches: boolean;
+  availableBatches: SaleScanBatch[];
 }
 
 export interface UpdateSaleRequest extends CreateSaleRequest {
   id: number;
+}
+
+// ---- POS: GET /api/pos/scan/{barcode} (same payload shape as legacy Sales scan) ----
+export type PosBarcodeScanData = SaleBarcodeScanData;
+
+/** POST /api/pos/price-override/validate */
+export interface PosPriceOverrideValidateRequest {
+  productId: number;
+  purchaseDetailId: number;
+  /** Unit selling price including VAT */
+  proposedSellingPrice: number;
+  proposedSellingPriceExVat?: number;
+  barcode?: string;
+}
+
+export interface PosPriceOverrideValidateData {
+  allowed: boolean;
+  message?: string;
 }

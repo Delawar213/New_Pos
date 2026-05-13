@@ -7,6 +7,7 @@
 import React from "react";
 import {
   Menu,
+  PanelLeftClose,
   Bell,
   Search,
   Sun,
@@ -20,10 +21,14 @@ import {
 } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { useState, useRef, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 export default function Header() {
-  const { theme, user, toggleSidebar, setTheme, logout } = useApp();
+  const pathname = usePathname();
+  const isPos = pathname === "/pos";
+  const { theme, user, toggleSidebar, toggleSidebarCollapse, sidebarCollapsed, setTheme, logout } =
+    useApp();
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
@@ -58,16 +63,31 @@ export default function Header() {
       {/* Left side */}
       <div className="flex items-center gap-4">
         <button
+          type="button"
           onClick={() => toggleSidebar()}
-          className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors lg:hidden"
+          className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 lg:hidden"
+          aria-label="Open menu"
         >
           <Menu className="h-5 w-5" />
         </button>
 
-        {/* Search */}
+        <button
+          type="button"
+          onClick={() => toggleSidebarCollapse()}
+          className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 lg:flex"
+          title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          <PanelLeftClose
+            className={cn("h-5 w-5 transition-transform duration-300", sidebarCollapsed && "rotate-180")}
+          />
+        </button>
+
+        {/* Search — hidden on POS for maximum checkout space */}
         <div
           className={cn(
             "hidden items-center gap-3 rounded-xl border px-4 py-2.5 transition-all duration-200 md:flex",
+            isPos && "md:hidden",
             searchFocused 
               ? "w-96 border-blue-500 bg-white shadow-lg shadow-blue-500/10" 
               : "w-72 border-slate-200 bg-slate-50/50 hover:bg-white hover:border-slate-300"

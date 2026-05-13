@@ -45,8 +45,16 @@ export default function Sidebar() {
         )}
       >
         {/* Logo Header */}
-        <div className="flex h-16 items-center justify-between px-4 border-b border-slate-100">
-          <Link href="/dashboard" className="flex items-center gap-3">
+        <div
+          className={cn(
+            "flex h-16 items-center border-b border-slate-100 px-4",
+            sidebarCollapsed ? "justify-center" : "justify-between"
+          )}
+        >
+          <Link
+            href="/dashboard"
+            className={cn("flex items-center gap-3", sidebarCollapsed && "justify-center")}
+          >
             <div className={cn(
               "relative flex items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 text-white shadow-lg shadow-blue-500/25 transition-all duration-300",
               sidebarCollapsed ? "h-10 w-10" : "h-10 w-10"
@@ -91,9 +99,11 @@ export default function Sidebar() {
                     <div key={item.label}>
                       {hasChildren ? (
                         <button
+                          type="button"
                           onClick={() => toggleMenu(item.label)}
                           className={cn(
                             "group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                            sidebarCollapsed && "justify-center px-2",
                             active
                               ? "bg-gradient-to-r from-blue-50 to-violet-50 text-blue-700"
                               : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
@@ -128,6 +138,7 @@ export default function Sidebar() {
                           href={item.href}
                           className={cn(
                             "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                            sidebarCollapsed && "justify-center px-2",
                             active
                               ? "bg-gradient-to-r from-blue-50 to-violet-50 text-blue-700"
                               : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
@@ -219,18 +230,23 @@ export default function Sidebar() {
         <div className="border-t border-slate-100 p-3">
           {/* Collapse toggle (desktop) */}
           <button
+            type="button"
             onClick={() => toggleSidebarCollapse()}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             className={cn(
-              "hidden w-full items-center justify-center rounded-xl p-2.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all duration-200 lg:flex",
+              "hidden w-full items-center justify-center gap-2 rounded-xl p-2.5 text-slate-500 transition-all duration-200 hover:bg-slate-100 hover:text-slate-800 lg:flex",
               sidebarCollapsed && "mx-auto"
             )}
           >
             <ChevronLeft
               className={cn(
-                "h-5 w-5 transition-transform duration-200",
+                "h-5 w-5 shrink-0 transition-transform duration-200",
                 sidebarCollapsed && "rotate-180"
               )}
             />
+            {!sidebarCollapsed && (
+              <span className="text-xs font-semibold">Collapse</span>
+            )}
           </button>
         </div>
       </aside>

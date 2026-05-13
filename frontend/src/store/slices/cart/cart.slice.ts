@@ -1,27 +1,48 @@
 // ============================================
-// Cart Slice - POS Cart State Management
+// Cart Slice - POS Cart (batch-aware, VAT-inclusive pricing)
 // ============================================
 
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { configureSlice } from "@/lib/utils";
+import type { SaleScanBatch } from "@/types/sale";
 
+/** Stable React / row id (unchanged when switching batch). Optional on rehydrated legacy state until sanitized. */
 export interface CartItem {
+  cartLineId?: string;
+  /** productId-purchaseDetailId — used to merge duplicate batch lines on scan */
+  lineKey: string;
   productId: number;
+  purchaseDetailId: number;
+  productCode: string;
   name: string;
   sku: string;
-  price: number;
+  barcode: string;
+  unitOfMeasurement: string;
+  batchNumber: string;
+  expiryDate: string | null;
+  /** Unit selling price including VAT */
+  unitPriceIncVat: number;
+  /** Unit selling price excluding VAT */
+  unitPriceExVat: number;
+  vatRate: number;
+  isVatExempt: boolean;
   quantity: number;
-  taxPercentage: number;
+  maxQuantity: number;
   discountType?: "percentage" | "fixed";
   discountValue: number;
-  maxQuantity: number; // Available stock
+  hasMultipleBatches?: boolean;
+  /** Missing on older persisted carts; POS sanitizes on load. */
+  availableBatches?: SaleScanBatch[];
 }
 
 interface CartState {
   items: CartItem[];
-  customerId: number | null;
+  /** Walk-in / retail customer — backend expects `1` for default POS cash sales. */
+  customerId: number;
   customerName: string;
   paymentMethod: string;
+  /** Bank / transfer: receiving account for `payment.bankAccountId`. */
+  posBankAccountId: number;
   discountType: "percentage" | "fixed";
   discountValue: number;
   paidAmount: number;
@@ -30,78 +51,260 @@ interface CartState {
 
 const initialState: CartState = {
   items: [],
-  customerId: null,
-  customerName: "Walk-in Customer",
+  customerId: 1,
+  customerName: "Walk-in",
   paymentMethod: "cash",
+  posBankAccountId: 0,
   discountType: "fixed",
   discountValue: 0,
   paidAmount: 0,
   note: "",
 };
 
+export function lineGrossIncVat(item: CartItem): number {
+  return Number(item.unitPriceIncVat ?? 0) * item.quantity;
+}
+
+/** Line total including VAT after line-level discount. */
+export function lineGrossAfterLineDiscount(item: CartItem): number {
+  const gross = lineGrossIncVat(item);
+  if (item.discountType === "percentage") {
+    return gross * (1 - Math.min(100, Math.max(0, item.discountValue)) / 100);
+  }
+  return Math.max(0, gross - item.discountValue);
+}
+
+export function lineNetExVatAndVat(item: CartItem): { netExVat: number; vat: number } {
+  const after = lineGrossAfterLineDiscount(item);
+  if (item.isVatExempt || item.vatRate <= 0) {
+    return { netExVat: after, vat: 0 };
+  }
+  const netExVat = after / (1 + item.vatRate / 100);
+  const vat = after - netExVat;
+  return { netExVat, vat };
+}
+
+export function lineDiscountAmountForApi(item: CartItem): number {
+  const gross = lineGrossIncVat(item);
+  if (item.discountType === "percentage") {
+    return Math.round(gross * (Math.min(100, Math.max(0, item.discountValue)) / 100) * 100) / 100;
+  }
+  return Math.min(item.discountValue, gross);
+}
+
+interface CartStateLike {
+  cart: CartState;
+}
+
+export const selectCartItems = (state: CartStateLike) => state.cart.items;
+export const selectCartItemCount = (state: CartStateLike) =>
+  state.cart.items.reduce((sum, item) => sum + item.quantity, 0);
+
+/** Sum of line totals (inc VAT, after line discounts). */
+export const selectCartGrossAfterLineDiscounts = (state: CartStateLike) =>
+  state.cart.items.reduce((sum, item) => sum + lineGrossAfterLineDiscount(item), 0);
+
+export const selectCartNetExVatTotal = (state: CartStateLike) =>
+  state.cart.items.reduce((sum, item) => sum + lineNetExVatAndVat(item).netExVat, 0);
+
+export const selectCartVatTotal = (state: CartStateLike) =>
+  state.cart.items.reduce((sum, item) => sum + lineNetExVatAndVat(item).vat, 0);
+
+/** Cart-level discount applied to gross (inc VAT) total after line discounts. */
+export const selectCartTotal = (state: CartStateLike) => {
+  const gross = selectCartGrossAfterLineDiscounts(state);
+  let cartDisc = 0;
+  if (state.cart.discountType === "percentage") {
+    cartDisc = gross * (Math.min(100, Math.max(0, state.cart.discountValue)) / 100);
+  } else {
+    cartDisc = Math.min(state.cart.discountValue, gross);
+  }
+  return Math.max(0, gross - cartDisc);
+};
+
+/** Amount before cart-level discount (for showing cart discount row). */
+export const selectCartGrossBeforeCartDiscount = (state: CartStateLike) =>
+  selectCartGrossAfterLineDiscounts(state);
+
 const cartSlice = createSlice({
   name: "cart",
   initialState,
   reducers: {
+    /**
+     * POS: same barcode / same batch → increase qty. Refreshes `maxQuantity` from latest scan.
+     */
     addToCart: (state, action: PayloadAction<CartItem>) => {
-      const existingIndex = state.items.findIndex(
-        (item) => item.productId === action.payload.productId
-      );
+      const p = action.payload;
+      const addQty = p.quantity > 0 ? p.quantity : 1;
+
+      const normBc = (b: string | undefined) => String(b ?? "").trim();
+      const sameLine = (item: CartItem) =>
+        item.lineKey === p.lineKey ||
+        (item.productId === p.productId &&
+          normBc(item.barcode) === normBc(p.barcode) &&
+          item.purchaseDetailId === p.purchaseDetailId);
+
+      const existingIndex = state.items.findIndex(sameLine);
+
       if (existingIndex >= 0) {
-        const newQty = state.items[existingIndex].quantity + 1;
-        if (newQty <= state.items[existingIndex].maxQuantity) {
-          state.items[existingIndex].quantity = newQty;
+        const cur = state.items[existingIndex];
+        const cap = Math.max(0, p.maxQuantity);
+        cur.maxQuantity = cap;
+        if (p.availableBatches?.length) {
+          cur.availableBatches = p.availableBatches;
         }
-      } else {
-        state.items.push({ ...action.payload, quantity: 1 });
+        if (p.hasMultipleBatches != null) {
+          cur.hasMultipleBatches = p.hasMultipleBatches;
+        }
+        cur.batchNumber = p.batchNumber;
+        cur.expiryDate = p.expiryDate ?? cur.expiryDate;
+        const next = cur.quantity + addQty;
+        cur.quantity = Math.min(next, cap);
+        return;
+      }
+
+      const q = Math.min(addQty, Math.max(0, p.maxQuantity));
+      if (q > 0) {
+        state.items.push({ ...p, quantity: q });
       }
     },
 
-    removeFromCart: (state, action: PayloadAction<number>) => {
-      state.items = state.items.filter(
-        (item) => item.productId !== action.payload
-      );
+    removeFromCart: (state, action: PayloadAction<string>) => {
+      state.items = state.items.filter((item) => item.cartLineId !== action.payload);
     },
 
-    updateQuantity: (
-      state,
-      action: PayloadAction<{ productId: number; quantity: number }>
-    ) => {
-      const item = state.items.find(
-        (i) => i.productId === action.payload.productId
-      );
-      if (item && action.payload.quantity <= item.maxQuantity && action.payload.quantity > 0) {
+    updateQuantity: (state, action: PayloadAction<{ cartLineId: string; quantity: number }>) => {
+      const item = state.items.find((i) => i.cartLineId === action.payload.cartLineId);
+      if (
+        item &&
+        action.payload.quantity <= item.maxQuantity &&
+        action.payload.quantity > 0
+      ) {
         item.quantity = action.payload.quantity;
       }
+    },
+
+    /**
+     * Fix persisted / legacy lines missing cartLineId, availableBatches, or prices.
+     * Call when opening POS.
+     */
+    sanitizeCartLinesForPos: (state) => {
+      if (typeof state.customerId !== "number" || state.customerId < 1) {
+        state.customerId = 1;
+        state.customerName = "Walk-in";
+      }
+      if (typeof state.posBankAccountId !== "number" || state.posBankAccountId < 0) {
+        state.posBankAccountId = 0;
+      }
+      state.items.forEach((raw, index) => {
+        const item = raw as CartItem & { price?: number };
+        item.barcode = String(item.barcode ?? "").trim();
+        const prodId = item.productId ?? 0;
+        const pdId = item.purchaseDetailId ?? index;
+        if (!item.lineKey) {
+          item.lineKey = `${prodId}-${pdId}`;
+        }
+        if (!item.cartLineId) {
+          item.cartLineId = `pos-${item.lineKey}-${index}`;
+        }
+        if (item.unitPriceIncVat == null && item.price != null) {
+          item.unitPriceIncVat = item.price;
+        }
+        if (item.unitPriceIncVat == null) {
+          item.unitPriceIncVat = 0;
+        }
+        if (item.unitPriceExVat == null) {
+          item.unitPriceExVat =
+            item.isVatExempt || !item.vatRate
+              ? item.unitPriceIncVat
+              : Math.round((item.unitPriceIncVat / (1 + item.vatRate / 100)) * 100) / 100;
+        }
+        if (!Array.isArray(item.availableBatches)) {
+          item.availableBatches = [
+            {
+              purchaseDetailId: pdId,
+              batchNumber: item.batchNumber ?? "—",
+              expiryDate: item.expiryDate ?? null,
+              sellingPrice: item.unitPriceIncVat,
+              sellingPriceExVat: item.unitPriceExVat,
+              remainingQuantity: item.maxQuantity ?? 0,
+              purchaseDate: null,
+            },
+          ];
+        }
+        const inStock = item.availableBatches.filter((b) => (b.remainingQuantity ?? 0) > 0);
+        if (item.hasMultipleBatches == null) {
+          item.hasMultipleBatches = inStock.length > 1;
+        }
+      });
+    },
+
+    switchLineBatch: (
+      state,
+      action: PayloadAction<{ cartLineId: string; purchaseDetailId: number }>
+    ) => {
+      const item = state.items.find((i) => i.cartLineId === action.payload.cartLineId);
+      if (!item) return;
+      const batches = item.availableBatches ?? [];
+      const batch = batches.find((b) => b.purchaseDetailId === action.payload.purchaseDetailId);
+      if (!batch || batch.remainingQuantity <= 0) return;
+      const newKey = `${item.productId}-${batch.purchaseDetailId}`;
+      const conflict = state.items.some(
+        (i) => i.lineKey === newKey && i.cartLineId !== item.cartLineId
+      );
+      if (conflict) return;
+      item.lineKey = newKey;
+      item.purchaseDetailId = batch.purchaseDetailId;
+      item.batchNumber = batch.batchNumber;
+      item.expiryDate = batch.expiryDate ?? null;
+      item.maxQuantity = batch.remainingQuantity;
+      item.unitPriceIncVat = batch.sellingPrice;
+      item.unitPriceExVat = batch.sellingPriceExVat;
+      if (item.quantity > item.maxQuantity) item.quantity = item.maxQuantity;
+    },
+
+    setLineSellingPrices: (
+      state,
+      action: PayloadAction<{
+        cartLineId: string;
+        unitPriceIncVat: number;
+        unitPriceExVat: number;
+      }>
+    ) => {
+      const item = state.items.find((i) => i.cartLineId === action.payload.cartLineId);
+      if (!item) return;
+      item.unitPriceIncVat =
+        Math.round(Math.max(0, action.payload.unitPriceIncVat) * 100) / 100;
+      item.unitPriceExVat =
+        Math.round(Math.max(0, action.payload.unitPriceExVat) * 100) / 100;
     },
 
     updateItemDiscount: (
       state,
       action: PayloadAction<{
-        productId: number;
+        cartLineId: string;
         discountType: "percentage" | "fixed";
         discountValue: number;
       }>
     ) => {
-      const item = state.items.find(
-        (i) => i.productId === action.payload.productId
-      );
+      const item = state.items.find((i) => i.cartLineId === action.payload.cartLineId);
       if (item) {
         item.discountType = action.payload.discountType;
         item.discountValue = action.payload.discountValue;
       }
     },
 
-    setCustomer: (
-      state,
-      action: PayloadAction<{ id: number | null; name: string }>
-    ) => {
+    setCustomer: (state, action: PayloadAction<{ id: number; name: string }>) => {
       state.customerId = action.payload.id;
       state.customerName = action.payload.name;
     },
 
     setPaymentMethod: (state, action: PayloadAction<string>) => {
       state.paymentMethod = action.payload;
+    },
+
+    setPosBankAccountId: (state, action: PayloadAction<number>) => {
+      state.posBankAccountId = Math.max(0, action.payload);
     },
 
     setCartDiscount: (
@@ -124,52 +327,17 @@ const cartSlice = createSlice({
   },
 });
 
-// ---- Selectors ----
-export const selectCartItems = (state: { cart: CartState }) => state.cart.items;
-export const selectCartItemCount = (state: { cart: CartState }) =>
-  state.cart.items.reduce((sum, item) => sum + item.quantity, 0);
-
-export const selectCartSubtotal = (state: { cart: CartState }) =>
-  state.cart.items.reduce((sum, item) => {
-    let itemPrice = item.price * item.quantity;
-    if (item.discountType === "percentage") {
-      itemPrice -= itemPrice * (item.discountValue / 100);
-    } else {
-      itemPrice -= item.discountValue;
-    }
-    return sum + itemPrice;
-  }, 0);
-
-export const selectCartTax = (state: { cart: CartState }) =>
-  state.cart.items.reduce((sum, item) => {
-    let itemPrice = item.price * item.quantity;
-    if (item.discountType === "percentage") {
-      itemPrice -= itemPrice * (item.discountValue / 100);
-    } else {
-      itemPrice -= item.discountValue;
-    }
-    return sum + itemPrice * (item.taxPercentage / 100);
-  }, 0);
-
-export const selectCartTotal = (state: { cart: CartState }) => {
-  const subtotal = selectCartSubtotal(state);
-  const tax = selectCartTax(state);
-  let discount = 0;
-  if (state.cart.discountType === "percentage") {
-    discount = subtotal * (state.cart.discountValue / 100);
-  } else {
-    discount = state.cart.discountValue;
-  }
-  return subtotal + tax - discount;
-};
-
 export const {
   addToCart,
   removeFromCart,
   updateQuantity,
+  sanitizeCartLinesForPos,
+  switchLineBatch,
+  setLineSellingPrices,
   updateItemDiscount,
   setCustomer,
   setPaymentMethod,
+  setPosBankAccountId,
   setCartDiscount,
   setPaidAmount,
   setNote,

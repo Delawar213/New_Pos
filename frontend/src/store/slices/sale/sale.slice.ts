@@ -1,10 +1,18 @@
 // store/slices/sale/sale.slice.ts
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { isAxiosError } from "axios";
 import { configureSlice } from "@/lib/utils";
 import { createAuthenticatedAxios } from "@/lib/createAuthenticatedAxios";
 import { getApiErrorMessage } from "@/lib/apiResult";
 import type { ApiResponse, PaginationParams, PaginatedResponse } from "@/types/common";
-import type { CreateSaleRequest, Sale, UpdateSaleRequest } from "@/types/sale";
+import type {
+  CreatePosSaleRequest,
+  PosPriceOverrideValidateData,
+  PosPriceOverrideValidateRequest,
+  Sale,
+  SaleBarcodeScanData,
+  UpdateSaleRequest,
+} from "@/types/sale";
 import type { RootState } from "@/store";
 import { listQueryParams } from "@/lib/listQueryParams";
 
@@ -62,6 +70,146 @@ const initialState: SaleState = {
 
 export type FetchSalesArgs = PaginationParams & { status?: string };
 
+/** Tries backend routes in order — many APIs use `Sales` not `pos`. */
+const SCAN_PATH_BUILDERS = [
+  (code: string) => `/proxy/Sales/scan/${encodeURIComponent(code)}`,
+  (code: string) => `/proxy/sales/scan/${encodeURIComponent(code)}`,
+  (code: string) => `/proxy/pos/scan/${encodeURIComponent(code)}`,
+];
+
+function parseScanResponse(body: ApiResponse<SaleBarcodeScanData>): {
+  data: SaleBarcodeScanData | null;
+  error: string | null;
+} {
+  const failMsg = getApiErrorMessage(body);
+  if (failMsg) return { data: null, error: failMsg };
+  const data = body.data;
+  if (data == null || typeof data !== "object") {
+    return { data: null, error: "No product returned for this barcode." };
+  }
+  return { data, error: null };
+}
+
+/** GET scan — uses first working route: Sales/sales/pos. */
+export const scanPosBarcode = createAsyncThunk<
+  SaleBarcodeScanData,
+  string,
+  { rejectValue: string; state: RootState }
+>("sale/scanPosBarcode", async (barcode, { rejectWithValue }) => {
+  const code = barcode.trim();
+  if (!code) return rejectWithValue("Enter a barcode.");
+
+  const api = createAuthenticatedAxios();
+  let last404 = false;
+  let lastMessage = "Barcode scan failed.";
+
+  for (const buildUrl of SCAN_PATH_BUILDERS) {
+    const url = buildUrl(code);
+    try {
+      const response = await api.get<ApiResponse<SaleBarcodeScanData>>(url);
+      const { data, error } = parseScanResponse(response.data);
+      if (error || data == null) return rejectWithValue(error ?? "No product returned for this barcode.");
+      return data;
+    } catch (error: unknown) {
+      if (isAxiosError(error) && error.response?.status === 404) {
+        last404 = true;
+        continue;
+      }
+      const body = isAxiosError(error) ? error.response?.data : undefined;
+      const msg =
+        body &&
+        typeof body === "object" &&
+        "message" in body &&
+        typeof (body as { message?: string }).message === "string"
+          ? (body as { message: string }).message
+          : undefined;
+      const fromErrors =
+        body &&
+        typeof body === "object" &&
+        "errors" in body &&
+        Array.isArray((body as { errors?: unknown }).errors)
+          ? ((body as { errors: string[] }).errors || [])
+              .filter((e): e is string => Boolean(e && String(e).trim()))
+              .join(", ")
+          : "";
+      lastMessage = fromErrors || msg || (error instanceof Error ? error.message : lastMessage);
+      if (isAxiosError(error) && error.response?.status === 404) {
+        last404 = true;
+        continue;
+      }
+      return rejectWithValue(lastMessage);
+    }
+  }
+
+  if (last404) {
+    return rejectWithValue(
+      "Scan route not found (404). Backend may use /api/Sales/scan or /api/pos/scan — check API base URL."
+    );
+  }
+  return rejectWithValue(lastMessage);
+});
+
+/** @deprecated Use scanPosBarcode */
+export const scanSaleBarcode = scanPosBarcode;
+
+/** POST `/api/pos/price-override/validate` */
+export const validatePosPriceOverride = createAsyncThunk<
+  PosPriceOverrideValidateData,
+  PosPriceOverrideValidateRequest,
+  { rejectValue: string; state: RootState }
+>("sale/validatePosPriceOverride", async (payload, { rejectWithValue }) => {
+  const paths = [
+    "/proxy/pos/price-override/validate",
+    "/proxy/Sales/price-override/validate",
+    "/proxy/sales/price-override/validate",
+  ];
+
+  const api = createAuthenticatedAxios();
+
+  for (const path of paths) {
+    try {
+      const response = await api.post<ApiResponse<PosPriceOverrideValidateData>>(path, payload);
+      const failMsg = getApiErrorMessage(response.data);
+      if (failMsg) return rejectWithValue(failMsg);
+      const data = response.data.data;
+      if (data != null && typeof data === "object" && "allowed" in data) {
+        return {
+          allowed: Boolean(data.allowed),
+          message: typeof data.message === "string" ? data.message : undefined,
+        };
+      }
+      return { allowed: true };
+    } catch (error: unknown) {
+      if (isAxiosError(error) && error.response?.status === 404) {
+        continue;
+      }
+      const body = isAxiosError(error) ? error.response?.data : undefined;
+      const fromErrors =
+        body &&
+        typeof body === "object" &&
+        "errors" in body &&
+        Array.isArray((body as { errors?: string[] }).errors)
+          ? ((body as { errors: string[] }).errors || [])
+              .filter((e): e is string => Boolean(e && String(e).trim()))
+              .join(", ")
+          : "";
+      const msg =
+        body &&
+        typeof body === "object" &&
+        "message" in body &&
+        typeof (body as { message?: string }).message === "string"
+          ? (body as { message: string }).message
+          : undefined;
+      return rejectWithValue(
+        fromErrors || msg || (error instanceof Error ? error.message : "Price override validation failed.")
+      );
+    }
+  }
+
+  /** No validate endpoint deployed — allow price edits so POS still works. */
+  return { allowed: true };
+});
+
 export const fetchSales = createAsyncThunk<
   PaginatedResponse<Sale>,
   FetchSalesArgs | undefined,
@@ -109,19 +257,27 @@ export const fetchSaleById = createAsyncThunk<
 
 export const createSale = createAsyncThunk<
   ApiResponse<Sale>,
-  CreateSaleRequest,
+  CreatePosSaleRequest,
   { rejectValue: string; state: RootState }
 >("sale/create", async (payload, { rejectWithValue }) => {
-  try {
-    const api = createAuthenticatedAxios();
-    const response = await api.post<ApiResponse<Sale>>("/proxy/sales", payload);
-    const failMsg = getApiErrorMessage(response.data);
-    if (failMsg) return rejectWithValue(failMsg);
-    return response.data;
-  } catch (error: unknown) {
-    const err = error as { response?: { data?: { message?: string } }; message?: string };
-    return rejectWithValue(err.response?.data?.message || err.message || "Failed to create sale");
+  const api = createAuthenticatedAxios();
+  const paths = ["/proxy/Sales/pos", "/proxy/sales/pos", "/proxy/Sales", "/proxy/sales"];
+
+  for (const path of paths) {
+    try {
+      const response = await api.post<ApiResponse<Sale>>(path, payload);
+      const failMsg = getApiErrorMessage(response.data);
+      if (failMsg) return rejectWithValue(failMsg);
+      return response.data;
+    } catch (error: unknown) {
+      if (isAxiosError(error) && error.response?.status === 404) {
+        continue;
+      }
+      const err = error as { response?: { data?: { message?: string } }; message?: string };
+      return rejectWithValue(err.response?.data?.message || err.message || "Failed to create sale");
+    }
   }
+  return rejectWithValue("Create sale route not found (404). Check /api/sales vs /api/Sales on the server.");
 });
 
 export const updateSale = createAsyncThunk<

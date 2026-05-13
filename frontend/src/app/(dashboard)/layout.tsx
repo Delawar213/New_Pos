@@ -5,8 +5,8 @@
 // ============================================
 
 import React from "react";
+import { usePathname } from "next/navigation";
 import { Sidebar, Header } from "@/components/layout";
-import { useApp } from "@/contexts/AppContext";
 import { cn } from "@/lib/utils";
 
 export default function DashboardLayout({
@@ -14,20 +14,19 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { sidebarCollapsed } = useApp();
+  const pathname = usePathname();
+  const isPosRoute = pathname === "/pos";
 
   return (
     <div className="flex h-screen overflow-hidden bg-mesh">
-      {/* Sidebar */}
       <Sidebar />
 
-      {/* Main content */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Header />
         <main
           className={cn(
-            "flex-1 overflow-y-auto p-6 scrollbar-thin",
-            "transition-all duration-300"
+            "flex-1 min-h-0 transition-all duration-300 scrollbar-thin",
+            isPosRoute ? "overflow-hidden p-0" : "overflow-y-auto p-6"
           )}
         >
           {children}
