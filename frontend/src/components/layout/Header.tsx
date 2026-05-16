@@ -21,11 +21,29 @@ import {
 } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { useState, useRef, useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { clearAuthState } from "@/store/slices/auth/auth.slice";
+import { clearUserState } from "@/store/slices/user/user.slice";
+import type { AuthUser } from "@/types/auth";
+
+function isAuthUser(u: unknown): u is AuthUser {
+  return (
+    typeof u === "object" &&
+    u != null &&
+    "userName" in u &&
+    typeof (u as AuthUser).userName === "string" &&
+    "name" in u &&
+    typeof (u as AuthUser).name === "string"
+  );
+}
 
 export default function Header() {
   const pathname = usePathname();
+  const router = useRouter();
+  const dispatch = useAppDispatch();
+  const auth = useAppSelector((s) => s.auth);
   const isPos = pathname === "/pos";
   const { theme, user, toggleSidebar, toggleSidebarCollapse, sidebarCollapsed, setTheme, logout } =
     useApp();
@@ -34,6 +52,31 @@ export default function Header() {
   const [searchFocused, setSearchFocused] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
   const notificationsRef = useRef<HTMLDivElement>(null);
+
+  const profile =
+    auth.isLoggedIn && isAuthUser(auth.user)
+      ? {
+          name: auth.user.name,
+          email: auth.user.userName,
+          role: auth.user.roleName,
+          initial: (auth.user.name?.trim().charAt(0) || auth.user.userName?.trim().charAt(0) || "U").toUpperCase(),
+        }
+      : user
+        ? {
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            initial: (user.name?.trim().charAt(0) || "A").toUpperCase(),
+          }
+        : null;
+
+  const handleSignOut = () => {
+    dispatch(clearAuthState());
+    dispatch(clearUserState());
+    logout();
+    setProfileOpen(false);
+    router.replace("/login");
+  };
 
   // Sample notifications
   const notifications = [
@@ -212,15 +255,15 @@ export default function Header() {
           >
             <div className="relative">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 text-sm font-bold text-white shadow-lg shadow-blue-500/20">
-                {user?.name?.charAt(0) || "A"}
+                {profile?.initial ?? "?"}
               </div>
               <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />
             </div>
             <div className="hidden text-left md:block">
               <p className="text-sm font-semibold text-slate-700">
-                {user?.name || "Admin User"}
+                {profile?.name || "User"}
               </p>
-              <p className="text-[11px] text-slate-400">{user?.role || "Administrator"}</p>
+              <p className="text-[11px] text-slate-400">{profile?.role || "—"}</p>
             </div>
             <ChevronDown className={cn(
               "hidden h-4 w-4 text-slate-400 transition-transform duration-200 md:block",
@@ -233,8 +276,8 @@ export default function Header() {
             <div className="absolute right-0 top-full mt-2 w-56 rounded-2xl border border-slate-200 bg-white py-2 shadow-xl shadow-slate-200/50 animate-slideDown">
               {/* User info header */}
               <div className="px-4 py-3 border-b border-slate-100">
-                <p className="font-semibold text-slate-800">{user?.name || "Admin User"}</p>
-                <p className="text-xs text-slate-500">{user?.email || "admin@flexpos.com"}</p>
+                <p className="font-semibold text-slate-800">{profile?.name || "User"}</p>
+                <p className="text-xs text-slate-500">{profile?.email || "—"}</p>
               </div>
               
               <div className="py-1">
@@ -260,7 +303,8 @@ export default function Header() {
               
               <div className="border-t border-slate-100 pt-1">
                 <button
-                  onClick={() => logout()}
+                  type="button"
+                  onClick={() => handleSignOut()}
                   className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-rose-600 hover:bg-rose-50 transition-colors"
                 >
                   <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-100 text-rose-500">

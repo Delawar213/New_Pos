@@ -160,7 +160,14 @@ const transactionSlice = createSlice({
     builder.addCase(fetchTransactions.fulfilled, (state, { payload }) => {
       state.loading = false;
       const page = payload.data;
-      state.transactions = page.data;
+      state.transactions = (page.data ?? []).map((tx) => ({
+        ...tx,
+        transactionDetails: (tx.transactionDetails ?? []).map((d) => ({
+          ...d,
+          debit: Number(d.debit) || 0,
+          credit: Number(d.credit) || 0,
+        })),
+      }));
       state.totalCount = page.totalRecords;
       state.currentPage = page.pageNumber;
       state.pageSize = page.pageSize;

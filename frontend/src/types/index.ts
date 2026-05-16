@@ -17,3 +17,4 @@ export * from "./sale";
 export * from "./dashboard";
 export * from "./common";
 export * from "./auth";
+export * from "./user";

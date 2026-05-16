@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { buildBackendApiUrl } from "@/lib/backendProxyUrl";
+import { buildBackendApiUrl, getBackendApiBaseRaw } from "@/lib/backendProxyUrl";
 import { buildProxyOutboundHeaders } from "@/lib/proxyOutboundHeaders";
 import { fetchPreservingWrites } from "@/lib/fetchPreservingWrites";
 
@@ -40,13 +40,39 @@ async function proxy(request: Request, context: { params: Promise<{ path: string
   const method = request.method.toUpperCase();
   const body = method === "GET" || method === "HEAD" ? undefined : await request.arrayBuffer();
 
-  const resp = await fetchPreservingWrites(target.toString(), { method, headers, body });
-  const respBody = await resp.arrayBuffer();
+  try {
+    const resp = await fetchPreservingWrites(target.toString(), { method, headers, body });
+    const respBody = await resp.arrayBuffer();
 
-  const outHeaders = new Headers(resp.headers);
-  outHeaders.delete("content-encoding");
-  outHeaders.delete("content-length");
+    const outHeaders = new Headers(resp.headers);
+    outHeaders.delete("content-encoding");
+    outHeaders.delete("content-length");
 
-  return new NextResponse(respBody, { status: resp.status, headers: outHeaders });
+    return new NextResponse(respBody, { status: resp.status, headers: outHeaders });
+  } catch (err: unknown) {
+    const cause =
+      err != null && typeof err === "object" && "cause" in err ? (err as { cause?: unknown }).cause : err;
+    const code =
+      cause != null && typeof cause === "object" && "code" in cause
+        ? String((cause as { code?: string }).code)
+        : "";
+    const isTimeout =
+      code === "UND_ERR_CONNECT_TIMEOUT" ||
+      code === "ETIMEDOUT" ||
+      code === "ECONNREFUSED" ||
+      code === "ENOTFOUND";
+
+    const base = getBackendApiBaseRaw() ?? "(not set)";
+    const message = isTimeout
+      ? `Cannot reach the API at ${base}. Check that the backend is running and NEXT_PUBLIC_API_BASE_URL in .env.local is correct.`
+      : err instanceof Error
+        ? err.message
+        : "Proxy request to API failed.";
+
+    return NextResponse.json(
+      { success: false, message, errors: [message], data: null },
+      { status: 502 }
+    );
+  }
 }
 

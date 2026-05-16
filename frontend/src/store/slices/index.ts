@@ -14,6 +14,7 @@ import { purchasesSliceConfig } from './purchases/purchases.slice';
 import { transactionSliceConfig } from './transaction/transaction.slice';
 import { saleSliceConfig } from './sale/sale.slice';
 import { dashboardSliceConfig } from './dashboard/dashboard.slice';
+import { userSliceConfig } from './user/user.slice';
 
 export const slices = {
   auth: authSliceConfig,
@@ -32,6 +33,7 @@ export const slices = {
   transaction: transactionSliceConfig,
   sale: saleSliceConfig,
   dashboard: dashboardSliceConfig,
+  user: userSliceConfig,
 };
 
 export const reducers = {
@@ -51,4 +53,5 @@ export const reducers = {
   transaction: transactionSliceConfig.reducer,
   sale: saleSliceConfig.reducer,
   dashboard: dashboardSliceConfig.reducer,
+  user: userSliceConfig.reducer,
 };

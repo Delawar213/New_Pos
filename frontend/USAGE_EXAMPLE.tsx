@@ -16,7 +16,7 @@ export default function LoginExample() {
     e.preventDefault();
     
     // Dispatch the login action
-    const result = await dispatch(loginUser({ username, password }));
+    const result = await dispatch(loginUser({ userName: username, password }));
     
     if (loginUser.fulfilled.match(result)) {
       console.log('Login successful!');

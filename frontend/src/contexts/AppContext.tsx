@@ -91,13 +91,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [sidebarCollapsed]);
 
-  // Auth State (demo user for design purposes)
-  const [user, setUser] = useState<User | null>({
-    id: 1,
-    name: "Admin User",
-    email: "admin@flexpos.com",
-    role: "Admin",
-  });
+  // Auth: no demo user — session comes from Redux (`/login`).
+  const [user, setUser] = useState<User | null>(null);
 
   // Cart State
   const [cartItems, setCartItems] = useState<CartItem[]>([]);

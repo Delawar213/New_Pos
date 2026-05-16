@@ -1,30 +1,20 @@
 // ============================================
-// Auth Types
+// Auth Types — `/api/User/login`
 // ============================================
 
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
-
-export interface LoginResponse {
-  token: string;
-  refreshToken: string;
-  user: AuthUser;
-  expiresAt: string;
-}
-
+/** Normalized user stored in Redux after login. */
 export interface AuthUser {
   id: number;
-  fullName: string;
-  email: string;
-  role: string;
-  branchId?: number;
-  branchName?: string;
-  avatar?: string;
+  userId: number;
+  userName: string;
+  name: string;
+  roleId: number;
+  roleName: string;
+  profileImageUrl?: string | null;
 }
 
-export interface RefreshTokenRequest {
-  token: string;
-  refreshToken: string;
+/** Request body for `POST /api/User/login`. */
+export interface UserLoginRequest {
+  userName: string;
+  password: string;
 }

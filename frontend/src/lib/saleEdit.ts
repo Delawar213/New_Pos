@@ -15,7 +15,7 @@ export function authUserIsAdmin(user: unknown): boolean {
   const u = user as Record<string, unknown>;
   const rid = u.roleId ?? u.role_id;
   if (Number(rid) === 1) return true;
-  const role = String(u.role ?? u.userRole ?? "").toLowerCase();
+  const role = String(u.role ?? u.roleName ?? u.userRole ?? "").toLowerCase();
   return role.includes("admin");
 }
 

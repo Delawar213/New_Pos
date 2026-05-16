@@ -8,6 +8,7 @@ import React from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar, Header } from "@/components/layout";
 import { cn } from "@/lib/utils";
+import { DashboardAuthGate } from "@/components/auth/DashboardAuthGate";
 
 export default function DashboardLayout({
   children,
@@ -18,20 +19,22 @@ export default function DashboardLayout({
   const isPosRoute = pathname === "/pos";
 
   return (
-    <div className="flex h-screen overflow-hidden bg-mesh">
-      <Sidebar />
+    <DashboardAuthGate>
+      <div className="flex h-screen overflow-hidden bg-mesh">
+        <Sidebar />
 
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <Header />
-        <main
-          className={cn(
-            "flex-1 min-h-0 transition-all duration-300 scrollbar-thin",
-            isPosRoute ? "overflow-hidden p-0" : "overflow-y-auto p-6"
-          )}
-        >
-          {children}
-        </main>
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <Header />
+          <main
+            className={cn(
+              "flex-1 min-h-0 transition-all duration-300 scrollbar-thin",
+              isPosRoute ? "overflow-hidden p-0" : "overflow-y-auto p-6"
+            )}
+          >
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </DashboardAuthGate>
   );
 }

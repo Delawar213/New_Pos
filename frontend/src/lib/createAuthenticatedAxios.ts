@@ -1,12 +1,17 @@
 import axios, { type AxiosInstance } from "axios";
+import { getClientAccessToken } from "@/lib/authTokenHolder";
 
 /**
- * Axios for same-origin `/proxy/*` calls (no auth headers).
+ * Axios for same-origin `/proxy/*` calls.
+ * Sends `Authorization: Bearer <token>` when a token was set via the Redux store sync in `StoreProvider`.
  */
 export function createAuthenticatedAxios(): AxiosInstance {
-  return axios.create({
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
+  const token = getClientAccessToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return axios.create({ headers });
 }

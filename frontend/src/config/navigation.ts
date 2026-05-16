@@ -68,6 +68,7 @@ export const sidebarNavigation: NavGroup[] = [
           { label: "Brands", href: "/brands", icon: Award },
           { label: "Expense Categories", href: "/expense-categories", icon: Receipt },
           { label: "Customer Type", href: "/customer-types", icon: Users },
+          { label: "Users", href: "/users", icon: Users },
         ],
       },
       {
