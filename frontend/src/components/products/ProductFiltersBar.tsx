@@ -106,7 +106,7 @@ export function ProductFiltersBar({
             type="search"
             value={searchInput}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Quick search — name, code, barcode (min. 2 characters)…"
+            placeholder="Search name, PRD075 code, or barcode 111… (min. 2 chars)"
             disabled={loading}
             className={cn(
               "w-full rounded-xl border border-slate-200 bg-slate-50/80 py-2.5 pl-10 pr-3 text-sm",

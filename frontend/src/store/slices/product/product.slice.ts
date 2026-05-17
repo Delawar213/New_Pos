@@ -17,6 +17,7 @@ import {
   mapStockAlertRowToProduct,
   normalizeProductRow,
 } from "@/lib/productListMappers";
+import { isBarcodeQuery, isProductCodeQuery } from "@/lib/productSearchResolve";
 import type { RootState } from "@/store";
 import type { PaginationParams } from "@/types/common";
 import { listQueryParams } from "@/lib/listQueryParams";
@@ -270,6 +271,131 @@ export const fetchProductsLowStock = createAsyncThunk<
   return rejectWithValue(lastErr);
 });
 
+async function fetchSingleProductFromApi(url: string): Promise<Product | null> {
+  const api = createAuthenticatedAxios();
+  const response = await api.get<ApiResponse<Product>>(url);
+  const failMsg = getApiErrorMessage(response.data);
+  if (failMsg) return null;
+  const data = response.data.data;
+  if (data == null || typeof data !== "object" || !("productId" in data)) return null;
+  return normalizeProductRow(data as Product);
+}
+
+/** GET `/api/Products/code/{productCode}` — exact code lookup for list. */
+export const fetchProductByCode = createAsyncThunk<
+  ProductListFilterResult,
+  string,
+  { rejectValue: string; state: RootState }
+>("product/fetchByCode", async (productCode, { rejectWithValue }) => {
+  const code = productCode.trim();
+  if (!code) return rejectWithValue("Enter a product code.");
+  try {
+    const product = await fetchSingleProductFromApi(
+      `/proxy/Products/code/${encodeURIComponent(code)}`
+    );
+    if (!product) return rejectWithValue(`No product found for code ${code}.`);
+    return {
+      items: [product],
+      mode: "search" as const,
+      label: `Code: ${product.productCode}`,
+    };
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { message?: string } }; message?: string };
+    return rejectWithValue(
+      err.response?.data?.message || err.message || "Product code lookup failed"
+    );
+  }
+});
+
+/** GET `/api/Products/barcode/{barcode}` — exact barcode lookup for list. */
+export const fetchProductByBarcodeForList = createAsyncThunk<
+  ProductListFilterResult,
+  string,
+  { rejectValue: string; state: RootState }
+>("product/fetchByBarcodeForList", async (barcode, { rejectWithValue }) => {
+  const code = barcode.trim();
+  if (!code) return rejectWithValue("Enter a barcode.");
+  try {
+    const product = await fetchSingleProductFromApi(
+      `/proxy/Products/barcode/${encodeURIComponent(code)}`
+    );
+    if (!product) return rejectWithValue(`No product found for barcode ${code}.`);
+    return {
+      items: [product],
+      mode: "search" as const,
+      label: `Barcode: ${code}`,
+    };
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { message?: string } }; message?: string };
+    return rejectWithValue(
+      err.response?.data?.message || err.message || "Barcode lookup failed"
+    );
+  }
+});
+
+/**
+ * Quick search: product code → `/Products/code/…`, barcode → `/Products/barcode/…`, else POS text search.
+ */
+export const resolveProductQuickSearch = createAsyncThunk<
+  ProductListFilterResult,
+  string,
+  { rejectValue: string; state: RootState }
+>("product/resolveQuickSearch", async (searchTerm, { rejectWithValue }) => {
+  const term = searchTerm.trim();
+  if (term.length < 2) {
+    return { items: [], mode: "search" as const, label: "" };
+  }
+
+  try {
+    if (isProductCodeQuery(term)) {
+      const product = await fetchSingleProductFromApi(
+        `/proxy/Products/code/${encodeURIComponent(term)}`
+      );
+      if (product) {
+        return {
+          items: [product],
+          mode: "search" as const,
+          label: `Code: ${product.productCode}`,
+        };
+      }
+    } else if (isBarcodeQuery(term)) {
+      const product = await fetchSingleProductFromApi(
+        `/proxy/Products/barcode/${encodeURIComponent(term)}`
+      );
+      if (product) {
+        return {
+          items: [product],
+          mode: "search" as const,
+          label: `Barcode: ${term}`,
+        };
+      }
+    }
+
+    return await fetchPosSearchList(term);
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { message?: string } }; message?: string };
+    return rejectWithValue(
+      err.response?.data?.message || err.message || "Product search failed"
+    );
+  }
+});
+
+async function fetchPosSearchList(term: string): Promise<ProductListFilterResult> {
+  const api = createAuthenticatedAxios();
+  const response = await api.get<ApiResponse<ProductPosSearchRow[]>>(
+    "/proxy/Products/pos/search",
+    { params: { searchTerm: term } }
+  );
+  const failMsg = getApiErrorMessage(response.data);
+  if (failMsg) throw new Error(failMsg);
+  const rows = Array.isArray(response.data.data) ? response.data.data : [];
+  return {
+    items: rows.map(mapPosSearchRowToProduct),
+    mode: "search" as const,
+    label: `Search: “${term}”`,
+  };
+}
+
 export const searchProductsPos = createAsyncThunk<
   ProductListFilterResult,
   string,
@@ -280,24 +406,9 @@ export const searchProductsPos = createAsyncThunk<
     return { items: [], mode: "search" as const, label: "" };
   }
   try {
-    const api = createAuthenticatedAxios();
-    const response = await api.get<ApiResponse<ProductPosSearchRow[]>>(
-      "/proxy/Products/pos/search",
-      { params: { searchTerm: term } }
-    );
-    const failMsg = getApiErrorMessage(response.data);
-    if (failMsg) return rejectWithValue(failMsg);
-    const rows = Array.isArray(response.data.data) ? response.data.data : [];
-    return {
-      items: rows.map(mapPosSearchRowToProduct),
-      mode: "search" as const,
-      label: `Search: “${term}”`,
-    };
+    return await fetchPosSearchList(term);
   } catch (e: unknown) {
-    const err = e as { response?: { data?: { message?: string } }; message?: string };
-    return rejectWithValue(
-      err.response?.data?.message || err.message || "Product search failed"
-    );
+    return rejectWithValue(e instanceof Error ? e.message : "Product search failed");
   }
 });
 
@@ -309,7 +420,7 @@ export const fetchProductByBarcode = createAsyncThunk<
   try {
     const api = createAuthenticatedAxios();
     const response = await api.get<ApiResponse<Product>>(
-      `/proxy/products/barcode/${encodeURIComponent(barcode.trim())}`
+      `/proxy/Products/barcode/${encodeURIComponent(barcode.trim())}`
     );
     const failMsg = getApiErrorMessage(response.data);
     if (failMsg) return rejectWithValue(failMsg);
@@ -360,6 +471,9 @@ const productSlice = createSlice({
       fetchProductsOutOfStock,
       fetchProductsLowStock,
       searchProductsPos,
+      resolveProductQuickSearch,
+      fetchProductByCode,
+      fetchProductByBarcodeForList,
     ] as const;
     for (const thunk of filterCases) {
       builder.addCase(thunk.pending, (state) => {

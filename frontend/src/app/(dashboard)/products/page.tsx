@@ -35,7 +35,7 @@ import {
   fetchProductsByBrand,
   fetchProductsOutOfStock,
   fetchProductsLowStock,
-  searchProductsPos,
+  resolveProductQuickSearch,
   createProduct,
   updateProduct,
   deleteProduct,
@@ -329,7 +329,7 @@ export default function ProductsPage() {
     if (term.length >= 2) {
       if (lastFetchedSearchRef.current === term) return;
       lastFetchedSearchRef.current = term;
-      void dispatch(searchProductsPos(term));
+      void dispatch(resolveProductQuickSearch(term));
       return;
     }
     lastFetchedSearchRef.current = "";
@@ -366,7 +366,7 @@ export default function ProductsPage() {
 
   const refreshProductList = () => {
     const term = debouncedSearch.trim();
-    if (term.length >= 2) return void dispatch(searchProductsPos(term));
+    if (term.length >= 2) return void dispatch(resolveProductQuickSearch(term));
     if (stockFilter === "outofstock") return void dispatch(fetchProductsOutOfStock());
     if (stockFilter === "lowstock") return void dispatch(fetchProductsLowStock());
     if (categoryFilterId !== "") {
