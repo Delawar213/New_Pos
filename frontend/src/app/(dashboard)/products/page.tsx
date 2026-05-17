@@ -27,14 +27,24 @@ import type { Product, CreateProductRequest, UpdateProductRequest } from "@/type
 import { formatCurrency, formatNumber, cn } from "@/lib/utils";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { buildPagedFetchArgs } from "@/lib/buildPagedFetchArgs";
+import { printProductStockReport, type StockPrintKind } from "@/lib/productStockPrint";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   fetchProducts,
+  fetchProductsByCategory,
+  fetchProductsByBrand,
+  fetchProductsOutOfStock,
+  fetchProductsLowStock,
+  searchProductsPos,
   createProduct,
   updateProduct,
   deleteProduct,
   clearProductState,
 } from "@/store/slices/product/product.slice";
+import {
+  ProductFiltersBar,
+  type StockFilterValue,
+} from "@/components/products/ProductFiltersBar";
 import { fetchCategories } from "@/store/slices/category/category.slice";
 import { fetchBrands } from "@/store/slices/brand/brand.slice";
 import { fetchSubCategories } from "@/store/slices/subCategory/subCategory.slice";
@@ -105,6 +115,8 @@ const GROCERY_UNITS_OF_MEASUREMENT = [
 ] as const;
 
 const VAT_RATE_OPTIONS = [0, 5, 20] as const;
+/** Wait until the user pauses typing before POS quick search runs. */
+const PRODUCT_SEARCH_DEBOUNCE_MS = 750;
 
 function buildUomSelectOptions(currentUom: string): SearchableSelectOption<string>[] {
   const base: SearchableSelectOption<string>[] = GROCERY_UNITS_OF_MEASUREMENT.map((u) => ({
@@ -132,6 +144,8 @@ export default function ProductsPage() {
     currentPage,
     pageSize,
     totalPages,
+    listMode,
+    listFilterLabel,
   } = useAppSelector((s) => s.product);
   const { categories } = useAppSelector((s) => s.category);
   const { brands } = useAppSelector((s) => s.brand);
@@ -144,8 +158,22 @@ export default function ProductsPage() {
   const [form, setForm] = useState<CreateProductRequest>(emptyForm());
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const [searchInput, setSearchInput] = useState("");
-  const debouncedSearch = useDebouncedValue(searchInput, 400);
+  const [categoryFilterId, setCategoryFilterId] = useState<number | "">("");
+  const [brandFilterId, setBrandFilterId] = useState<number | "">("");
+  const [stockFilter, setStockFilter] = useState<StockFilterValue>("all");
+  const debouncedSearch = useDebouncedValue(searchInput, PRODUCT_SEARCH_DEBOUNCE_MS);
   const searchPrevRef = useRef<string | null>(null);
+  const lastFetchedSearchRef = useRef<string>("");
+  const isCatalogMode = listMode === "catalog";
+  const trimmedSearch = searchInput.trim();
+  const debouncedSearchTrimmed = debouncedSearch.trim();
+  const searchPending =
+    trimmedSearch.length >= 2 && trimmedSearch !== debouncedSearchTrimmed;
+  const canPrintStock =
+    stockFilter === "outofstock" ||
+    stockFilter === "lowstock" ||
+    listMode === "outofstock" ||
+    listMode === "lowstock";
 
   const commitBarcodeValue = useCallback((value: string) => {
     setForm((f) => ({ ...f, barcode: value }));
@@ -248,19 +276,179 @@ export default function ProductsPage() {
     dispatch(fetchSubCategories());
   }, [dispatch]);
 
-  useEffect(() => {
-    dispatch(fetchProducts(buildPagedFetchArgs(currentPage, pageSize, debouncedSearch, searchPrevRef)));
-  }, [dispatch, debouncedSearch, currentPage, pageSize]);
+  const loadCatalogPage = useCallback(
+    (page = currentPage, size = pageSize) => {
+      void dispatch(fetchProducts(buildPagedFetchArgs(page, size, "", searchPrevRef)));
+    },
+    [dispatch, currentPage, pageSize]
+  );
 
-  const refreshProductList = () =>
-    dispatch(
-      fetchProducts({
-        pageNumber: currentPage,
-        pageSize,
-        searchTerm: debouncedSearch.trim() || undefined,
-        sortDirection: "desc",
+  const applyListFilters = useCallback(() => {
+    if (stockFilter === "outofstock") {
+      void dispatch(fetchProductsOutOfStock());
+      return;
+    }
+    if (stockFilter === "lowstock") {
+      void dispatch(fetchProductsLowStock());
+      return;
+    }
+    if (categoryFilterId !== "") {
+      const cat = categories.find((c) => c.categoryId === categoryFilterId);
+      void dispatch(
+        fetchProductsByCategory({
+          categoryId: categoryFilterId,
+          categoryName: cat?.categoryName ?? `Category #${categoryFilterId}`,
+        })
+      );
+      return;
+    }
+    if (brandFilterId !== "") {
+      const brand = brands.find((b) => b.brandId === brandFilterId);
+      void dispatch(
+        fetchProductsByBrand({
+          brandId: brandFilterId,
+          brandName: brand?.brandName ?? `Brand #${brandFilterId}`,
+        })
+      );
+      return;
+    }
+    loadCatalogPage();
+  }, [
+    dispatch,
+    stockFilter,
+    categoryFilterId,
+    brandFilterId,
+    categories,
+    brands,
+    loadCatalogPage,
+  ]);
+
+  /** POS quick search — only after user stops typing (debounced). */
+  useEffect(() => {
+    const term = debouncedSearchTrimmed;
+    if (term.length >= 2) {
+      if (lastFetchedSearchRef.current === term) return;
+      lastFetchedSearchRef.current = term;
+      void dispatch(searchProductsPos(term));
+      return;
+    }
+    lastFetchedSearchRef.current = "";
+  }, [dispatch, debouncedSearchTrimmed]);
+
+  /** Category, brand, stock filters, and catalog — not on every keystroke. */
+  useEffect(() => {
+    if (debouncedSearchTrimmed.length >= 2) return;
+    if (debouncedSearchTrimmed.length === 1) return;
+    applyListFilters();
+  }, [
+    debouncedSearchTrimmed,
+    applyListFilters,
+    currentPage,
+    pageSize,
+  ]);
+
+  const handlePrintStockList = () => {
+    const kind: StockPrintKind =
+      stockFilter === "lowstock" || listMode === "lowstock" ? "lowstock" : "outofstock";
+    if (products.length === 0) {
+      dispatch(
+        addToast({
+          type: "warning",
+          title: "Nothing to print",
+          message: "Load products first, then print.",
+          duration: 3000,
+        })
+      );
+      return;
+    }
+    printProductStockReport(kind, products);
+  };
+
+  const refreshProductList = () => {
+    const term = debouncedSearch.trim();
+    if (term.length >= 2) return void dispatch(searchProductsPos(term));
+    if (stockFilter === "outofstock") return void dispatch(fetchProductsOutOfStock());
+    if (stockFilter === "lowstock") return void dispatch(fetchProductsLowStock());
+    if (categoryFilterId !== "") {
+      const cat = categories.find((c) => c.categoryId === categoryFilterId);
+      return void dispatch(
+        fetchProductsByCategory({
+          categoryId: categoryFilterId,
+          categoryName: cat?.categoryName ?? `Category #${categoryFilterId}`,
+        })
+      );
+    }
+    if (brandFilterId !== "") {
+      const brand = brands.find((b) => b.brandId === brandFilterId);
+      return void dispatch(
+        fetchProductsByBrand({
+          brandId: brandFilterId,
+          brandName: brand?.brandName ?? `Brand #${brandFilterId}`,
+        })
+      );
+    }
+    return loadCatalogPage();
+  };
+
+  const handleCategoryFilterChange = (id: number | "") => {
+    setCategoryFilterId(id);
+    setBrandFilterId("");
+    setStockFilter("all");
+    setSearchInput("");
+    if (id === "") {
+      void dispatch(fetchProducts(buildPagedFetchArgs(1, pageSize, "", searchPrevRef)));
+      return;
+    }
+    const cat = categories.find((c) => c.categoryId === id);
+    void dispatch(
+      fetchProductsByCategory({
+        categoryId: id,
+        categoryName: cat?.categoryName ?? `Category #${id}`,
       })
     );
+  };
+
+  const handleBrandFilterChange = (id: number | "") => {
+    setBrandFilterId(id);
+    setCategoryFilterId("");
+    setStockFilter("all");
+    setSearchInput("");
+    if (id === "") {
+      void dispatch(fetchProducts(buildPagedFetchArgs(1, pageSize, "", searchPrevRef)));
+      return;
+    }
+    const brand = brands.find((b) => b.brandId === id);
+    void dispatch(
+      fetchProductsByBrand({
+        brandId: id,
+        brandName: brand?.brandName ?? `Brand #${id}`,
+      })
+    );
+  };
+
+  const handleStockFilterChange = (value: StockFilterValue) => {
+    setStockFilter(value);
+    setCategoryFilterId("");
+    setBrandFilterId("");
+    setSearchInput("");
+    if (value === "outofstock") {
+      void dispatch(fetchProductsOutOfStock());
+      return;
+    }
+    if (value === "lowstock") {
+      void dispatch(fetchProductsLowStock());
+      return;
+    }
+    void dispatch(fetchProducts(buildPagedFetchArgs(1, pageSize, "", searchPrevRef)));
+  };
+
+  const handleClearFilters = () => {
+    setSearchInput("");
+    setCategoryFilterId("");
+    setBrandFilterId("");
+    setStockFilter("all");
+    void dispatch(fetchProducts(buildPagedFetchArgs(1, pageSize, "", searchPrevRef)));
+  };
 
   useEffect(() => {
     if (success && message) {
@@ -517,20 +705,29 @@ export default function ProductsPage() {
       key: "qtyInStock",
       label: "Stock",
       render: (item) => {
-        const isLow = item.isLowStock ?? item.qtyInStock <= item.stockAlertLevel;
+        const isOut = item.qtyInStock <= 0;
+        const isLow = item.isLowStock ?? (!isOut && item.qtyInStock <= item.stockAlertLevel);
         return (
           <div className="flex items-center gap-2">
             <span
-              className={cn("text-sm font-semibold", isLow ? "text-rose-600" : "text-slate-700")}
+              className={cn(
+                "text-sm font-semibold",
+                isOut ? "text-rose-700" : isLow ? "text-amber-700" : "text-slate-700"
+              )}
             >
               {item.qtyInStock}
             </span>
-            {isLow && (
-              <span className="flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-600">
+            {isOut ? (
+              <span className="flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-700">
+                <Archive className="h-3 w-3" />
+                Out
+              </span>
+            ) : isLow ? (
+              <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
                 <AlertTriangle className="h-3 w-3" />
                 Low
               </span>
-            )}
+            ) : null}
           </div>
         );
       },
@@ -612,42 +809,60 @@ export default function ProductsPage() {
         })}
       </div>
 
+      <ProductFiltersBar
+        searchInput={searchInput}
+        onSearchChange={setSearchInput}
+        categoryId={categoryFilterId}
+        brandId={brandFilterId}
+        stockFilter={stockFilter}
+        categoryOptions={categories.map((c) => ({
+          value: c.categoryId,
+          label: c.categoryName,
+        }))}
+        brandOptions={brands.map((b) => ({ value: b.brandId, label: b.brandName }))}
+        onCategoryChange={handleCategoryFilterChange}
+        onBrandChange={handleBrandFilterChange}
+        onStockFilterChange={handleStockFilterChange}
+        onClearFilters={handleClearFilters}
+        listMode={listMode}
+        listFilterLabel={listFilterLabel}
+        resultCount={products.length}
+        loading={loading}
+        searchPending={searchPending}
+        canPrintStock={canPrintStock}
+        onPrintStock={handlePrintStockList}
+        printDisabled={loading}
+      />
+
       <DataTable
         columns={columns}
         data={products}
         rowKey="productId"
-        title="All Products"
-        description="View and manage your complete product catalog"
+        title={listFilterLabel || "All products"}
+        description={
+          isCatalogMode
+            ? "Paginated catalog — use filters above for category, brand, stock, or quick search"
+            : `${products.length} result${products.length === 1 ? "" : "s"} from the active filter`
+        }
         totalCount={totalCount}
         pageNumber={currentPage}
         pageSize={pageSize}
-        onPageChange={(p) =>
-          dispatch(
-            fetchProducts({
-              pageNumber: p,
-              pageSize,
-              searchTerm: debouncedSearch.trim() || undefined,
-              sortDirection: "desc",
-            })
-          )
+        onPageChange={
+          isCatalogMode
+            ? (p) => void dispatch(fetchProducts(buildPagedFetchArgs(p, pageSize, "", searchPrevRef)))
+            : undefined
         }
-        onPageSizeChange={(s) =>
-          dispatch(
-            fetchProducts({
-              pageNumber: 1,
-              pageSize: s,
-              searchTerm: debouncedSearch.trim() || undefined,
-              sortDirection: "desc",
-            })
-          )
+        onPageSizeChange={
+          isCatalogMode
+            ? (s) => void dispatch(fetchProducts(buildPagedFetchArgs(1, s, "", searchPrevRef)))
+            : undefined
         }
-        searchQuery={searchInput}
-        onSearchChange={setSearchInput}
-        searchPlaceholder="Search products, codes, barcodes…"
+        sortNewestFirst={isCatalogMode}
         onAdd={openCreateModal}
         addLabel="Add Product"
         onExport={() => {}}
-        onFilter={() => {}}
+        onPrint={canPrintStock ? handlePrintStockList : undefined}
+        printLabel="Print list"
         onRefresh={() => void refreshProductList()}
         loading={loading}
       />

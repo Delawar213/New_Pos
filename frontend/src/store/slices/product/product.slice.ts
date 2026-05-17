@@ -3,7 +3,20 @@ import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { configureSlice } from "@/lib/utils";
 import { createAuthenticatedAxios } from "@/lib/createAuthenticatedAxios";
 import { getApiErrorMessage } from "@/lib/apiResult";
-import type { CreateProductRequest, PaginatedProductResponse, Product, UpdateProductRequest } from "@/types/product";
+import type {
+  CreateProductRequest,
+  PaginatedProductResponse,
+  Product,
+  ProductListMode,
+  ProductPosSearchRow,
+  ProductStockAlertRow,
+  UpdateProductRequest,
+} from "@/types/product";
+import {
+  mapPosSearchRowToProduct,
+  mapStockAlertRowToProduct,
+  normalizeProductRow,
+} from "@/lib/productListMappers";
 import type { RootState } from "@/store";
 import type { PaginationParams } from "@/types/common";
 import { listQueryParams } from "@/lib/listQueryParams";
@@ -15,8 +28,16 @@ interface ApiResponse<T> {
   errors: string[];
 }
 
+interface ProductListFilterResult {
+  items: Product[];
+  mode: ProductListMode;
+  label: string;
+}
+
 interface ProductState {
   products: Product[];
+  listMode: ProductListMode;
+  listFilterLabel: string;
   /** Large product list for dropdowns (e.g. purchase lines). */
   allProducts: Product[];
   selectedProduct: Product | null;
@@ -37,6 +58,8 @@ interface ProductState {
 
 const initialState: ProductState = {
   products: [],
+  listMode: "catalog",
+  listFilterLabel: "",
   allProducts: [],
   selectedProduct: null,
   loading: false,
@@ -145,6 +168,139 @@ export const fetchAllProducts = createAsyncThunk<
   }
 });
 
+function applyFilteredProductList(state: ProductState, result: ProductListFilterResult) {
+  state.products = result.items;
+  state.listMode = result.mode;
+  state.listFilterLabel = result.label;
+  state.totalCount = result.items.length;
+  state.currentPage = 1;
+  state.pageSize = Math.max(result.items.length, 10);
+  state.totalPages = 1;
+  state.hasPreviousPage = false;
+  state.hasNextPage = false;
+}
+
+async function getProductArray<T>(
+  url: string,
+  rejectWithValue: (msg: string) => unknown
+): Promise<T[]> {
+  const api = createAuthenticatedAxios();
+  const response = await api.get<ApiResponse<T[]>>(url);
+  const failMsg = getApiErrorMessage(response.data);
+  if (failMsg) throw new Error(failMsg);
+  return Array.isArray(response.data.data) ? response.data.data : [];
+}
+
+export const fetchProductsByCategory = createAsyncThunk<
+  ProductListFilterResult,
+  { categoryId: number; categoryName: string },
+  { rejectValue: string; state: RootState }
+>("product/fetchByCategory", async ({ categoryId, categoryName }, { rejectWithValue }) => {
+  try {
+    const rows = await getProductArray<Product>(
+      `/proxy/Products/category/${categoryId}`,
+      rejectWithValue
+    );
+    return {
+      items: rows.map(normalizeProductRow),
+      mode: "category" as const,
+      label: `Category: ${categoryName}`,
+    };
+  } catch (e: unknown) {
+    return rejectWithValue(e instanceof Error ? e.message : "Failed to load products by category");
+  }
+});
+
+export const fetchProductsByBrand = createAsyncThunk<
+  ProductListFilterResult,
+  { brandId: number; brandName: string },
+  { rejectValue: string; state: RootState }
+>("product/fetchByBrand", async ({ brandId, brandName }, { rejectWithValue }) => {
+  try {
+    const rows = await getProductArray<Product>(`/proxy/Products/brand/${brandId}`, rejectWithValue);
+    return {
+      items: rows.map(normalizeProductRow),
+      mode: "brand" as const,
+      label: `Brand: ${brandName}`,
+    };
+  } catch (e: unknown) {
+    return rejectWithValue(e instanceof Error ? e.message : "Failed to load products by brand");
+  }
+});
+
+export const fetchProductsOutOfStock = createAsyncThunk<
+  ProductListFilterResult,
+  void,
+  { rejectValue: string; state: RootState }
+>("product/fetchOutOfStock", async (_, { rejectWithValue }) => {
+  try {
+    const rows = await getProductArray<ProductStockAlertRow>(
+      "/proxy/Products/outofstock",
+      rejectWithValue
+    );
+    return {
+      items: rows.map(mapStockAlertRowToProduct),
+      mode: "outofstock" as const,
+      label: "Out of stock",
+    };
+  } catch (e: unknown) {
+    return rejectWithValue(e instanceof Error ? e.message : "Failed to load out-of-stock products");
+  }
+});
+
+export const fetchProductsLowStock = createAsyncThunk<
+  ProductListFilterResult,
+  void,
+  { rejectValue: string; state: RootState }
+>("product/fetchLowStock", async (_, { rejectWithValue }) => {
+  const paths = ["/proxy/Products/lowstock", "/proxy/Products/low-stock"];
+  let lastErr = "Failed to load low-stock products";
+  for (const path of paths) {
+    try {
+      const rows = await getProductArray<ProductStockAlertRow>(path, rejectWithValue);
+      return {
+        items: rows.map(mapStockAlertRowToProduct),
+        mode: "lowstock" as const,
+        label: "Low stock",
+      };
+    } catch (e: unknown) {
+      lastErr = e instanceof Error ? e.message : lastErr;
+    }
+  }
+  return rejectWithValue(lastErr);
+});
+
+export const searchProductsPos = createAsyncThunk<
+  ProductListFilterResult,
+  string,
+  { rejectValue: string; state: RootState }
+>("product/searchPos", async (searchTerm, { rejectWithValue }) => {
+  const term = searchTerm.trim();
+  if (!term) {
+    return { items: [], mode: "search" as const, label: "" };
+  }
+  try {
+    const api = createAuthenticatedAxios();
+    const response = await api.get<ApiResponse<ProductPosSearchRow[]>>(
+      "/proxy/Products/pos/search",
+      { params: { searchTerm: term } }
+    );
+    const failMsg = getApiErrorMessage(response.data);
+    if (failMsg) return rejectWithValue(failMsg);
+    const rows = Array.isArray(response.data.data) ? response.data.data : [];
+    return {
+      items: rows.map(mapPosSearchRowToProduct),
+      mode: "search" as const,
+      label: `Search: “${term}”`,
+    };
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { message?: string } }; message?: string };
+    return rejectWithValue(
+      err.response?.data?.message || err.message || "Product search failed"
+    );
+  }
+});
+
 export const fetchProductByBarcode = createAsyncThunk<
   Product,
   string,
@@ -187,6 +343,8 @@ const productSlice = createSlice({
     });
     builder.addCase(fetchProducts.fulfilled, (state, { payload }) => {
       state.loading = false;
+      state.listMode = "catalog";
+      state.listFilterLabel = "";
       state.products = payload.data.data;
       state.totalCount = payload.data.totalRecords;
       state.currentPage = payload.data.pageNumber;
@@ -195,6 +353,28 @@ const productSlice = createSlice({
       state.hasPreviousPage = payload.data.hasPreviousPage;
       state.hasNextPage = payload.data.hasNextPage;
     });
+
+    const filterCases = [
+      fetchProductsByCategory,
+      fetchProductsByBrand,
+      fetchProductsOutOfStock,
+      fetchProductsLowStock,
+      searchProductsPos,
+    ] as const;
+    for (const thunk of filterCases) {
+      builder.addCase(thunk.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      });
+      builder.addCase(thunk.fulfilled, (state, { payload }) => {
+        state.loading = false;
+        applyFilteredProductList(state, payload);
+      });
+      builder.addCase(thunk.rejected, (state, { payload }) => {
+        state.loading = false;
+        state.error = payload || "Failed to load products";
+      });
+    }
     builder.addCase(fetchProducts.rejected, (state, { payload }) => {
       state.loading = false;
       state.error = payload || "Failed to fetch products";

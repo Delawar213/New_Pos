@@ -11,7 +11,8 @@ import {
   ChevronRight, 
   Search, 
   Plus, 
-  Download, 
+  Download,
+  Printer,
   Filter,
   SlidersHorizontal,
   MoreHorizontal,
@@ -42,6 +43,8 @@ interface DataTableProps<T> {
   onAdd?: () => void;
   addLabel?: string;
   onExport?: () => void;
+  onPrint?: () => void;
+  printLabel?: string;
   onFilter?: () => void;
   onRefresh?: () => void;
   loading?: boolean;
@@ -72,6 +75,8 @@ export default function DataTable<T>({
   onAdd,
   addLabel = "Add New",
   onExport,
+  onPrint,
+  printLabel = "Print",
   onFilter,
   onRefresh,
   loading = false,
@@ -172,6 +177,18 @@ export default function DataTable<T>({
               >
                 <Download className="h-4 w-4" />
                 <span className="hidden sm:inline">Export</span>
+              </button>
+            )}
+
+            {/* Print */}
+            {onPrint && (
+              <button
+                type="button"
+                onClick={onPrint}
+                className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:border-slate-300"
+              >
+                <Printer className="h-4 w-4" />
+                <span className="hidden sm:inline">{printLabel}</span>
               </button>
             )}
 

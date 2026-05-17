@@ -62,3 +62,34 @@ export interface CreateProductRequest {
 export interface UpdateProductRequest extends CreateProductRequest {
   productId: number;
 }
+
+/** Row from `GET /api/Products/outofstock` and low-stock endpoints. */
+export interface ProductStockAlertRow {
+  productId: number;
+  productCode: string;
+  productName: string;
+  categoryName?: string;
+  qtyInStock: number;
+  stockAlertLevel: number;
+  reorderLevel: number;
+  alertType: string;
+}
+
+/** Row from `GET /api/Products/pos/search`. */
+export interface ProductPosSearchRow {
+  productId: number;
+  productCode: string;
+  productName: string;
+  barcode?: string;
+  sellingPrice: number;
+  qtyInStock: number;
+  vatRate: number;
+}
+
+export type ProductListMode =
+  | "catalog"
+  | "category"
+  | "brand"
+  | "outofstock"
+  | "lowstock"
+  | "search";
