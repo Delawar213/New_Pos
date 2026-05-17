@@ -16,10 +16,14 @@ import type {
   CustomerLoyaltyRequest,
   CustomerBulkPaymentRequest,
   CustomerSalePaymentRequest,
+  CustomerPendingPaymentsData,
+  CustomerPendingSale,
+  CustomerPendingSummary,
 } from '@/types/customer';
 import type { RootState } from '@/store';
 import type { PaginationParams } from '@/types/common';
 import { listQueryParams } from '@/lib/listQueryParams';
+import { fetchBankAccountsDropdown } from '@/store/slices/bankAccount/bankAccount.slice';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -51,6 +55,11 @@ interface CustomerState {
   totalPages: number;
   hasPreviousPage: boolean;
   hasNextPage: boolean;
+  pendingPayments: CustomerPendingPaymentsData | null;
+  pendingPaymentsLoading: boolean;
+  pendingPaymentsError: string | null;
+  /** `0` = all customers; otherwise filtered by customer id. */
+  pendingPaymentsCustomerId: number;
 }
 
 const initialState: CustomerState = {
@@ -76,7 +85,68 @@ const initialState: CustomerState = {
   totalPages: 0,
   hasPreviousPage: false,
   hasNextPage: false,
+  pendingPayments: null,
+  pendingPaymentsLoading: false,
+  pendingPaymentsError: null,
+  pendingPaymentsCustomerId: 0,
 };
+
+function num(v: unknown): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function mapPendingSale(raw: Record<string, unknown>): CustomerPendingSale {
+  return {
+    saleId: num(raw.saleId),
+    invoiceNumber: String(raw.invoiceNumber ?? ''),
+    saleDate: String(raw.saleDate ?? ''),
+    customerId: num(raw.customerId),
+    customerName: String(raw.customerName ?? ''),
+    totalAmount: num(raw.totalAmount),
+    paidAmount: num(raw.paidAmount),
+    remainingAmount: num(raw.remainingAmount),
+    paymentStatus: String(raw.paymentStatus ?? ''),
+    daysOutstanding: num(raw.daysOutstanding),
+    paymentStatusAge: String(raw.paymentStatusAge ?? ''),
+  };
+}
+
+function mapPendingSummary(raw: Record<string, unknown>): CustomerPendingSummary {
+  const summary: CustomerPendingSummary = {
+    customerId: num(raw.customerId),
+    customerCode: String(raw.customerCode ?? ''),
+    customerName: String(raw.customerName ?? ''),
+    contactNo: String(raw.contactNo ?? ''),
+    creditLimit: num(raw.creditLimit),
+    creditDays: num(raw.creditDays),
+    currentBalance: num(raw.currentBalance),
+    totalPendingSales: num(raw.totalPendingSales),
+    totalRemaining: num(raw.totalRemaining),
+    totalPaid: num(raw.totalPaid),
+    totalInvoiced: num(raw.totalInvoiced),
+    oldestPendingDate: String(raw.oldestPendingDate ?? ''),
+    latestPendingDate: String(raw.latestPendingDate ?? ''),
+  };
+  if (raw.creditUtilizationPct != null) {
+    summary.creditUtilizationPct = num(raw.creditUtilizationPct);
+  }
+  return summary;
+}
+
+function mapPendingPaymentsPayload(raw: unknown): CustomerPendingPaymentsData {
+  const d = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const summaries = Array.isArray(d.customerSummaries) ? d.customerSummaries : [];
+  const sales = Array.isArray(d.pendingSales) ? d.pendingSales : [];
+  return {
+    grandTotalCustomers: num(d.grandTotalCustomers),
+    grandTotalRemaining: num(d.grandTotalRemaining),
+    customerSummaries: summaries.map((row) =>
+      mapPendingSummary(row as Record<string, unknown>)
+    ),
+    pendingSales: sales.map((row) => mapPendingSale(row as Record<string, unknown>)),
+  };
+}
 
 export const fetchCustomers = createAsyncThunk<
   ApiResponse<PaginatedCustomerResponse>,
@@ -280,6 +350,68 @@ export const fetchCustomerLedger = createAsyncThunk<
   }
 });
 
+/** GET `/api/Customers/pending-payments` — all customers with outstanding sale balances. */
+export const fetchAllCustomerPendingPayments = createAsyncThunk<
+  CustomerPendingPaymentsData,
+  void,
+  { rejectValue: string; state: RootState }
+>('customer/fetchAllPendingPayments', async (_, { rejectWithValue }) => {
+  try {
+    const api = createAuthenticatedAxios();
+    const paths = ['/proxy/Customers/pending-payments', '/proxy/customers/pending-payments'];
+    let lastMessage = 'Failed to load pending payments';
+    for (const path of paths) {
+      try {
+        const response = await api.get<ApiResponse<unknown>>(path);
+        const failMsg = getApiErrorMessage(response.data);
+        if (failMsg) return rejectWithValue(failMsg);
+        return mapPendingPaymentsPayload(response.data.data);
+      } catch (error: unknown) {
+        const err = error as { response?: { data?: { message?: string } }; message?: string };
+        lastMessage = err.response?.data?.message || err.message || lastMessage;
+      }
+    }
+    return rejectWithValue(lastMessage);
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string };
+    return rejectWithValue(err.response?.data?.message || err.message || 'Failed to load pending payments');
+  }
+});
+
+/** GET `/api/Customers/{id}/pending-payments` — one customer's pending sales. */
+export const fetchCustomerPendingPayments = createAsyncThunk<
+  CustomerPendingPaymentsData,
+  number,
+  { rejectValue: string; state: RootState }
+>('customer/fetchPendingPayments', async (customerId, { rejectWithValue }) => {
+  if (!Number.isFinite(customerId) || customerId <= 0) {
+    return rejectWithValue('Select a customer.');
+  }
+  try {
+    const api = createAuthenticatedAxios();
+    const paths = [
+      `/proxy/Customers/${customerId}/pending-payments`,
+      `/proxy/customers/${customerId}/pending-payments`,
+    ];
+    let lastMessage = 'Failed to load pending payments';
+    for (const path of paths) {
+      try {
+        const response = await api.get<ApiResponse<unknown>>(path);
+        const failMsg = getApiErrorMessage(response.data);
+        if (failMsg) return rejectWithValue(failMsg);
+        return mapPendingPaymentsPayload(response.data.data);
+      } catch (error: unknown) {
+        const err = error as { response?: { data?: { message?: string } }; message?: string };
+        lastMessage = err.response?.data?.message || err.message || lastMessage;
+      }
+    }
+    return rejectWithValue(lastMessage);
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string };
+    return rejectWithValue(err.response?.data?.message || err.message || 'Failed to load pending payments');
+  }
+});
+
 export const fetchCustomerLoyalty = createAsyncThunk<ApiResponse<number>, number, { rejectValue: string; state: RootState }>(
   'customer/fetchLoyalty',
   async (customerId, { rejectWithValue }) => {
@@ -373,7 +505,7 @@ export const customerSalePayment = createAsyncThunk<
   ApiResponse<unknown>,
   Omit<CustomerSalePaymentRequest, 'createdBy'> & { createdBy?: number },
   { rejectValue: string; state: RootState }
->('customer/salePayment', async (payload, { getState, rejectWithValue }) => {
+>('customer/salePayment', async (payload, { getState, rejectWithValue, dispatch }) => {
   try {
     const api = createAuthenticatedAxios();
     const body: CustomerSalePaymentRequest = {
@@ -383,6 +515,7 @@ export const customerSalePayment = createAsyncThunk<
     const response = await api.post<ApiResponse<unknown>>('/proxy/Customers/sale-payment', body);
     const failMsg = getApiErrorMessage(response.data);
     if (failMsg) return rejectWithValue(failMsg);
+    await dispatch(fetchBankAccountsDropdown());
     return response.data;
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -395,7 +528,7 @@ export const customerBulkPayment = createAsyncThunk<
   ApiResponse<unknown>,
   Omit<CustomerBulkPaymentRequest, 'createdBy'> & { createdBy?: number },
   { rejectValue: string; state: RootState }
->('customer/bulkPayment', async (payload, { getState, rejectWithValue }) => {
+>('customer/bulkPayment', async (payload, { getState, rejectWithValue, dispatch }) => {
   try {
     const api = createAuthenticatedAxios();
     const body: CustomerBulkPaymentRequest = {
@@ -405,6 +538,7 @@ export const customerBulkPayment = createAsyncThunk<
     const response = await api.post<ApiResponse<unknown>>('/proxy/Customers/bulk-payment', body);
     const failMsg = getApiErrorMessage(response.data);
     if (failMsg) return rejectWithValue(failMsg);
+    await dispatch(fetchBankAccountsDropdown());
     return response.data;
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -444,6 +578,12 @@ const customerSlice = createSlice({
       state.customerLedger = [];
       state.customerLedgerMessage = '';
       state.error = null;
+    },
+    clearPendingPayments(state) {
+      state.pendingPayments = null;
+      state.pendingPaymentsLoading = false;
+      state.pendingPaymentsError = null;
+      state.pendingPaymentsCustomerId = 0;
     },
     setCurrentPage(state, action: PayloadAction<number>) {
       state.currentPage = action.payload;
@@ -551,6 +691,36 @@ const customerSlice = createSlice({
       state.customerLedgerMessage = '';
       state.error = payload || 'Failed to fetch customer ledger';
     });
+
+    builder.addCase(fetchAllCustomerPendingPayments.pending, (state) => {
+      state.pendingPaymentsLoading = true;
+      state.pendingPaymentsError = null;
+    });
+    builder.addCase(fetchAllCustomerPendingPayments.fulfilled, (state, { payload }) => {
+      state.pendingPaymentsLoading = false;
+      state.pendingPayments = payload;
+      state.pendingPaymentsCustomerId = 0;
+    });
+    builder.addCase(fetchAllCustomerPendingPayments.rejected, (state, { payload }) => {
+      state.pendingPaymentsLoading = false;
+      state.pendingPaymentsError = payload || 'Failed to load pending payments';
+      state.pendingPayments = null;
+    });
+
+    builder.addCase(fetchCustomerPendingPayments.pending, (state) => {
+      state.pendingPaymentsLoading = true;
+      state.pendingPaymentsError = null;
+    });
+    builder.addCase(fetchCustomerPendingPayments.fulfilled, (state, { payload, meta }) => {
+      state.pendingPaymentsLoading = false;
+      state.pendingPayments = payload;
+      state.pendingPaymentsCustomerId = meta.arg;
+    });
+    builder.addCase(fetchCustomerPendingPayments.rejected, (state, { payload }) => {
+      state.pendingPaymentsLoading = false;
+      state.pendingPaymentsError = payload || 'Failed to load pending payments';
+      state.pendingPayments = null;
+    });
     builder.addCase(fetchCustomerLoyalty.fulfilled, (state, { payload }) => {
       state.customerLoyalty = payload.data;
     });
@@ -630,8 +800,13 @@ const customerSlice = createSlice({
   },
 });
 
-export const { clearCustomerState, clearSelectedCustomer, clearCustomerLedger, setCurrentPage } =
-  customerSlice.actions;
+export const {
+  clearCustomerState,
+  clearSelectedCustomer,
+  clearCustomerLedger,
+  clearPendingPayments,
+  setCurrentPage,
+} = customerSlice.actions;
 export const customerSliceConfig = configureSlice(customerSlice, false);
 
 export default customerSlice.reducer;

@@ -227,6 +227,7 @@ export default function SupplierPaymentsPage() {
       setReferenceNo("");
       setDescriptionNotes("");
       void dispatch(fetchUnpaidPurchasesBySupplier(supplierId));
+      void dispatch(fetchBankAccountsDropdown());
     } finally {
       setSubmitting(false);
     }

@@ -13,6 +13,7 @@ import type {
   SupplierBulkPaymentRequest,
 } from '@/types/supplier';
 import type { RootState } from '@/store';
+import { fetchBankAccountsDropdown } from '@/store/slices/bankAccount/bankAccount.slice';
 import type { PaginationParams } from '@/types/common';
 import { listQueryParams } from '@/lib/listQueryParams';
 
@@ -255,12 +256,13 @@ export const supplierBulkPayment = createAsyncThunk<
   ApiResponse<unknown>,
   SupplierBulkPaymentRequest,
   { rejectValue: string; state: RootState }
->('supplier/bulkPayment', async (payload, { rejectWithValue }) => {
+>('supplier/bulkPayment', async (payload, { rejectWithValue, dispatch }) => {
   try {
     const api = createAuthenticatedAxios();
     const response = await api.post<ApiResponse<unknown>>('/proxy/Suppliers/bulk-payment', payload);
     const failMsg = getApiErrorMessage(response.data);
     if (failMsg) return rejectWithValue(failMsg);
+    await dispatch(fetchBankAccountsDropdown());
     return response.data;
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string };

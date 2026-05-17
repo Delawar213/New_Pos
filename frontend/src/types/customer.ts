@@ -121,3 +121,44 @@ export interface CustomerBulkPaymentRequest {
   description: string;
   createdBy: number;
 }
+
+/** Row from `GET /api/Customers/pending-payments` → `pendingSales`. */
+export interface CustomerPendingSale {
+  saleId: number;
+  invoiceNumber: string;
+  saleDate: string;
+  customerId: number;
+  customerName: string;
+  totalAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  paymentStatus: string;
+  daysOutstanding: number;
+  paymentStatusAge: string;
+}
+
+/** Row from `GET /api/Customers/pending-payments` → `customerSummaries`. */
+export interface CustomerPendingSummary {
+  customerId: number;
+  customerCode: string;
+  customerName: string;
+  contactNo: string;
+  creditLimit: number;
+  creditDays: number;
+  currentBalance: number;
+  totalPendingSales: number;
+  totalRemaining: number;
+  totalPaid: number;
+  totalInvoiced: number;
+  oldestPendingDate: string;
+  latestPendingDate: string;
+  creditUtilizationPct?: number;
+}
+
+/** `data` payload from pending-payments endpoints. */
+export interface CustomerPendingPaymentsData {
+  grandTotalCustomers: number;
+  grandTotalRemaining: number;
+  customerSummaries: CustomerPendingSummary[];
+  pendingSales: CustomerPendingSale[];
+}

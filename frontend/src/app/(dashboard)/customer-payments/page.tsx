@@ -204,6 +204,8 @@ export default function CustomerPaymentsPage() {
       setPaymentAmount(0);
       setReferenceNo("");
       setDescriptionNotes("");
+      void dispatch(fetchCustomersDropdown());
+      void dispatch(fetchCustomers({ pageNumber: 1, pageSize: 200 }));
     } finally {
       setSubmitting(false);
     }
@@ -276,6 +278,7 @@ export default function CustomerPaymentsPage() {
       setReferenceNo("");
       setDescriptionNotes("");
       void loadSaleById();
+      void dispatch(fetchCustomersDropdown());
     } finally {
       setSubmitting(false);
     }

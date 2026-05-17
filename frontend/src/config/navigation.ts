@@ -24,6 +24,7 @@ import {
   BookOpen,
   Undo2,
   Pencil,
+  Clock,
   type LucideIcon,
 } from "lucide-react";
 
@@ -126,6 +127,7 @@ export const sidebarNavigation: NavGroup[] = [
         children: [
           { label: "Customer list", href: "/customers", icon: List },
           { label: "Customer ledger", href: "/customers/ledger", icon: BookOpen },
+          { label: "Pending payments", href: "/customers/pending-payments", icon: Clock },
           { label: "Customer payments", href: "/customer-payments", icon: Wallet },
         ],
       },
