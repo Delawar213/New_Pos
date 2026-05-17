@@ -46,7 +46,11 @@ export function formatCurrency(amount: number, currency: string = APP_CURRENCY_C
  */
 export function formatDate(date: string | Date, options?: Intl.DateTimeFormatOptions): string {
   const d = typeof date === "string" ? new Date(date) : date;
-  return d.toLocaleDateString("en-US", {
+  if (Number.isNaN(d.getTime())) return "—";
+  if (options?.dateStyle != null || options?.timeStyle != null) {
+    return d.toLocaleDateString("en-GB", options);
+  }
+  return d.toLocaleDateString("en-GB", {
     year: "numeric",
     month: "short",
     day: "numeric",

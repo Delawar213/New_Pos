@@ -93,3 +93,46 @@ export type ProductListMode =
   | "outofstock"
   | "lowstock"
   | "search";
+
+/** Batch row from `GET /api/Products/{productId}/batches-for-pricing`. */
+export interface ProductPricingBatch {
+  purchaseDetailId: number;
+  batchNumber: string;
+  purchaseDate: string;
+  costPrice: number;
+  sellingPriceExVat: number;
+  sellingPriceIncVat: number;
+  remainingQuantity: number;
+  vatRate: number;
+  purchaseCode?: string;
+  supplierName?: string;
+}
+
+/** `GET /api/Products/{productId}/batches-for-pricing` response `data`. */
+export interface ProductBatchesForPricing {
+  productId: number;
+  productCode: string;
+  productName: string;
+  sellingPrice: number;
+  minSellingPrice: number;
+  vatRate: number;
+  qtyInStock: number;
+  batches: ProductPricingBatch[];
+}
+
+export interface ProductBatchPriceUpdate {
+  purchaseDetailId: number;
+  sellingPriceExVat: number;
+  sellingPriceIncVat: number;
+}
+
+/** Body for `PUT /api/Products/{productId}/selling-price`. */
+export interface UpdateProductSellingPriceRequest {
+  productId: number;
+  updateAllBatches: boolean;
+  newSellingPriceExVat: number;
+  batchUpdates: ProductBatchPriceUpdate[];
+  updateProductDefault: boolean;
+  reason: string;
+  updatedBy: number;
+}

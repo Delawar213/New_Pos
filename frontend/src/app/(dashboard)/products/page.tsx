@@ -13,6 +13,7 @@ import {
   TrendingUp,
   AlertTriangle,
   Archive,
+  Tag,
 } from "lucide-react";
 import {
   PageHeader,
@@ -45,6 +46,7 @@ import {
   ProductFiltersBar,
   type StockFilterValue,
 } from "@/components/products/ProductFiltersBar";
+import { ProductPriceUpdateModal } from "@/components/products/ProductPriceUpdateModal";
 import { fetchCategories } from "@/store/slices/category/category.slice";
 import { fetchBrands } from "@/store/slices/brand/brand.slice";
 import { fetchSubCategories } from "@/store/slices/subCategory/subCategory.slice";
@@ -154,6 +156,7 @@ export default function ProductsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [viewProduct, setViewProduct] = useState<Product | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
+  const [priceUpdateProduct, setPriceUpdateProduct] = useState<Product | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [form, setForm] = useState<CreateProductRequest>(emptyForm());
   const barcodeInputRef = useRef<HTMLInputElement>(null);
@@ -740,9 +743,17 @@ export default function ProductsPage() {
     {
       key: "actions",
       label: "",
-      className: "w-28",
+      className: "w-36",
       render: (item) => (
         <div className="flex items-center justify-end gap-1">
+          <button
+            type="button"
+            onClick={() => setPriceUpdateProduct(item)}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-emerald-50 hover:text-emerald-600"
+            title="Update price"
+          >
+            <Tag className="h-4 w-4" />
+          </button>
           <button
             type="button"
             onClick={() => setViewProduct(item)}
@@ -1140,6 +1151,13 @@ export default function ProductsPage() {
           </button>
         </div>
       </Modal>
+
+      <ProductPriceUpdateModal
+        product={priceUpdateProduct}
+        open={!!priceUpdateProduct}
+        onClose={() => setPriceUpdateProduct(null)}
+        onSaved={() => void refreshProductList()}
+      />
     </div>
   );
 }

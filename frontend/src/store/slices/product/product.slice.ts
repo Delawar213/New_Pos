@@ -7,10 +7,12 @@ import type {
   CreateProductRequest,
   PaginatedProductResponse,
   Product,
+  ProductBatchesForPricing,
   ProductListMode,
   ProductPosSearchRow,
   ProductStockAlertRow,
   UpdateProductRequest,
+  UpdateProductSellingPriceRequest,
 } from "@/types/product";
 import {
   mapPosSearchRowToProduct,
@@ -45,6 +47,7 @@ interface ProductState {
   loading: boolean;
   catalogLoading: boolean;
   barcodeLookupLoading: boolean;
+  pricingLoading: boolean;
   actionLoading: boolean;
   error: string | null;
   success: boolean;
@@ -66,6 +69,7 @@ const initialState: ProductState = {
   loading: false,
   catalogLoading: false,
   barcodeLookupLoading: false,
+  pricingLoading: false,
   actionLoading: false,
   error: null,
   success: false,
@@ -412,6 +416,81 @@ export const searchProductsPos = createAsyncThunk<
   }
 });
 
+/** GET `/api/Products/{productId}/batches-for-pricing` */
+export const fetchProductBatchesForPricing = createAsyncThunk<
+  ProductBatchesForPricing,
+  number,
+  { rejectValue: string; state: RootState }
+>("product/fetchBatchesForPricing", async (productId, { rejectWithValue }) => {
+  try {
+    const api = createAuthenticatedAxios();
+    const response = await api.get<ApiResponse<ProductBatchesForPricing>>(
+      `/proxy/Products/${productId}/batches-for-pricing`
+    );
+    const failMsg = getApiErrorMessage(response.data);
+    if (failMsg) return rejectWithValue(failMsg);
+    const data = response.data.data;
+    if (data == null || typeof data !== "object") {
+      return rejectWithValue("Invalid pricing data from server.");
+    }
+    return {
+      ...data,
+      sellingPrice: Number(data.sellingPrice) || 0,
+      minSellingPrice: Number(data.minSellingPrice) || 0,
+      vatRate: Number(data.vatRate) || 0,
+      qtyInStock: Number(data.qtyInStock) || 0,
+      batches: Array.isArray(data.batches)
+        ? data.batches.map((b) => ({
+            ...b,
+            costPrice: Number(b.costPrice) || 0,
+            sellingPriceExVat: Number(b.sellingPriceExVat) || 0,
+            sellingPriceIncVat: Number(b.sellingPriceIncVat) || 0,
+            remainingQuantity: Number(b.remainingQuantity) || 0,
+            vatRate: Number(b.vatRate) || 0,
+          }))
+        : [],
+    };
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string };
+    return rejectWithValue(
+      err.response?.data?.message || err.message || "Failed to load batch pricing"
+    );
+  }
+});
+
+/** PUT `/api/Products/{productId}/selling-price` */
+export const updateProductSellingPrice = createAsyncThunk<
+  { productId: number; message: string },
+  UpdateProductSellingPriceRequest,
+  { rejectValue: string; state: RootState }
+>("product/updateSellingPrice", async (payload, { rejectWithValue, getState }) => {
+  const user = getState().auth.user;
+  const updatedBy = Number(user?.userId ?? user?.id) || 0;
+  const body: UpdateProductSellingPriceRequest = {
+    ...payload,
+    productId: payload.productId,
+    updatedBy: payload.updatedBy || updatedBy,
+  };
+  try {
+    const api = createAuthenticatedAxios();
+    const response = await api.post<ApiResponse<unknown>>(
+      `/proxy/Products/${payload.productId}/selling-price`,
+      body
+    );
+    const failMsg = getApiErrorMessage(response.data);
+    if (failMsg) return rejectWithValue(failMsg);
+    return {
+      productId: payload.productId,
+      message: response.data.message || "Selling price updated successfully",
+    };
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string };
+    return rejectWithValue(
+      err.response?.data?.message || err.message || "Failed to update selling price"
+    );
+  }
+});
+
 export const fetchProductByBarcode = createAsyncThunk<
   Product,
   string,
@@ -504,6 +583,32 @@ const productSlice = createSlice({
     builder.addCase(fetchAllProducts.rejected, (state, { payload }) => {
       state.catalogLoading = false;
       state.error = payload || "Failed to load product catalog";
+    });
+
+    builder.addCase(fetchProductBatchesForPricing.pending, (state) => {
+      state.pricingLoading = true;
+      state.error = null;
+    });
+    builder.addCase(fetchProductBatchesForPricing.fulfilled, (state) => {
+      state.pricingLoading = false;
+    });
+    builder.addCase(fetchProductBatchesForPricing.rejected, (state, { payload }) => {
+      state.pricingLoading = false;
+      state.error = payload || "Failed to load batch pricing";
+    });
+
+    builder.addCase(updateProductSellingPrice.pending, (state) => {
+      state.actionLoading = true;
+      state.error = null;
+    });
+    builder.addCase(updateProductSellingPrice.fulfilled, (state, { payload }) => {
+      state.actionLoading = false;
+      state.success = true;
+      state.message = payload.message;
+    });
+    builder.addCase(updateProductSellingPrice.rejected, (state, { payload }) => {
+      state.actionLoading = false;
+      state.error = payload || "Failed to update selling price";
     });
 
     builder.addCase(fetchProductByBarcode.pending, (state) => {

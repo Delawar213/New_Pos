@@ -89,6 +89,11 @@ export function incVatToExVat(incVat: number, vatRate: number, isVatExempt: bool
   return round2(incVat / (1 + vatRate / 100));
 }
 
+export function exVatToIncVat(exVat: number, vatRate: number, isVatExempt = false): number {
+  if (isVatExempt || vatRate <= 0) return round2(exVat);
+  return round2(exVat * (1 + vatRate / 100));
+}
+
 /**
  * Build cart line: FIFO batch (or `chosenBatch` from `selectBatchForNextScan`); keeps `availableBatches` for Change batch UI.
  */
