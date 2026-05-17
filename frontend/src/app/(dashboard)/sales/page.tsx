@@ -17,6 +17,7 @@ import { printPosReceipt, buildPosReceiptSnapshotFromSale } from "@/lib/posRecei
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { buildPagedFetchArgs } from "@/lib/buildPagedFetchArgs";
 import { SaleDetailModal } from "@/components/sales/SaleDetailModal";
+import { SalePaymentModal } from "@/components/sales/SalePaymentModal";
 
 export default function SalesPage() {
   const dispatch = useAppDispatch();
@@ -24,6 +25,8 @@ export default function SalesPage() {
   const [pageSize, setPageSize] = useState(10);
   const [searchInput, setSearchInput] = useState("");
   const [detailOpen, setDetailOpen] = useState(false);
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [paymentSale, setPaymentSale] = useState<Sale | null>(null);
   const debouncedSearch = useDebouncedValue(searchInput, 400);
   const searchPrevRef = useRef<string | null>(null);
   const { sales, totalCount, loading, error, selectedSale, actionLoading } = useAppSelector(
@@ -47,6 +50,27 @@ export default function SalesPage() {
     setDetailOpen(false);
     dispatch(clearSelectedSale());
   }, [dispatch]);
+
+  const openSalePayment = useCallback((item: Sale) => {
+    setPaymentSale(item);
+    setPaymentOpen(true);
+  }, []);
+
+  const closeSalePayment = useCallback(() => {
+    setPaymentOpen(false);
+    setPaymentSale(null);
+  }, []);
+
+  const refreshSalesList = useCallback(() => {
+    void dispatch(
+      fetchSales({
+        pageNumber: page,
+        pageSize,
+        sortDirection: "desc",
+        searchTerm: debouncedSearch.trim() || undefined,
+      })
+    );
+  }, [dispatch, page, pageSize, debouncedSearch]);
 
   const printSaleReceipt = useCallback(
     async (saleId: number) => {
@@ -139,11 +163,23 @@ export default function SalesPage() {
             >
               Print
             </button>
+            {item.dueAmount > 0 ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openSalePayment(item);
+                }}
+                className="text-xs font-semibold text-emerald-700 hover:text-emerald-900"
+              >
+                Pay
+              </button>
+            ) : null}
           </div>
         ),
       },
     ],
-    [openSaleDetail, printSaleReceipt]
+    [openSaleDetail, openSalePayment, printSaleReceipt]
   );
 
   return (
@@ -199,6 +235,13 @@ export default function SalesPage() {
         onClose={closeDetail}
         sale={selectedSale}
         loading={actionLoading}
+      />
+
+      <SalePaymentModal
+        open={paymentOpen}
+        onClose={closeSalePayment}
+        sale={paymentSale}
+        onSuccess={refreshSalesList}
       />
     </div>
   );

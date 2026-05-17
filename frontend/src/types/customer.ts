@@ -69,8 +69,23 @@ export interface CustomerDropdown {
   creditLimit: number;
 }
 
+/** Row from `GET /api/Customers/{customerId}/ledger`. */
 export interface CustomerLedgerEntry {
-  [key: string]: unknown;
+  customerId: number;
+  customerName: string;
+  transactionDate: string;
+  transactionType: string;
+  referenceNo: string;
+  debit: number;
+  credit: number;
+  balance: number;
+  description: string;
+}
+
+export interface CustomerLedgerQuery {
+  customerId: number;
+  fromDate?: string;
+  toDate?: string;
 }
 
 export interface PaginatedCustomerResponse {
@@ -85,4 +100,24 @@ export interface PaginatedCustomerResponse {
 
 export interface CustomerLoyaltyRequest {
   points: number;
+}
+
+/** POST `/api/Customers/sale-payment` — payment against one sale invoice. */
+export interface CustomerSalePaymentRequest {
+  saleId: number;
+  paymentAmount: number;
+  bankAccountId: number;
+  paymentDate: string;
+  description: string;
+  createdBy: number;
+}
+
+/** POST `/api/Customers/bulk-payment` — allocate payment across customer balance. */
+export interface CustomerBulkPaymentRequest {
+  customerId: number;
+  paymentAmount: number;
+  bankAccountId: number;
+  paymentDate: string;
+  description: string;
+  createdBy: number;
 }

@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Loader2, Tag } from "lucide-react";
-import { Modal } from "@/components/ui";
+import { Modal, DecimalInput } from "@/components/ui";
 import type { Product, ProductBatchesForPricing, ProductPricingBatch } from "@/types";
 import { cn, formatCurrency, formatDate, formatNumber } from "@/lib/utils";
 import { exVatToIncVat } from "@/lib/saleScan";
@@ -296,13 +296,11 @@ export function ProductPriceUpdateModal({
                 New selling price for all batches (ex VAT)
               </label>
               <div className="flex flex-wrap items-end gap-4">
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
+                <DecimalInput
                   value={allBatchesExVat}
-                  onChange={(e) => setAllBatchesExVat(Math.max(0, Number(e.target.value) || 0))}
-                  className="h-10 w-40 rounded-lg border border-slate-200 px-3 text-sm font-semibold tabular-nums"
+                  onChange={setAllBatchesExVat}
+                  className="h-10 w-40 font-semibold"
+                  placeholder="0.00"
                 />
                 <p className="text-sm text-slate-500">
                   Inc VAT ({formatNumber(productVatRate)}%):{" "}
@@ -322,13 +320,11 @@ export function ProductPriceUpdateModal({
                     Product default price (ex VAT)
                   </label>
                   <div className="flex flex-wrap items-end gap-4">
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.01"
+                    <DecimalInput
                       value={defaultExVat}
-                      onChange={(e) => setDefaultExVat(Math.max(0, Number(e.target.value) || 0))}
-                      className="h-10 w-40 rounded-lg border border-emerald-200 bg-white px-3 text-sm font-semibold tabular-nums"
+                      onChange={setDefaultExVat}
+                      className="h-10 w-40 border-emerald-200 font-semibold"
+                      placeholder="0.00"
                     />
                     <p className="text-sm text-emerald-800">
                       Inc VAT: <span className="font-bold">{formatCurrency(defaultIncVat)}</span>
@@ -377,18 +373,11 @@ export function ProductPriceUpdateModal({
                           {row.source.remainingQuantity}
                         </td>
                         <td className="px-3 py-2">
-                          <input
-                            type="number"
-                            min={0}
-                            step="0.01"
+                          <DecimalInput
                             value={row.sellingPriceExVat}
-                            onChange={(e) =>
-                              updateBatchExVat(
-                                row.purchaseDetailId,
-                                Math.max(0, Number(e.target.value) || 0)
-                              )
-                            }
-                            className="ml-auto block h-9 w-24 rounded-lg border border-slate-200 px-2 text-right text-sm tabular-nums"
+                            onChange={(v) => updateBatchExVat(row.purchaseDetailId, v)}
+                            className="ml-auto h-9 w-24 text-right text-sm"
+                            placeholder="0.00"
                           />
                         </td>
                         <td className="px-3 py-2 text-right text-sm font-medium tabular-nums text-slate-700">

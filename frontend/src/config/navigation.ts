@@ -123,6 +123,11 @@ export const sidebarNavigation: NavGroup[] = [
         label: "Customers",
         href: "/customers",
         icon: Users,
+        children: [
+          { label: "Customer list", href: "/customers", icon: List },
+          { label: "Customer ledger", href: "/customers/ledger", icon: BookOpen },
+          { label: "Customer payments", href: "/customer-payments", icon: Wallet },
+        ],
       },
       {
         label: "Employees",

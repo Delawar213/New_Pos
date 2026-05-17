@@ -10,3 +10,4 @@ export { default as ToastContainer } from "./ToastContainer";
 export { default as PageHeader } from "./PageHeader";
 export { default as SearchableSelect } from "./SearchableSelect";
 export type { SearchableSelectOption } from "./SearchableSelect";
+export { default as DecimalInput, parseDecimalInput, formatDecimalInputValue } from "./DecimalInput";

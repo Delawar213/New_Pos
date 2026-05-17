@@ -11,8 +11,11 @@ import type {
   CreateCustomerTypeRequest,
   UpdateCustomerTypeRequest,
   CustomerLedgerEntry,
+  CustomerLedgerQuery,
   PaginatedCustomerResponse,
   CustomerLoyaltyRequest,
+  CustomerBulkPaymentRequest,
+  CustomerSalePaymentRequest,
 } from '@/types/customer';
 import type { RootState } from '@/store';
 import type { PaginationParams } from '@/types/common';
@@ -33,6 +36,8 @@ interface CustomerState {
   walkingCustomer: Customer | null;
   selectedCustomer: Customer | null;
   customerLedger: CustomerLedgerEntry[];
+  customerLedgerMessage: string;
+  ledgerLoading: boolean;
   customerBalance: number;
   customerLoyalty: number;
   loading: boolean;
@@ -56,6 +61,8 @@ const initialState: CustomerState = {
   walkingCustomer: null,
   selectedCustomer: null,
   customerLedger: [],
+  customerLedgerMessage: '',
+  ledgerLoading: false,
   customerBalance: 0,
   customerLoyalty: 0,
   loading: false,
@@ -232,7 +239,7 @@ export const fetchCustomerBalance = createAsyncThunk<ApiResponse<number>, number
   async (customerId, { rejectWithValue }) => {
     try {
       const api = createAuthenticatedAxios();
-      const response = await api.get<ApiResponse<number>>(`/proxy/customers/${customerId}/balance`);
+      const response = await api.get<ApiResponse<number>>(`/proxy/Customers/${customerId}/balance`);
       return response.data;
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -243,15 +250,30 @@ export const fetchCustomerBalance = createAsyncThunk<ApiResponse<number>, number
 
 export const fetchCustomerLedger = createAsyncThunk<
   ApiResponse<CustomerLedgerEntry[]>,
-  { customerId: number; fromDate: string; toDate: string },
+  CustomerLedgerQuery,
   { rejectValue: string; state: RootState }
 >('customer/fetchLedger', async ({ customerId, fromDate, toDate }, { rejectWithValue }) => {
   try {
     const api = createAuthenticatedAxios();
+    const params: Record<string, string> = {};
+    if (fromDate?.trim()) params.fromDate = fromDate.trim();
+    if (toDate?.trim()) params.toDate = toDate.trim();
     const response = await api.get<ApiResponse<CustomerLedgerEntry[]>>(
-      `/proxy/customers/${customerId}/ledger?fromDate=${fromDate}&toDate=${toDate}`
+      `/proxy/Customers/${customerId}/ledger`,
+      { params }
     );
-    return response.data;
+    const failMsg = getApiErrorMessage(response.data);
+    if (failMsg) return rejectWithValue(failMsg);
+    const rows = Array.isArray(response.data.data) ? response.data.data : [];
+    return {
+      ...response.data,
+      data: rows.map((row) => ({
+        ...row,
+        debit: Number(row.debit) || 0,
+        credit: Number(row.credit) || 0,
+        balance: Number(row.balance) || 0,
+      })),
+    };
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string };
     return rejectWithValue(err.response?.data?.message || err.message || 'Failed to fetch customer ledger');
@@ -341,6 +363,55 @@ export const updateCustomer = createAsyncThunk<ApiResponse<Customer>, UpdateCust
   }
 );
 
+function resolveCreatedBy(getState: () => RootState): number {
+  const user = getState().auth.user;
+  return Number(user?.userId ?? user?.id) || 0;
+}
+
+/** POST `/api/Customers/sale-payment` */
+export const customerSalePayment = createAsyncThunk<
+  ApiResponse<unknown>,
+  Omit<CustomerSalePaymentRequest, 'createdBy'> & { createdBy?: number },
+  { rejectValue: string; state: RootState }
+>('customer/salePayment', async (payload, { getState, rejectWithValue }) => {
+  try {
+    const api = createAuthenticatedAxios();
+    const body: CustomerSalePaymentRequest = {
+      ...payload,
+      createdBy: payload.createdBy ?? resolveCreatedBy(getState),
+    };
+    const response = await api.post<ApiResponse<unknown>>('/proxy/Customers/sale-payment', body);
+    const failMsg = getApiErrorMessage(response.data);
+    if (failMsg) return rejectWithValue(failMsg);
+    return response.data;
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string };
+    return rejectWithValue(err.response?.data?.message || err.message || 'Sale payment failed');
+  }
+});
+
+/** POST `/api/Customers/bulk-payment` */
+export const customerBulkPayment = createAsyncThunk<
+  ApiResponse<unknown>,
+  Omit<CustomerBulkPaymentRequest, 'createdBy'> & { createdBy?: number },
+  { rejectValue: string; state: RootState }
+>('customer/bulkPayment', async (payload, { getState, rejectWithValue }) => {
+  try {
+    const api = createAuthenticatedAxios();
+    const body: CustomerBulkPaymentRequest = {
+      ...payload,
+      createdBy: payload.createdBy ?? resolveCreatedBy(getState),
+    };
+    const response = await api.post<ApiResponse<unknown>>('/proxy/Customers/bulk-payment', body);
+    const failMsg = getApiErrorMessage(response.data);
+    if (failMsg) return rejectWithValue(failMsg);
+    return response.data;
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string };
+    return rejectWithValue(err.response?.data?.message || err.message || 'Bulk payment failed');
+  }
+});
+
 export const deleteCustomer = createAsyncThunk<{ id: number; message: string }, number, { rejectValue: string; state: RootState }>(
   'customer/delete',
   async (id, { rejectWithValue }) => {
@@ -368,6 +439,11 @@ const customerSlice = createSlice({
     },
     clearSelectedCustomer(state) {
       state.selectedCustomer = null;
+    },
+    clearCustomerLedger(state) {
+      state.customerLedger = [];
+      state.customerLedgerMessage = '';
+      state.error = null;
     },
     setCurrentPage(state, action: PayloadAction<number>) {
       state.currentPage = action.payload;
@@ -460,8 +536,20 @@ const customerSlice = createSlice({
     builder.addCase(fetchCustomerBalance.fulfilled, (state, { payload }) => {
       state.customerBalance = payload.data;
     });
+    builder.addCase(fetchCustomerLedger.pending, (state) => {
+      state.ledgerLoading = true;
+      state.error = null;
+    });
     builder.addCase(fetchCustomerLedger.fulfilled, (state, { payload }) => {
+      state.ledgerLoading = false;
       state.customerLedger = payload.data;
+      state.customerLedgerMessage = payload.message || '';
+    });
+    builder.addCase(fetchCustomerLedger.rejected, (state, { payload }) => {
+      state.ledgerLoading = false;
+      state.customerLedger = [];
+      state.customerLedgerMessage = '';
+      state.error = payload || 'Failed to fetch customer ledger';
     });
     builder.addCase(fetchCustomerLoyalty.fulfilled, (state, { payload }) => {
       state.customerLoyalty = payload.data;
@@ -522,10 +610,28 @@ const customerSlice = createSlice({
       state.success = true;
       state.message = payload.message || 'Loyalty points redeemed successfully';
     });
+
+    const paymentCases = [customerSalePayment, customerBulkPayment] as const;
+    for (const thunk of paymentCases) {
+      builder.addCase(thunk.pending, (state) => {
+        state.actionLoading = true;
+        state.error = null;
+      });
+      builder.addCase(thunk.fulfilled, (state, { payload }) => {
+        state.actionLoading = false;
+        state.success = true;
+        state.message = payload.message || 'Payment recorded successfully';
+      });
+      builder.addCase(thunk.rejected, (state, { payload }) => {
+        state.actionLoading = false;
+        state.error = payload || 'Payment failed';
+      });
+    }
   },
 });
 
-export const { clearCustomerState, clearSelectedCustomer, setCurrentPage } = customerSlice.actions;
+export const { clearCustomerState, clearSelectedCustomer, clearCustomerLedger, setCurrentPage } =
+  customerSlice.actions;
 export const customerSliceConfig = configureSlice(customerSlice, false);
 
 export default customerSlice.reducer;

@@ -20,6 +20,7 @@ import {
   DataTable,
   StatusBadge,
   Modal,
+  DecimalInput,
   SearchableSelect,
   type SearchableSelectOption,
 } from "@/components/ui";
@@ -1017,13 +1018,11 @@ export default function ProductsPage() {
             <label htmlFor="prod-price-ex" className="mb-1 block text-sm font-medium text-gray-700">
               Selling price (ex VAT)
             </label>
-            <input
+            <DecimalInput
               id="prod-price-ex"
-              type="number"
-              step="0.01"
               value={form.sellingPriceExVat}
-              onChange={(e) => setForm({ ...form, sellingPriceExVat: Number(e.target.value) || 0 })}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              onChange={(sellingPriceExVat) => setForm({ ...form, sellingPriceExVat })}
+              placeholder="0.00"
             />
           </div>
           <div>
@@ -1043,26 +1042,22 @@ export default function ProductsPage() {
             <label htmlFor="prod-stock-alert" className="mb-1 block text-sm font-medium text-gray-700">
               Stock alert level
             </label>
-            <input
+            <DecimalInput
               id="prod-stock-alert"
-              type="number"
-              step="0.01"
               value={form.stockAlertLevel}
-              onChange={(e) => setForm({ ...form, stockAlertLevel: Number(e.target.value) || 0 })}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              onChange={(stockAlertLevel) => setForm({ ...form, stockAlertLevel })}
+              placeholder="0"
             />
           </div>
           <div>
             <label htmlFor="prod-reorder" className="mb-1 block text-sm font-medium text-gray-700">
               Reorder level
             </label>
-            <input
+            <DecimalInput
               id="prod-reorder"
-              type="number"
-              step="0.01"
               value={form.reorderLevel}
-              onChange={(e) => setForm({ ...form, reorderLevel: Number(e.target.value) || 0 })}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              onChange={(reorderLevel) => setForm({ ...form, reorderLevel })}
+              placeholder="0"
             />
           </div>
           <div className="lg:col-span-3">

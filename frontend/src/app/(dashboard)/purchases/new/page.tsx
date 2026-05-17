@@ -4,7 +4,7 @@ import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } fr
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, Search } from "lucide-react";
-import { PageHeader, Modal } from "@/components/ui";
+import { PageHeader, Modal, DecimalInput } from "@/components/ui";
 import type {
   CreatePurchaseRequest,
   Purchase,
@@ -127,7 +127,7 @@ function emptyDetailRow(): PurchaseDetail {
     expiryDate: null,
     purchasePriceExVat: 0,
     discountPerUnit: 0,
-    vatRate: 20,
+    vatRate: 0,
     sellingPriceExVat: 0,
     purchaseQuantity: 1,
   };
@@ -503,6 +503,13 @@ function NewPurchasePageContent() {
 
   const [lineModalMountKey, setLineModalMountKey] = useState(0);
   const purchaseLineBarcodeRef = useRef<HTMLInputElement>(null);
+  const purchaseLineBatchRef = useRef<HTMLInputElement>(null);
+
+  const focusNextAfterProductFound = useCallback(() => {
+    requestAnimationFrame(() => {
+      purchaseLineBatchRef.current?.focus();
+    });
+  }, []);
 
   const [form, setForm] = useState<FormValues>(() => ({
     supplierId: 0,
@@ -520,6 +527,15 @@ function NewPurchasePageContent() {
   const [lineModalOpen, setLineModalOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [draft, setDraft] = useState<PurchaseDetail>(() => emptyDetailRow());
+
+  const draftLineTotals = useMemo(() => {
+    const netExVat = lineNetExVat(draft);
+    const vat = lineVatAmount(draft);
+    return { netExVat, vat, totalIncVat: netExVat + vat };
+  }, [draft]);
+
+  const showLineTotal =
+    draft.purchaseQuantity > 0 && Number(draft.purchasePriceExVat) > 0;
 
   const openAddLineModal = () => {
     setEditingIndex(null);
@@ -551,7 +567,7 @@ function NewPurchasePageContent() {
       ...d,
       productId: p.productId,
       barcode: barcodeVal || d.barcode || "",
-      vatRate: p.vatRate,
+      vatRate: 0,
       sellingPriceExVat: p.sellingPrice,
       purchasePriceExVat: purchasePrice,
     }));
@@ -559,7 +575,8 @@ function NewPurchasePageContent() {
       const el = purchaseLineBarcodeRef.current;
       if (el) el.value = barcodeVal || p.barcode || "";
     });
-  }, []);
+    focusNextAfterProductFound();
+  }, [focusNextAfterProductFound]);
 
   const applyProductToDraft = (productId: number) => {
     setBarcodeResolvedProduct(null);
@@ -1127,9 +1144,40 @@ function NewPurchasePageContent() {
         }}
         title={editingIndex === null ? "Add line item" : "Edit line item"}
         description="Search for a product, adjust quantities and pricing, then add to this purchase."
-        size="lg"
+        size="xl"
+        scrollableContent={false}
         footer={
-          <div className="flex flex-wrap justify-end gap-2">
+          <div className="w-full space-y-3">
+            {showLineTotal ? (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold uppercase tracking-wide text-blue-800">
+                      Line total
+                    </p>
+                    <p className="mt-0.5 text-xs text-blue-700">
+                      {draft.purchaseQuantity} × {formatCurrency(draft.purchasePriceExVat)}
+                      {draft.discountPerUnit > 0
+                        ? ` − ${formatCurrency(draft.discountPerUnit)} disc./unit`
+                        : ""}
+                      <span className="mx-2 text-blue-400">·</span>
+                      Ex VAT {formatCurrency(draftLineTotals.netExVat)}
+                      {draft.vatRate > 0
+                        ? ` · VAT ${formatCurrency(draftLineTotals.vat)}`
+                        : ""}
+                    </p>
+                  </div>
+                  <p className="shrink-0 text-xl font-bold tabular-nums text-blue-950">
+                    {formatCurrency(draftLineTotals.totalIncVat)}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-center text-xs text-slate-500">
+                Enter quantity and purchase price to see the line total.
+              </p>
+            )}
+            <div className="flex flex-wrap justify-end gap-2">
             <button
               type="button"
               onClick={() => {
@@ -1149,6 +1197,7 @@ function NewPurchasePageContent() {
             >
               {editingIndex === null ? "Add to purchase" : "Update line"}
             </button>
+            </div>
           </div>
         }
       >
@@ -1167,7 +1216,7 @@ function NewPurchasePageContent() {
               Tip: scan a barcode in the field below — the product name above updates when the code matches.
             </p>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">
                 Barcode {barcodeLookupLoading ? "(looking up…)" : ""}
@@ -1198,6 +1247,7 @@ function NewPurchasePageContent() {
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Batch number</label>
               <input
+                ref={purchaseLineBatchRef}
                 value={draft.batchNumber || ""}
                 onChange={(e) => setDraft((d) => ({ ...d, batchNumber: e.target.value }))}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
@@ -1205,51 +1255,34 @@ function NewPurchasePageContent() {
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Quantity *</label>
-              <input
-                type="number"
+              <DecimalInput
+                integer
                 min={1}
+                emptyWhenZero={false}
                 value={draft.purchaseQuantity}
-                onChange={(e) =>
-                  setDraft((d) => ({
-                    ...d,
-                    purchaseQuantity: Number(e.target.value) || 0,
-                  }))
+                onChange={(purchaseQuantity) =>
+                  setDraft((d) => ({ ...d, purchaseQuantity: purchaseQuantity || 1 }))
                 }
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
               />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">
                 Purchase price (ex VAT)
               </label>
-              <input
-                type="number"
-                step="0.01"
-                min={0}
+              <DecimalInput
                 value={draft.purchasePriceExVat}
-                onChange={(e) =>
-                  setDraft((d) => ({
-                    ...d,
-                    purchasePriceExVat: Number(e.target.value) || 0,
-                  }))
+                onChange={(purchasePriceExVat) =>
+                  setDraft((d) => ({ ...d, purchasePriceExVat }))
                 }
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                placeholder="0.00"
               />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Discount / unit</label>
-              <input
-                type="number"
-                step="0.01"
-                min={0}
+              <DecimalInput
                 value={draft.discountPerUnit}
-                onChange={(e) =>
-                  setDraft((d) => ({
-                    ...d,
-                    discountPerUnit: Number(e.target.value) || 0,
-                  }))
-                }
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                onChange={(discountPerUnit) => setDraft((d) => ({ ...d, discountPerUnit }))}
+                placeholder="0.00"
               />
             </div>
             <div>
@@ -1272,18 +1305,12 @@ function NewPurchasePageContent() {
               <label className="mb-1 block text-xs font-medium text-gray-600">
                 Selling price (ex VAT)
               </label>
-              <input
-                type="number"
-                step="0.01"
-                min={0}
+              <DecimalInput
                 value={draft.sellingPriceExVat}
-                onChange={(e) =>
-                  setDraft((d) => ({
-                    ...d,
-                    sellingPriceExVat: Number(e.target.value) || 0,
-                  }))
+                onChange={(sellingPriceExVat) =>
+                  setDraft((d) => ({ ...d, sellingPriceExVat }))
                 }
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                placeholder="0.00"
               />
             </div>
             <div>
@@ -1301,6 +1328,7 @@ function NewPurchasePageContent() {
               />
             </div>
           </div>
+
         </div>
       </Modal>
     </div>
