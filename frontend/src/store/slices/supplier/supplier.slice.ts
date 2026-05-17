@@ -8,6 +8,7 @@ import type {
   UpdateSupplierRequest,
   SupplierDropdown,
   SupplierLedgerEntry,
+  SupplierLedgerQuery,
   PaginatedSupplierResponse,
   SupplierBulkPaymentRequest,
 } from '@/types/supplier';
@@ -30,6 +31,8 @@ interface SupplierState {
   dropdownFetchFailed: boolean;
   selectedSupplier: Supplier | null;
   supplierLedger: SupplierLedgerEntry[];
+  supplierLedgerMessage: string;
+  ledgerLoading: boolean;
   supplierBalance: number;
   loading: boolean;
   actionLoading: boolean;
@@ -51,6 +54,8 @@ const initialState: SupplierState = {
   dropdownFetchFailed: false,
   selectedSupplier: null,
   supplierLedger: [],
+  supplierLedgerMessage: '',
+  ledgerLoading: false,
   supplierBalance: 0,
   loading: false,
   actionLoading: false,
@@ -147,15 +152,30 @@ export const fetchSuppliersDropdown = createAsyncThunk<
 
 export const fetchSupplierLedger = createAsyncThunk<
   ApiResponse<SupplierLedgerEntry[]>,
-  { supplierId: number; fromDate: string; toDate: string },
+  SupplierLedgerQuery,
   { rejectValue: string; state: RootState }
 >('supplier/fetchLedger', async ({ supplierId, fromDate, toDate }, { rejectWithValue }) => {
-    try {
-      const api = createAuthenticatedAxios();
+  try {
+    const api = createAuthenticatedAxios();
+    const params: Record<string, string> = {};
+    if (fromDate?.trim()) params.fromDate = fromDate.trim();
+    if (toDate?.trim()) params.toDate = toDate.trim();
     const response = await api.get<ApiResponse<SupplierLedgerEntry[]>>(
-      `/proxy/suppliers/${supplierId}/ledger?fromDate=${fromDate}&toDate=${toDate}`
+      `/proxy/Suppliers/${supplierId}/ledger`,
+      { params }
     );
-    return response.data;
+    const failMsg = getApiErrorMessage(response.data);
+    if (failMsg) return rejectWithValue(failMsg);
+    const rows = Array.isArray(response.data.data) ? response.data.data : [];
+    return {
+      ...response.data,
+      data: rows.map((row) => ({
+        ...row,
+        debit: Number(row.debit) || 0,
+        credit: Number(row.credit) || 0,
+        balance: Number(row.balance) || 0,
+      })),
+    };
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string };
     return rejectWithValue(err.response?.data?.message || err.message || 'Failed to fetch supplier ledger');
@@ -260,6 +280,11 @@ const supplierSlice = createSlice({
     clearSelectedSupplier(state) {
       state.selectedSupplier = null;
     },
+    clearSupplierLedger(state) {
+      state.supplierLedger = [];
+      state.supplierLedgerMessage = '';
+      state.error = null;
+    },
     setCurrentPage(state, action: PayloadAction<number>) {
       state.currentPage = action.payload;
     },
@@ -303,8 +328,20 @@ const supplierSlice = createSlice({
     builder.addCase(fetchSuppliersDropdown.rejected, (state) => {
       state.dropdownFetchFailed = true;
     });
+    builder.addCase(fetchSupplierLedger.pending, (state) => {
+      state.ledgerLoading = true;
+      state.error = null;
+    });
     builder.addCase(fetchSupplierLedger.fulfilled, (state, { payload }) => {
+      state.ledgerLoading = false;
       state.supplierLedger = payload.data;
+      state.supplierLedgerMessage = payload.message || '';
+    });
+    builder.addCase(fetchSupplierLedger.rejected, (state, { payload }) => {
+      state.ledgerLoading = false;
+      state.supplierLedger = [];
+      state.supplierLedgerMessage = '';
+      state.error = payload || 'Failed to fetch supplier ledger';
     });
     builder.addCase(fetchSupplierBalance.fulfilled, (state, { payload }) => {
       state.supplierBalance = payload.data;
@@ -371,7 +408,8 @@ const supplierSlice = createSlice({
   },
 });
 
-export const { clearSupplierState, clearSelectedSupplier, setCurrentPage } = supplierSlice.actions;
+export const { clearSupplierState, clearSelectedSupplier, clearSupplierLedger, setCurrentPage } =
+  supplierSlice.actions;
 export const supplierSliceConfig = configureSlice(supplierSlice, false);
 
 export default supplierSlice.reducer;

@@ -21,6 +21,7 @@ import {
   List,
   PlusCircle,
   Wallet,
+  BookOpen,
   Undo2,
   Pencil,
   type LucideIcon,
@@ -114,6 +115,7 @@ export const sidebarNavigation: NavGroup[] = [
         icon: Truck,
         children: [
           { label: "Supplier list", href: "/suppliers", icon: List },
+          { label: "Supplier ledger", href: "/suppliers/ledger", icon: BookOpen },
           { label: "Supplier payments", href: "/supplier-payments", icon: Wallet },
         ],
       },

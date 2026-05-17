@@ -45,8 +45,24 @@ export interface SupplierDropdown {
   currentBalance: number;
 }
 
+/** Row from `GET /api/Suppliers/{supplierId}/ledger`. */
 export interface SupplierLedgerEntry {
-  [key: string]: unknown;
+  supplierId: number;
+  supplierName: string;
+  transactionDate: string;
+  transactionCode: string;
+  transactionType: string;
+  referenceNo: string;
+  debit: number;
+  credit: number;
+  balance: number;
+  description: string;
+}
+
+export interface SupplierLedgerQuery {
+  supplierId: number;
+  fromDate?: string;
+  toDate?: string;
 }
 
 export interface PaginatedSupplierResponse {
