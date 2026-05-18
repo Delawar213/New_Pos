@@ -293,14 +293,29 @@ export const deleteCustomerType = createAsyncThunk<
 export const fetchCustomersDropdown = createAsyncThunk<ApiResponse<CustomerDropdown[]>, void, { rejectValue: string; state: RootState }>(
   'customer/fetchDropdown',
   async (_, { rejectWithValue }) => {
-    try {
-      const api = createAuthenticatedAxios();
-      const response = await api.get<ApiResponse<CustomerDropdown[]>>('/proxy/customers/dropdown');
-      return response.data;
-    } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string } }; message?: string };
-      return rejectWithValue(err.response?.data?.message || err.message || 'Failed to fetch customers dropdown');
+    const api = createAuthenticatedAxios();
+    const paths = ['/proxy/Customers/dropdown', '/proxy/customers/dropdown'];
+    let lastMessage = 'Failed to fetch customers dropdown';
+    for (const path of paths) {
+      try {
+        const response = await api.get<ApiResponse<CustomerDropdown[]>>(path);
+        const failMsg = getApiErrorMessage(response.data);
+        if (failMsg) return rejectWithValue(failMsg);
+        const rows = Array.isArray(response.data.data) ? response.data.data : [];
+        return {
+          ...response.data,
+          data: rows.map((row) => ({
+            ...row,
+            currentBalance: Number(row.currentBalance) || 0,
+            creditLimit: Number(row.creditLimit) || 0,
+          })),
+        };
+      } catch (error: unknown) {
+        const err = error as { response?: { data?: { message?: string } }; message?: string };
+        lastMessage = err.response?.data?.message || err.message || lastMessage;
+      }
     }
+    return rejectWithValue(lastMessage);
   }
 );
 

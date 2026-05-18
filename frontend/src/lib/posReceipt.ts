@@ -32,6 +32,8 @@ export interface PosReceiptSnapshot {
   paidAmount: number;
   changeDue: number;
   onAccountAmount: number;
+  /** Credit sale: tender above invoice total applied to customer account. */
+  accountCreditAmount: number;
   note: string;
 }
 
@@ -97,6 +99,7 @@ export function buildPosReceiptSnapshot(params: {
   paidAmount: number;
   onAccountAmount: number;
   changeDue: number;
+  accountCreditAmount: number;
   netExVat: number;
   vatTotal: number;
   saleDiscountAmount: number;
@@ -149,6 +152,7 @@ export function buildPosReceiptSnapshot(params: {
     paidAmount: round2(params.paidAmount),
     changeDue: round2(params.changeDue),
     onAccountAmount: round2(params.onAccountAmount),
+    accountCreditAmount: round2(params.accountCreditAmount),
     note: (cart.note || "").trim(),
   };
 }
@@ -206,6 +210,7 @@ export function buildPosReceiptSnapshotFromSale(sale: Sale): PosReceiptSnapshot 
     paidAmount,
     changeDue,
     onAccountAmount,
+    accountCreditAmount: 0,
     note: (sale.note ?? "").trim(),
   };
 }
@@ -247,6 +252,11 @@ export function buildReceiptPrintHtml(r: PosReceiptSnapshot): string {
   const onAccountRow =
     r.onAccountAmount > 0
       ? `<div class="tot-row"><span>On account</span><span>${escapeHtml(formatCurrency(r.onAccountAmount))}</span></div>`
+      : "";
+
+  const accountCreditRow =
+    r.accountCreditAmount > 0
+      ? `<div class="tot-row"><span>Account credit</span><span>${escapeHtml(formatCurrency(r.accountCreditAmount))}</span></div>`
       : "";
 
   const changeRow =
@@ -393,6 +403,7 @@ export function buildReceiptPrintHtml(r: PosReceiptSnapshot): string {
     <div class="tot-row grand"><span>Total (inc VAT)</span><span>${escapeHtml(formatCurrency(r.grandTotal))}</span></div>
     <div class="tot-row"><span>Paid</span><span>${escapeHtml(formatCurrency(r.paidAmount))}</span></div>
     ${onAccountRow}
+    ${accountCreditRow}
     ${changeRow}
   </div>
   ${noteBlock}

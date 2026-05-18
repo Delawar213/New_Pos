@@ -51,7 +51,12 @@ import { createSale, scanPosBarcode, validatePosPriceOverride } from "@/store/sl
 import { buildPosReceiptSnapshot } from "@/lib/posReceipt";
 import type { PosReceiptSnapshot } from "@/lib/posReceipt";
 import { PosSaleReceiptDialog } from "@/components/pos/PosSaleReceiptDialog";
-import { fetchCustomersDropdown } from "@/store/slices/customer/customer.slice";
+import {
+  customerBulkPayment,
+  fetchCustomersDropdown,
+} from "@/store/slices/customer/customer.slice";
+import { SearchableSelect } from "@/components/ui";
+import type { SearchableSelectOption } from "@/components/ui";
 import { fetchBankAccountsDropdown } from "@/store/slices/bankAccount/bankAccount.slice";
 // import { BarcodeCameraScanner } from "@/components/pos/BarcodeCameraScanner";
 
@@ -117,12 +122,16 @@ function buildCreateSaleRequest(cart: RootState["cart"]): CreatePosSaleRequest {
   let description = cart.note.trim() || "POS sale";
   if (cart.paymentMethod === "credit") {
     const onAccount = round2(Math.max(0, grandTotal - paidForApi));
+    const accountCredit = round2(Math.max(0, tender - grandTotal));
     if (paidForApi > 0 && onAccount > 0) {
       description = [description, `Part paid now ${paidForApi}; on account ${onAccount}`].join(
         " · "
       );
     } else if (onAccount > 0 && paidForApi <= 0) {
       description = [description, `On account ${onAccount}`].join(" · ");
+    }
+    if (accountCredit > 0) {
+      description = [description, `Account credit ${accountCredit}`].join(" · ");
     }
   }
 
@@ -356,7 +365,10 @@ export default function POSPage() {
     paymentMethod === "credit" ? round2(Math.min(tender, grandTotal)) : tender;
   const onAccountAmount =
     paymentMethod === "credit" ? round2(Math.max(0, grandTotal - cashAppliedCredit)) : 0;
-  const changeDue = tender > grandTotal ? round2(tender - grandTotal) : 0;
+  const accountCreditAmount =
+    paymentMethod === "credit" && tender > grandTotal ? round2(tender - grandTotal) : 0;
+  const changeDue =
+    paymentMethod !== "credit" && tender > grandTotal ? round2(tender - grandTotal) : 0;
   const amountDue =
     paymentMethod !== "credit" && grandTotal > tender ? round2(grandTotal - tender) : 0;
 
@@ -415,6 +427,42 @@ export default function POSPage() {
     if (paymentMethod === "credit") {
       paidTowardInvoice = round2(Math.min(tenderForReceipt, grandTotal));
     }
+    let accountCreditPosted = 0;
+    if (paymentMethod === "credit" && accountCreditAmount > 0 && customerId !== WALK_IN_CUSTOMER_ID) {
+      const invoiceNo =
+        typeof result.payload?.data === "object" &&
+        result.payload.data &&
+        "invoiceNumber" in (result.payload.data as object)
+          ? String((result.payload.data as { invoiceNumber?: string }).invoiceNumber ?? "")
+          : "";
+      const bulkResult = await dispatch(
+        customerBulkPayment({
+          customerId,
+          paymentAmount: accountCreditAmount,
+          bankAccountId:
+            posBankAccountId >= CASH_DEPOSIT_ACCOUNT_ID
+              ? posBankAccountId
+              : CASH_DEPOSIT_ACCOUNT_ID,
+          paymentDate: new Date().toISOString(),
+          description: `POS account payment${invoiceNo ? ` · ${invoiceNo}` : ""}`,
+        })
+      );
+      if (customerBulkPayment.rejected.match(bulkResult)) {
+        dispatch(
+          addToast({
+            type: "warning",
+            title: "Sale saved — account credit failed",
+            message:
+              bulkResult.payload ||
+              "Invoice was saved but the extra amount was not posted to the customer account.",
+            duration: 7000,
+          })
+        );
+      } else {
+        accountCreditPosted = accountCreditAmount;
+        void dispatch(fetchCustomersDropdown());
+      }
+    }
     const snapshot = buildPosReceiptSnapshot({
       cart: store.getState().cart,
       items: [...items],
@@ -424,6 +472,7 @@ export default function POSPage() {
       paidAmount: paidTowardInvoice,
       onAccountAmount,
       changeDue,
+      accountCreditAmount: accountCreditPosted,
       netExVat,
       vatTotal,
       saleDiscountAmount,
@@ -521,14 +570,11 @@ export default function POSPage() {
                 Customer
               </label>
               {paymentMethod === "credit" ? (
-                <CreditCustomerPicker
+                <CreditCustomerSummary
                   walkInId={WALK_IN_CUSTOMER_ID}
                   options={dropdownCustomers}
                   customerId={customerId}
                   customerName={customerName}
-                  onPick={(c) =>
-                    dispatch(setCustomer({ id: c.customerId, name: c.customerName }))
-                  }
                 />
               ) : (
                 <div className="flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700">
@@ -662,6 +708,16 @@ export default function POSPage() {
                 </button>
               ))}
             </div>
+            {paymentMethod === "credit" ? (
+              <CreditCustomerPicker
+                walkInId={WALK_IN_CUSTOMER_ID}
+                options={dropdownCustomers}
+                customerId={customerId}
+                onPick={(c) =>
+                  dispatch(setCustomer({ id: c.customerId, name: c.customerName }))
+                }
+              />
+            ) : null}
             <div className="mt-2">
               <label className="mb-1 block text-[10px] font-semibold text-slate-500 sm:text-xs">
                 Payment received into
@@ -724,15 +780,32 @@ export default function POSPage() {
             )}
             {paymentMethod === "credit" && (
               <p className="mb-1 text-[10px] leading-snug text-slate-500 sm:text-xs">
-                Use <span className="font-semibold text-slate-700">Payment received into</span> for
-                cash or bank. Below total →{" "}
-                <span className="font-semibold text-slate-700">on account</span>.
+                Below invoice total → <span className="font-semibold text-slate-700">on account</span>.
+                Above total → <span className="font-semibold text-slate-700">credited to customer</span>{" "}
+                (not change).
               </p>
             )}
             {paymentMethod === "credit" && onAccountAmount > 0 && (
               <p className="text-xs font-semibold text-indigo-900 sm:text-sm">
                 On account: <strong>{formatCurrency(onAccountAmount)}</strong>
               </p>
+            )}
+            {paymentMethod === "credit" && accountCreditAmount > 0 && grandTotal > 0 && (
+              <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50/90 px-3 py-2.5 text-xs shadow-sm sm:text-sm">
+                <p className="font-bold uppercase tracking-wide text-blue-900">
+                  Credit to customer account
+                </p>
+                <p className="mt-1.5 flex flex-wrap items-baseline justify-between gap-2 tabular-nums text-blue-950">
+                  <span>
+                    Invoice <strong>{formatCurrency(grandTotal)}</strong>
+                    <span className="mx-1 text-blue-700">·</span>
+                    Tendered <strong>{formatCurrency(tender)}</strong>
+                  </span>
+                  <span className="text-base font-extrabold text-blue-800 sm:text-lg">
+                    = {formatCurrency(accountCreditAmount)}
+                  </span>
+                </p>
+              </div>
             )}
             {changeDue > 0 && grandTotal > 0 && (
               <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50/90 px-3 py-2.5 text-xs shadow-sm sm:text-sm">
@@ -791,106 +864,127 @@ export default function POSPage() {
   );
 }
 
-function CreditCustomerPicker({
+function CreditCustomerSummary({
   walkInId,
   options,
   customerId,
   customerName,
-  onPick,
 }: {
   walkInId: number;
   options: CustomerDropdown[];
   customerId: number;
   customerName: string;
+}) {
+  const row = useMemo(
+    () => options.find((c) => c.customerId === customerId),
+    [options, customerId]
+  );
+
+  if (customerId === walkInId) {
+    return (
+      <div className="flex h-10 items-center rounded-lg border border-dashed border-amber-300 bg-amber-50/80 px-3 text-xs text-amber-900 sm:text-sm">
+        Select credit customer in payment panel →
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-blue-200 bg-blue-50/50 px-3 py-2">
+      <p className="truncate text-sm font-semibold text-slate-900">{customerName}</p>
+      <p className="text-[10px] text-slate-500 sm:text-xs">
+        {row?.customerCode ?? `ID ${customerId}`}
+        {row?.customerTypeName ? ` · ${row.customerTypeName}` : ""}
+      </p>
+      {row ? (
+        <p className="mt-1 text-xs font-semibold tabular-nums text-slate-800">
+          Balance: {formatCurrency(row.currentBalance)}
+          {row.creditLimit > 0 ? (
+            <span className="ml-2 font-normal text-slate-500">
+              Limit {formatCurrency(row.creditLimit)}
+            </span>
+          ) : null}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function CreditCustomerPicker({
+  walkInId,
+  options,
+  customerId,
+  onPick,
+}: {
+  walkInId: number;
+  options: CustomerDropdown[];
+  customerId: number;
   onPick: (c: CustomerDropdown) => void;
 }) {
-  const rootRef = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
+  const focusWrapRef = useRef<HTMLDivElement>(null);
 
   const creditOptions = useMemo(
     () => options.filter((c) => c.customerId !== walkInId),
     [options, walkInId]
   );
 
-  useEffect(() => {
-    if (customerId === walkInId) return;
-    const row = creditOptions.find((c) => c.customerId === customerId);
-    if (row) {
-      setQuery(`${row.customerName} (${row.customerCode})`);
-    }
-  }, [customerId, walkInId, creditOptions]);
+  const selectOptions: SearchableSelectOption<number>[] = useMemo(
+    () =>
+      creditOptions.map((c) => ({
+        value: c.customerId,
+        label: `${c.customerCode} — ${c.customerName}`,
+        search: `${c.customerCode} ${c.customerName} ${c.customerTypeName ?? ""}`.toLowerCase(),
+      })),
+    [creditOptions]
+  );
+
+  const selected = creditOptions.find((c) => c.customerId === customerId);
 
   useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [open]);
-
-  const q = query.trim().toLowerCase();
-  const filtered = creditOptions.filter((c) => {
-    if (!q) return true;
-    return (
-      c.customerName.toLowerCase().includes(q) ||
-      c.customerCode.toLowerCase().includes(q) ||
-      (c.customerTypeName ?? "").toLowerCase().includes(q)
-    );
-  });
+    const t = window.setTimeout(() => {
+      focusWrapRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    }, 50);
+    return () => window.clearTimeout(t);
+  }, []);
 
   return (
-    <div ref={rootRef} className="relative">
-      <input
-        type="text"
-        autoComplete="off"
-        placeholder="Search name or code…"
-        value={query}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          setOpen(true);
+    <div
+      ref={focusWrapRef}
+      className="mt-2 rounded-lg border border-blue-200 bg-gradient-to-b from-blue-50/80 to-white p-2.5 sm:p-3"
+    >
+      <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-blue-900 sm:text-xs">
+        Credit customer <span className="text-red-600">*</span>
+      </label>
+      <SearchableSelect
+        options={selectOptions}
+        value={customerId === walkInId ? 0 : customerId}
+        onChange={(id) => {
+          const row = creditOptions.find((c) => c.customerId === id);
+          if (row) onPick(row);
         }}
-        onFocus={() => setOpen(true)}
-        aria-label="Search customers for credit sale"
-        className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:h-10 sm:text-sm"
+        placeholder="Search customer name or code…"
+        emptyHint="No customers"
+        triggerClassName="border-blue-200 bg-white py-2.5 text-sm"
       />
-      {customerId !== walkInId && (
-        <p className="mt-1 text-[10px] text-slate-500">
-          Selected: <span className="font-semibold text-slate-700">{customerName}</span>
-        </p>
-      )}
-      {open && (
-        <ul className="absolute left-0 right-0 z-30 mt-1 max-h-40 overflow-auto rounded-lg border border-slate-200 bg-white py-1 text-xs shadow-lg sm:max-h-48 sm:text-sm">
-          {filtered.length === 0 ? (
-            <li className="px-3 py-2 text-xs text-slate-500">No matching customers.</li>
-          ) : (
-            filtered.slice(0, 80).map((c) => (
-              <li key={c.customerId}>
-                <button
-                  type="button"
-                  className="w-full px-3 py-2 text-left text-xs hover:bg-slate-50"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => {
-                    onPick(c);
-                    setQuery(`${c.customerName} (${c.customerCode})`);
-                    setOpen(false);
-                  }}
-                >
-                  <span className="font-semibold text-slate-900">{c.customerName}</span>
-                  <span className="ml-2 tabular-nums text-slate-500">{c.customerCode}</span>
-                  {c.customerTypeName ? (
-                    <span className="mt-0.5 block text-[10px] text-slate-400">
-                      {c.customerTypeName}
-                    </span>
-                  ) : null}
-                </button>
-              </li>
-            ))
-          )}
-        </ul>
+      {selected ? (
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200/80 bg-white px-2.5 py-2">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-slate-900">{selected.customerName}</p>
+            <p className="text-[10px] text-slate-500">{selected.customerTypeName || "—"}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[10px] font-medium uppercase text-slate-500">Current balance</p>
+            <p className="text-sm font-bold tabular-nums text-slate-900">
+              {formatCurrency(selected.currentBalance)}
+            </p>
+            {selected.creditLimit > 0 ? (
+              <p className="text-[10px] tabular-nums text-slate-500">
+                Limit {formatCurrency(selected.creditLimit)}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : (
+        <p className="mt-2 text-[10px] text-amber-800 sm:text-xs">Choose a customer to continue.</p>
       )}
     </div>
   );

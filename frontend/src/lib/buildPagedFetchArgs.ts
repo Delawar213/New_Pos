@@ -9,7 +9,8 @@ export function buildPagedFetchArgs(
   currentPage: number,
   pageSize: number,
   debouncedSearch: string,
-  prevSearchRef: MutableRefObject<string | null>
+  prevSearchRef: MutableRefObject<string | null>,
+  options?: { sortBy?: string; sortDirection?: "asc" | "desc" }
 ): PaginationParams {
   const q = debouncedSearch.trim() || undefined;
   const first = prevSearchRef.current === null;
@@ -19,6 +20,7 @@ export function buildPagedFetchArgs(
     pageNumber: searchChanged ? 1 : currentPage,
     pageSize,
     searchTerm: q,
-    sortDirection: "desc",
+    sortDirection: options?.sortDirection ?? "desc",
+    ...(options?.sortBy?.trim() ? { sortBy: options.sortBy.trim() } : {}),
   };
 }

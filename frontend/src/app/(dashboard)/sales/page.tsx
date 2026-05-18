@@ -33,9 +33,18 @@ export default function SalesPage() {
     (s) => s.sale
   );
 
+  const salesListParams = useMemo(
+    () =>
+      buildPagedFetchArgs(page, pageSize, debouncedSearch, searchPrevRef, {
+        sortBy: "saleDate",
+        sortDirection: "desc",
+      }),
+    [page, pageSize, debouncedSearch]
+  );
+
   useEffect(() => {
-    void dispatch(fetchSales(buildPagedFetchArgs(page, pageSize, debouncedSearch, searchPrevRef)));
-  }, [dispatch, debouncedSearch, page, pageSize]);
+    void dispatch(fetchSales(salesListParams));
+  }, [dispatch, salesListParams]);
 
   const openSaleDetail = useCallback(
     (item: Sale) => {
@@ -66,6 +75,7 @@ export default function SalesPage() {
       fetchSales({
         pageNumber: page,
         pageSize,
+        sortBy: "saleDate",
         sortDirection: "desc",
         searchTerm: debouncedSearch.trim() || undefined,
       })
@@ -228,6 +238,7 @@ export default function SalesPage() {
           )
         }
         loading={loading}
+        sortNewestFirst
       />
 
       <SaleDetailModal

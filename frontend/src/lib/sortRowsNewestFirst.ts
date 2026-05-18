@@ -26,6 +26,8 @@ function rowTimestamp(row: Record<string, unknown>): number {
 }
 
 function rowBestId(row: Record<string, unknown>): number {
+  const direct = row.id;
+  if (typeof direct === "number" && Number.isFinite(direct)) return direct;
   let max = 0;
   for (const [k, v] of Object.entries(row)) {
     if (!/Id$/i.test(k)) continue;

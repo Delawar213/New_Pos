@@ -93,6 +93,14 @@ export function PosSaleReceiptDialog({ open, receipt, onDismiss }: PosSaleReceip
                 {formatCurrency(receipt.paidAmount)}
               </p>
             </div>
+            {receipt.accountCreditAmount > 0 ? (
+              <div className="rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2">
+                <p className="font-semibold text-blue-800">Account credit</p>
+                <p className="mt-0.5 font-bold tabular-nums text-blue-900">
+                  {formatCurrency(receipt.accountCreditAmount)}
+                </p>
+              </div>
+            ) : null}
             {receipt.changeDue > 0 ? (
               <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2">
                 <p className="font-semibold text-emerald-800">Change</p>

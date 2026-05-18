@@ -157,8 +157,15 @@ function extractSalesPage(raw: unknown): PaginatedResponse<Sale> | null {
     if (s) items.push(s);
   }
 
+  const sorted = [...items].sort((a, b) => {
+    const ta = Date.parse(a.saleDate || a.createdAt) || 0;
+    const tb = Date.parse(b.saleDate || b.createdAt) || 0;
+    if (tb !== ta) return tb - ta;
+    return b.id - a.id;
+  });
+
   return {
-    items,
+    items: sorted,
     totalCount: Number(inner.totalRecords ?? inner.totalCount) || 0,
     pageNumber: Number(inner.pageNumber) || 1,
     pageSize: Number(inner.pageSize) || 10,
@@ -349,7 +356,11 @@ export const fetchSales = createAsyncThunk<
 >("sale/fetchList", async (params = {}, { rejectWithValue }) => {
   const api = createAuthenticatedAxios();
   const query = {
-    ...listQueryParams(params),
+    ...listQueryParams({
+      ...params,
+      sortBy: params.sortBy ?? "saleDate",
+      sortDirection: params.sortDirection ?? "desc",
+    }),
     ...(params.status ? { status: params.status } : {}),
   };
   const paths = ["/proxy/Sales", "/proxy/sales"];
