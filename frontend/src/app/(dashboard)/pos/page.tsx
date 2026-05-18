@@ -55,7 +55,7 @@ import {
   customerBulkPayment,
   fetchCustomersDropdown,
 } from "@/store/slices/customer/customer.slice";
-import { SearchableSelect } from "@/components/ui";
+import { DecimalInput, SearchableSelect } from "@/components/ui";
 import type { SearchableSelectOption } from "@/components/ui";
 import { fetchBankAccountsDropdown } from "@/store/slices/bankAccount/bankAccount.slice";
 // import { BarcodeCameraScanner } from "@/components/pos/BarcodeCameraScanner";
@@ -71,6 +71,10 @@ const PAYMENT_OPTIONS = [
 ] as const;
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Minimum sale quantity (decimals allowed, e.g. 0.5, 1.25). */
+const POS_MIN_QTY = 0.01;
+const POS_QTY_STEP = 1;
 
 function cartLevelDiscountAmount(cart: RootState["cart"]): number {
   const gross = cart.items.reduce((s, i) => s + lineGrossAfterLineDiscount(i), 0);
@@ -660,21 +664,23 @@ export default function POSPage() {
                 <option value="fixed">Sale Disc (Amt)</option>
                 <option value="percentage">Sale Disc (%)</option>
               </select>
-              <input
-                type="number"
-                min={0}
-                step="0.01"
-                value={saleDiscountValue || ""}
-                onChange={(e) =>
+              <DecimalInput
+                value={saleDiscountValue}
+                onChange={(value) =>
                   dispatch(
                     setCartDiscount({
                       type: saleDiscountType,
-                      value: Number(e.target.value) || 0,
+                      value:
+                        saleDiscountType === "percentage"
+                          ? Math.min(100, Math.max(0, value))
+                          : Math.max(0, value),
                     })
                   )
                 }
-                placeholder={saleDiscountType === "percentage" ? "0 - 100" : "0.00"}
-                className="h-9 rounded-md border border-slate-200 px-2 text-right text-xs font-semibold tabular-nums focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:text-sm"
+                integer={saleDiscountType === "percentage"}
+                emptyWhenZero
+                placeholder={saleDiscountType === "percentage" ? "0" : "0.00"}
+                className="h-9 rounded-md border-slate-200 px-2 text-right text-xs font-semibold sm:text-sm"
               />
             </div>
             <div className="flex items-center justify-between pt-2 text-base font-bold text-slate-900 sm:text-lg">
@@ -758,20 +764,18 @@ export default function POSPage() {
                 </button>
               )}
             </div>
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              value={paidAmount || ""}
-              onChange={(e) => {
-                const n = Number(e.target.value) || 0;
+            <DecimalInput
+              value={paidAmount}
+              onChange={(n) => {
                 if (paymentMethod === "walking") {
                   const g = round2(grandTotal);
                   walkingPaidTouchedRef.current = Math.abs(round2(n) - g) > 0.01;
                 }
-                dispatch(setPaidAmount(n));
+                dispatch(setPaidAmount(Math.max(0, n)));
               }}
-              className="mb-1.5 h-10 w-full rounded-lg border border-slate-200 px-3 text-right text-lg font-bold tabular-nums focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:h-11 sm:text-xl"
+              emptyWhenZero={paymentMethod === "credit"}
+              placeholder="0.00"
+              className="mb-1.5 h-10 rounded-lg border-slate-200 px-3 text-right text-lg font-bold sm:h-11 sm:text-xl"
             />
             {paymentMethod === "walking" && grandTotal > 0 && (
               <p className="mb-1 text-[10px] text-slate-500 sm:text-xs">
@@ -1009,33 +1013,26 @@ function LineRow({ item }: { item: CartItem }) {
   );
   const [overrideUi, setOverrideUi] = useState<"idle" | "checking" | "allowed" | "blocked">("idle");
   const [overrideHint, setOverrideHint] = useState("");
-  const [qtyInput, setQtyInput] = useState(() => String(item.quantity));
-
   useEffect(() => {
     setPriceInput(Number(item.unitPriceIncVat ?? 0).toFixed(2));
     setOverrideUi("idle");
     setOverrideHint("");
   }, [item.cartLineId, item.purchaseDetailId]);
 
-  useEffect(() => {
-    setQtyInput(String(item.quantity));
-  }, [item.cartLineId, item.purchaseDetailId, item.quantity]);
-
   const batches = item.availableBatches ?? [];
   const batchCount = batches.filter((b) => (b.remainingQuantity ?? 0) > 0).length;
   const showBatchPicker = Boolean(item.hasMultipleBatches) && batchCount > 1;
-  const maxQty = Math.max(1, item.maxQuantity > 0 ? item.maxQuantity : Math.max(1, item.quantity));
+  const maxQty =
+    item.maxQuantity > 0 ? item.maxQuantity : Math.max(POS_MIN_QTY, item.quantity);
 
-  const commitQtyInput = () => {
+  const setLineQty = (raw: number) => {
     if (!lineId) return;
-    const raw = String(qtyInput).trim();
-    let n = parseInt(raw, 10);
-    if (!Number.isFinite(n) || raw === "") n = item.quantity < 1 ? 1 : item.quantity;
-    n = Math.max(1, Math.min(n, maxQty));
-    if (n !== item.quantity) {
+    let n = round2(raw);
+    if (!Number.isFinite(n) || n <= 0) n = POS_MIN_QTY;
+    n = round2(Math.max(POS_MIN_QTY, Math.min(n, maxQty)));
+    if (Math.abs(n - item.quantity) > 0.0001) {
       dispatch(updateQuantity({ cartLineId: lineId, quantity: n }));
     }
-    setQtyInput(String(n));
   };
 
   const validateAndApplyPrice = async () => {
@@ -1135,36 +1132,27 @@ function LineRow({ item }: { item: CartItem }) {
               className="flex h-10 w-9 shrink-0 items-center justify-center text-slate-600 hover:bg-white active:bg-slate-100 sm:w-10"
               onClick={() => {
                 if (!lineId) return;
-                if (item.quantity <= 1) dispatch(removeFromCart(lineId));
-                else
-                  dispatch(updateQuantity({ cartLineId: lineId, quantity: item.quantity - 1 }));
+                if (item.quantity <= POS_MIN_QTY + 0.0001) {
+                  dispatch(removeFromCart(lineId));
+                } else {
+                  dispatch(
+                    updateQuantity({
+                      cartLineId: lineId,
+                      quantity: round2(Math.max(POS_MIN_QTY, item.quantity - POS_QTY_STEP)),
+                    })
+                  );
+                }
               }}
             >
               <Minus className="h-4 w-4" />
             </button>
-            <input
-              type="text"
-              inputMode="numeric"
-              autoComplete="off"
-              aria-label="Quantity"
-              value={qtyInput}
-              onChange={(e) => {
-                const v = e.target.value.trim();
-                if (v === "") {
-                  setQtyInput("");
-                  return;
-                }
-                if (!/^\d+$/.test(v)) return;
-                setQtyInput(v);
-              }}
-              onBlur={() => commitQtyInput()}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  (e.target as HTMLInputElement).blur();
-                }
-              }}
-              className="min-w-0 flex-1 border-x border-slate-200 bg-white py-0 text-center text-sm font-bold tabular-nums text-slate-900 outline-none focus:ring-1 focus:ring-inset focus:ring-blue-500 sm:text-base"
+            <DecimalInput
+              min={POS_MIN_QTY}
+              emptyWhenZero={false}
+              value={item.quantity}
+              onChange={setLineQty}
+              placeholder="0"
+              className="min-w-0 flex-1 rounded-none border-0 border-x border-slate-200 bg-white py-0 text-center text-sm font-bold shadow-none focus:ring-1 focus:ring-inset focus:ring-blue-500 sm:text-base"
             />
             <button
               type="button"
@@ -1175,7 +1163,12 @@ function LineRow({ item }: { item: CartItem }) {
               disabled={isAtQtyLimit}
               onClick={() => {
                 if (!lineId) return;
-                dispatch(updateQuantity({ cartLineId: lineId, quantity: item.quantity + 1 }));
+                dispatch(
+                  updateQuantity({
+                    cartLineId: lineId,
+                    quantity: round2(Math.min(maxQty, item.quantity + POS_QTY_STEP)),
+                  })
+                );
               }}
             >
               <Plus className="h-4 w-4" />
@@ -1207,23 +1200,25 @@ function LineRow({ item }: { item: CartItem }) {
           <option value="fixed">Line Disc (Amt)</option>
           <option value="percentage">Line Disc (%)</option>
         </select>
-        <input
-          type="number"
-          min={0}
-          step="0.01"
-          value={item.discountValue || ""}
-          onChange={(e) => {
+        <DecimalInput
+          value={item.discountValue ?? 0}
+          onChange={(discountValue) => {
             if (!lineId) return;
             dispatch(
               updateItemDiscount({
                 cartLineId: lineId,
                 discountType: lineDiscountType,
-                discountValue: Number(e.target.value) || 0,
+                discountValue:
+                  lineDiscountType === "percentage"
+                    ? Math.min(100, Math.max(0, discountValue))
+                    : Math.max(0, discountValue),
               })
             );
           }}
-          placeholder={lineDiscountType === "percentage" ? "0 - 100" : "0.00"}
-          className="h-9 rounded-md border border-slate-200 px-2 text-right text-xs font-semibold tabular-nums focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:text-sm"
+          integer={lineDiscountType === "percentage"}
+          emptyWhenZero
+          placeholder={lineDiscountType === "percentage" ? "0" : "0.00"}
+          className="h-9 rounded-md border-slate-200 px-2 text-right text-xs font-semibold sm:text-sm"
         />
       </div>
 
