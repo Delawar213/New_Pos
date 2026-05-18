@@ -180,6 +180,7 @@ export default function ExpenseCategoriesPage() {
         }}
         title={editingCategory ? "Edit Expense Category" : "Add Expense Category"}
         description="Manage expense category details"
+        size="lg"
         footer={
           <div className="flex justify-end gap-2">
             <button onClick={() => setModalOpen(false)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">Cancel</button>

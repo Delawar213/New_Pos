@@ -257,6 +257,7 @@ export default function BrandsPage() {
         onClose={handleClose}
         title={editingBrand ? "Edit Brand" : "Add Brand"}
         description={editingBrand ? "Update brand details" : "Create a new product brand"}
+        size="lg"
         footer={
           <div className="flex justify-end gap-2">
             <button

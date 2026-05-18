@@ -270,6 +270,7 @@ export default function CategoriesPage() {
         onClose={handleClose}
         title={editingCategory ? "Edit Category" : "Add Category"}
         description={editingCategory ? "Update category details" : "Create a new product category"}
+        size="lg"
         footer={
           <div className="flex justify-end gap-2">
             <button

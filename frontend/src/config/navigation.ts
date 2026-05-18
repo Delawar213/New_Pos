@@ -23,7 +23,6 @@ import {
   Wallet,
   BookOpen,
   Undo2,
-  Pencil,
   Clock,
   type LucideIcon,
 } from "lucide-react";
@@ -45,154 +44,96 @@ export const sidebarNavigation: NavGroup[] = [
   {
     title: "Main",
     items: [
-      {
-        label: "Dashboard",
-        href: "/dashboard",
-        icon: LayoutDashboard,
-      },
-      {
-        label: "POS Terminal",
-        href: "/pos",
-        icon: Monitor,
-      },
+      { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+      { label: "POS Terminal", href: "/pos", icon: Monitor },
     ],
   },
   {
-    title: "System",
+    title: "Sales & purchases",
     items: [
       {
-        label: "Settings",
-        href: "/settings",
-        icon: Settings,
+        label: "Sales",
+        href: "/sales",
+        icon: ShoppingBag,
         children: [
-          { label: "Categories", href: "/categories", icon: Tags },
-          { label: "Subcategories", href: "/subcategories", icon: Tags },
-          { label: "Brands", href: "/brands", icon: Award },
-          { label: "Expense Categories", href: "/expense-categories", icon: Receipt },
-          { label: "Customer Type", href: "/customer-types", icon: Users },
-          { label: "Users", href: "/users", icon: Users },
+          { label: "All sales", href: "/sales", icon: List },
+          { label: "Sale return", href: "/sales/return", icon: Undo2 },
         ],
       },
       {
-        label: "Customer",
-        href: "/settings/customer",
-        icon: Users,
-        children: [{ label: "Customer List", href: "/customers", icon: Users }],
-      },
-      {
-        label: "Products",
-        href: "/settings/products",
-        icon: Package,
-        children: [{ label: "Product List", href: "/products", icon: Package }],
+        label: "Purchases",
+        href: "/purchases",
+        icon: ShoppingCart,
+        children: [
+          { label: "All purchases", href: "/purchases", icon: List },
+          { label: "New purchase", href: "/purchases/new", icon: PlusCircle },
+        ],
       },
     ],
   },
   {
     title: "Inventory",
     items: [
-      {
-        label: "Categories",
-        href: "/categories",
-        icon: Tags,
-      },
-      {
-        label: "Brands",
-        href: "/brands",
-        icon: Award,
-      },
-      {
-        label: "Products",
-        href: "/products",
-        icon: Package,
-      },
+      { label: "Products", href: "/products", icon: Package },
+      { label: "Categories", href: "/categories", icon: Tags },
+      { label: "Subcategories", href: "/subcategories", icon: Tags },
+      { label: "Brands", href: "/brands", icon: Award },
     ],
   },
   {
-    title: "People",
+    title: "Customers",
     items: [
-      {
-        label: "Suppliers",
-        href: "/suppliers",
-        icon: Truck,
-        children: [
-          { label: "Supplier list", href: "/suppliers", icon: List },
-          { label: "Supplier ledger", href: "/suppliers/ledger", icon: BookOpen },
-          { label: "Supplier payments", href: "/supplier-payments", icon: Wallet },
-        ],
-      },
-      {
-        label: "Customers",
-        href: "/customers",
-        icon: Users,
-        children: [
-          { label: "Customer list", href: "/customers", icon: List },
-          { label: "Customer ledger", href: "/customers/ledger", icon: BookOpen },
-          { label: "Pending payments", href: "/customers/pending-payments", icon: Clock },
-          { label: "Customer payments", href: "/customer-payments", icon: Wallet },
-        ],
-      },
-      {
-        label: "Employees",
-        href: "/employees",
-        icon: UserCog,
-      },
+      { label: "All customers", href: "/customers", icon: Users },
+      { label: "Pending payments", href: "/customers/pending-payments", icon: Clock },
+      { label: "Receive payment", href: "/customer-payments", icon: Wallet },
+      { label: "Customer ledger", href: "/customers/ledger", icon: BookOpen },
+    ],
+  },
+  {
+    title: "Suppliers",
+    items: [
+      { label: "All suppliers", href: "/suppliers", icon: Truck },
+      { label: "Supplier payments", href: "/supplier-payments", icon: Wallet },
+      { label: "Supplier ledger", href: "/suppliers/ledger", icon: BookOpen },
     ],
   },
   {
     title: "Finance",
     items: [
-      {
-        label: "Bank Accounts",
-        href: "/bank-accounts",
-        icon: Landmark,
-      },
-      {
-        label: "Transactions",
-        href: "/transactions",
-        icon: ArrowLeftRight,
-      },
+      { label: "Bank accounts", href: "/bank-accounts", icon: Landmark },
+      { label: "Transactions", href: "/transactions", icon: ArrowLeftRight },
     ],
   },
   {
-    title: "Operations",
-    items: [
-      {
-        label: "Purchases",
-        href: "/purchases",
-        icon: ShoppingCart,
-        children: [
-          { label: "Purchase list", href: "/purchases", icon: List },
-          { label: "New purchase", href: "/purchases/new", icon: PlusCircle },
-        ],
-      },
-      {
-        label: "Sales",
-        href: "/sales",
-        icon: ShoppingBag,
-        children: [
-          { label: "Sales list", href: "/sales", icon: List },
-          { label: "Edit sale", href: "/sales/edit", icon: Pencil },
-          { label: "Sale return", href: "/sales/return", icon: Undo2 },
-        ],
-      },
-    ],
+    title: "Team",
+    items: [{ label: "Employees", href: "/employees", icon: UserCog }],
   },
   {
-    title: "Analytics",
+    title: "Reports",
     items: [
       {
         label: "Reports",
         href: "/reports",
         icon: BarChart3,
         children: [
-          { label: "General Reports", href: "/reports/general", icon: BarChart3 },
-          { label: "Purchase Reports", href: "/reports/purchases", icon: BarChart3 },
-          { label: "Supplier Reports", href: "/reports/suppliers", icon: BarChart3 },
-          { label: "Customer Reports", href: "/reports/customers", icon: BarChart3 },
-          { label: "Stock Reports", href: "/reports/stock", icon: BarChart3 },
-          { label: "Profit & Loss", href: "/reports/profit-loss", icon: BarChart3 },
+          { label: "Overview", href: "/reports", icon: BarChart3 },
+          { label: "General", href: "/reports/general", icon: BarChart3 },
+          { label: "Purchases", href: "/reports/purchases", icon: BarChart3 },
+          { label: "Suppliers", href: "/reports/suppliers", icon: BarChart3 },
+          { label: "Customers", href: "/reports/customers", icon: BarChart3 },
+          { label: "Stock", href: "/reports/stock", icon: BarChart3 },
+          { label: "Profit & loss", href: "/reports/profit-loss", icon: BarChart3 },
         ],
       },
+    ],
+  },
+  {
+    title: "Settings",
+    items: [
+      { label: "App settings", href: "/settings", icon: Settings },
+      { label: "Users", href: "/users", icon: Users },
+      { label: "Customer types", href: "/customer-types", icon: Users },
+      { label: "Expense categories", href: "/expense-categories", icon: Receipt },
     ],
   },
 ];

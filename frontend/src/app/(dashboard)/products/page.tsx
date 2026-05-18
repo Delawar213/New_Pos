@@ -74,7 +74,7 @@ const emptyForm = (): CreateProductRequest => ({
   brandId: 0,
   unitOfMeasurement: "Each",
   sellingPriceExVat: 0,
-  vatRate: 20,
+  vatRate: 0,
   stockAlertLevel: 10,
   reorderLevel: 20,
   isActive: true,

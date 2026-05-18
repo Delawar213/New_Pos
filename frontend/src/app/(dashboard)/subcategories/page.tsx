@@ -239,6 +239,8 @@ export default function SubCategoriesPage() {
             ? "Update subcategory details"
             : "Create a new subcategory under an existing category"
         }
+        size="lg"
+        scrollableContent
         footer={
           <div className="flex justify-end gap-2">
             <button

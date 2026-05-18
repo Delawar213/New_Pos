@@ -542,6 +542,8 @@ export default function BankAccountsPage() {
             ? "Update the registered account. Balances may still follow transaction rules from your backend."
             : "Create a cash or bank account for use in the POS and ledger."
         }
+        size="lg"
+        scrollableContent
         footer={
           <div className="flex justify-end gap-2">
             <button
