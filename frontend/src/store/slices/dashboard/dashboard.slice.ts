@@ -83,16 +83,116 @@ function normalizeProfitInvoice(row: Record<string, unknown>): ProfitInvoiceRow 
   };
 }
 
-function normalizeProfitRange(raw: Record<string, unknown>): ProfitRangeReport {
-  const invRaw = Array.isArray(raw.invoices) ? raw.invoices : [];
+function normalizeProfitInvoicesBlock(
+  raw: unknown,
+  defaultPageSize: number
+): Pick<
+  ProfitRangeReport,
+  | "invoices"
+  | "totalCount"
+  | "pageNumber"
+  | "pageSize"
+  | "totalPages"
+  | "hasNextPage"
+  | "hasPreviousPage"
+> {
+  if (Array.isArray(raw)) {
+    const invoices = raw.map((row) =>
+      normalizeProfitInvoice(row as Record<string, unknown>)
+    );
+    const totalCount = invoices.length;
+    return {
+      invoices,
+      totalCount,
+      pageNumber: 1,
+      pageSize: totalCount || defaultPageSize,
+      totalPages: totalCount > 0 ? 1 : 0,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    };
+  }
+
+  if (raw && typeof raw === "object") {
+    const o = raw as Record<string, unknown>;
+    const listRaw = Array.isArray(o.items)
+      ? o.items
+      : Array.isArray(o.invoices)
+        ? o.invoices
+        : [];
+    const invoices = listRaw.map((row) =>
+      normalizeProfitInvoice(row as Record<string, unknown>)
+    );
+    const totalCount = num(o.totalCount ?? o.totalRecords) || invoices.length;
+    const pageSize = num(o.pageSize) || defaultPageSize;
+    const pageNumber = num(o.pageNumber) || 1;
+    let totalPages = num(o.totalPages);
+    if (!totalPages && pageSize > 0) {
+      totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+    }
+    return {
+      invoices,
+      totalCount,
+      pageNumber,
+      pageSize,
+      totalPages,
+      hasNextPage: Boolean(o.hasNextPage),
+      hasPreviousPage: Boolean(o.hasPreviousPage),
+    };
+  }
+
+  return {
+    invoices: [],
+    totalCount: 0,
+    pageNumber: 1,
+    pageSize: defaultPageSize,
+    totalPages: 0,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  };
+}
+
+function normalizeProfitRange(
+  raw: Record<string, unknown>,
+  defaultPageSize: number
+): ProfitRangeReport {
+  const invBlock = normalizeProfitInvoicesBlock(raw.invoices, defaultPageSize);
+  const totalCount = num(raw.totalCount ?? raw.totalRecords) || invBlock.totalCount;
+  const pageNumber = num(raw.pageNumber) || invBlock.pageNumber;
+  const pageSize = num(raw.pageSize) || invBlock.pageSize;
+  let totalPages = num(raw.totalPages) || invBlock.totalPages;
+  if (!totalPages && pageSize > 0) {
+    totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  }
+
   return {
     totalSales: num(raw.totalSales),
     totalRevenue: num(raw.totalRevenue),
     totalCost: num(raw.totalCost),
     totalProfit: num(raw.totalProfit),
     profitPercentage: num(raw.profitPercentage),
-    invoices: invRaw.map((row) => normalizeProfitInvoice(row as Record<string, unknown>)),
+    invoices: invBlock.invoices,
+    totalCount,
+    pageNumber,
+    pageSize,
+    totalPages,
+    hasNextPage: raw.hasNextPage != null ? Boolean(raw.hasNextPage) : invBlock.hasNextPage,
+    hasPreviousPage:
+      raw.hasPreviousPage != null ? Boolean(raw.hasPreviousPage) : invBlock.hasPreviousPage,
   };
+}
+
+function profitRangeQueryParams(params: ProfitRangeParams): Record<string, string | number> {
+  const q: Record<string, string | number> = {
+    fromDate: params.fromDate,
+    toDate: params.toDate,
+    pageNumber: params.pageNumber ?? 1,
+    pageSize: params.pageSize ?? 10,
+  };
+  const term = params.searchTerm?.trim();
+  if (term) q.searchTerm = term;
+  if (params.sortBy?.trim()) q.sortBy = params.sortBy.trim();
+  if (params.sortDirection) q.sortDirection = params.sortDirection;
+  return q;
 }
 
 interface DashboardState {
@@ -147,7 +247,7 @@ export const fetchProfitByRange = createAsyncThunk<
     const api = createAuthenticatedAxios();
     const response = await api.get<ApiEnvelope<Record<string, unknown>>>(
       "/proxy/dashboard/profit/range",
-      { params: { fromDate: params.fromDate, toDate: params.toDate } }
+      { params: profitRangeQueryParams(params) }
     );
     const failMsg = getApiErrorMessage(response.data);
     if (failMsg) return rejectWithValue(failMsg);
@@ -155,7 +255,7 @@ export const fetchProfitByRange = createAsyncThunk<
     if (!data || typeof data !== "object") {
       return rejectWithValue("Invalid profit report response.");
     }
-    return normalizeProfitRange(data);
+    return normalizeProfitRange(data, params.pageSize ?? 10);
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string };
     return rejectWithValue(

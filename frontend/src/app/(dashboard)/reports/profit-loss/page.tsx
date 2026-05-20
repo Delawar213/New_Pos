@@ -4,8 +4,11 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   Loader2,
   RefreshCw,
+  Search,
   TrendingDown,
   TrendingUp,
   Receipt,
@@ -24,6 +27,8 @@ import {
   startOfMonthInputDate,
   todayInputDate,
 } from "@/lib/transactionDate";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { buildPagedFetchArgs } from "@/lib/buildPagedFetchArgs";
 
 const th =
   "whitespace-nowrap px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600";
@@ -45,15 +50,30 @@ export default function ProfitLossReportPage() {
   const { profitReport, profitLoading, profitError } = useAppSelector((s) => s.dashboard);
   const [fromDate, setFromDate] = useState(startOfMonthInputDate);
   const [toDate, setToDate] = useState(todayInputDate);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebouncedValue(searchInput, 400);
+  const searchPrevRef = React.useRef<string | null>(null);
+
+  const reportParams = React.useMemo(
+    () =>
+      buildPagedFetchArgs(page, pageSize, debouncedSearch, searchPrevRef, {
+        sortBy: "saleDate",
+        sortDirection: "desc",
+      }),
+    [page, pageSize, debouncedSearch]
+  );
 
   const loadReport = useCallback(() => {
     void dispatch(
       fetchProfitByRange({
         fromDate: dateInputToIso(fromDate, false),
         toDate: dateInputToIso(toDate, true),
+        ...reportParams,
       })
     );
-  }, [dispatch, fromDate, toDate]);
+  }, [dispatch, fromDate, toDate, reportParams]);
 
   useEffect(() => {
     loadReport();
@@ -63,6 +83,9 @@ export default function ProfitLossReportPage() {
   }, [dispatch, loadReport]);
 
   const invoices = profitReport?.invoices ?? [];
+  const totalCount = profitReport?.totalCount ?? 0;
+  const totalPages = profitReport?.totalPages ?? 0;
+  const currentPage = profitReport?.pageNumber ?? page;
   const negativeCount = useMemo(
     () => invoices.filter((r) => r.profitAmount < 0).length,
     [invoices]
@@ -97,7 +120,10 @@ export default function ProfitLossReportPage() {
             id="profit-from"
             type="date"
             value={fromDate}
-            onChange={(e) => setFromDate(e.target.value)}
+            onChange={(e) => {
+              setFromDate(e.target.value);
+              setPage(1);
+            }}
             className="h-10 rounded-lg border border-slate-200 px-3 text-sm text-slate-900"
           />
         </div>
@@ -109,10 +135,40 @@ export default function ProfitLossReportPage() {
             id="profit-to"
             type="date"
             value={toDate}
-            onChange={(e) => setToDate(e.target.value)}
+            onChange={(e) => {
+              setToDate(e.target.value);
+              setPage(1);
+            }}
             className="h-10 rounded-lg border border-slate-200 px-3 text-sm text-slate-900"
           />
         </div>
+        <div className="relative min-w-[12rem] flex-1 sm:max-w-xs">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            type="search"
+            value={searchInput}
+            onChange={(e) => {
+              setSearchInput(e.target.value);
+              setPage(1);
+            }}
+            placeholder="Search invoice, customer…"
+            className="h-10 w-full rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+          />
+        </div>
+        <select
+          value={pageSize}
+          onChange={(e) => {
+            setPageSize(Number(e.target.value));
+            setPage(1);
+          }}
+          className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+        >
+          {[10, 20, 50, 100].map((n) => (
+            <option key={n} value={n}>
+              {n} per page
+            </option>
+          ))}
+        </select>
         <button
           type="button"
           onClick={loadReport}
@@ -124,7 +180,7 @@ export default function ProfitLossReportPage() {
           ) : (
             <RefreshCw className="h-4 w-4" />
           )}
-          Load report
+          Refresh
         </button>
       </div>
 
@@ -184,7 +240,14 @@ export default function ProfitLossReportPage() {
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
             <div className="border-b border-slate-100 px-4 py-3">
               <h2 className="text-base font-semibold text-slate-900">
-                Invoices ({invoices.length})
+                Invoices
+                {totalCount > 0 ? (
+                  <span className="ml-1 font-normal text-slate-500">
+                    ({invoices.length} on page · {totalCount} total)
+                  </span>
+                ) : (
+                  <span className="ml-1 font-normal text-slate-500">(0)</span>
+                )}
               </h2>
             </div>
             <div className="overflow-x-auto">
@@ -263,6 +326,39 @@ export default function ProfitLossReportPage() {
               </table>
             </div>
           </div>
+
+          {totalCount > 0 ? (
+            <div className="flex flex-col items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 sm:flex-row">
+              <p className="text-sm text-slate-600">
+                Page <span className="font-semibold text-slate-800">{currentPage}</span> of{" "}
+                <span className="font-semibold text-slate-800">{Math.max(1, totalPages)}</span>
+                <span className="mx-2 text-slate-300">·</span>
+                <span className="font-semibold text-slate-800">{totalCount}</span> total invoices
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={currentPage <= 1 || profitLoading}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    profitLoading || (totalPages > 0 ? currentPage >= totalPages : !profitReport?.hasNextPage)
+                  }
+                  onClick={() => setPage((p) => p + 1)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ) : null}
         </>
       ) : null}
     </div>

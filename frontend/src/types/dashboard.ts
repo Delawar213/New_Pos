@@ -2,6 +2,8 @@
 // Dashboard Types — GET /api/Dashboard/summary
 // ============================================
 
+import type { PaginationParams } from "@/types/common";
+
 export interface DashboardTopSellingProduct {
   productId: number;
   productCode: string;
@@ -42,10 +44,10 @@ export interface DashboardSummary {
 }
 
 /** Query params for GET /api/Dashboard/profit/range */
-export interface ProfitRangeParams {
+export type ProfitRangeParams = {
   fromDate: string;
   toDate: string;
-}
+} & PaginationParams;
 
 /** Invoice row in profit range report */
 export interface ProfitInvoiceRow {
@@ -73,4 +75,10 @@ export interface ProfitRangeReport {
   totalProfit: number;
   profitPercentage: number;
   invoices: ProfitInvoiceRow[];
+  totalCount: number;
+  pageNumber: number;
+  pageSize: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
 }
