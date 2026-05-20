@@ -185,9 +185,9 @@ export default function SearchableSelect<V extends string | number>({
         onClick={() => (open ? closeList() : openList())}
         onKeyDown={handleTriggerKeyDown}
         className={cn(
-          "flex w-full items-center justify-between gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500",
+          "flex w-full items-center justify-between gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500",
           disabled && "cursor-not-allowed opacity-60",
-          !selected && "text-gray-500",
+          !selected && "text-slate-500",
           triggerClassName
         )}
       >
@@ -211,7 +211,7 @@ export default function SearchableSelect<V extends string | number>({
               aria-autocomplete="list"
               role="combobox"
               aria-expanded
-              className="w-full border-0 bg-transparent text-sm outline-none placeholder:text-gray-400"
+              className="w-full border-0 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
             />
           </div>
           <ul id={listboxId} role="listbox" className="max-h-56 overflow-y-auto py-1">
@@ -235,10 +235,10 @@ export default function SearchableSelect<V extends string | number>({
                       type="button"
                       tabIndex={-1}
                       className={cn(
-                        "w-full px-3 py-2 text-left text-sm",
+                        "w-full px-3 py-2 text-left text-sm text-slate-900",
                         isHighlighted && "bg-blue-50 text-blue-900",
                         !isHighlighted && "hover:bg-slate-50",
-                        isSelected && !isHighlighted && "font-medium text-slate-900"
+                        isSelected && !isHighlighted && "font-medium"
                       )}
                       onMouseEnter={() => setHighlightIndex(index)}
                       onClick={() => selectIndex(index)}

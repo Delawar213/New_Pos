@@ -1,38 +1,42 @@
 // ============================================
-// Dashboard Types
+// Dashboard Types — GET /api/Dashboard/summary
 // ============================================
 
-export interface DashboardStats {
-  totalSales: number;
-  totalPurchases: number;
-  totalExpenses: number;
+export interface DashboardTopSellingProduct {
+  productId: number;
+  productCode: string;
+  productName: string;
+  totalQuantitySold: number;
+  totalRevenue: number;
   totalProfit: number;
-  totalCustomers: number;
-  totalProducts: number;
-  totalSuppliers: number;
-  lowStockProducts: number;
+}
+
+export interface DashboardRecentTransaction {
+  transactionId: number;
+  transactionCode: string;
+  transactionDate: string;
+  title: string;
+  amount: number;
+  status: string;
+}
+
+export interface DashboardSummary {
   todaySales: number;
   todayPurchases: number;
-  monthlySales: number;
-  monthlyPurchases: number;
-}
-
-export interface SalesChartData {
-  labels: string[];
-  data: number[];
-}
-
-export interface TopSellingProduct {
-  productId: number;
-  productName: string;
-  totalQuantity: number;
-  totalAmount: number;
-}
-
-export interface RecentTransaction {
-  id: number;
-  type: string;
-  amount: number;
-  description: string;
-  date: string;
+  todayExpenses: number;
+  todayProfit: number;
+  monthSales: number;
+  monthPurchases: number;
+  monthExpenses: number;
+  monthProfit: number;
+  cashInHand: number;
+  bankBalance: number;
+  totalReceivables: number;
+  totalPayables: number;
+  lowStockProducts: number;
+  outOfStockProducts: number;
+  pendingSalesInvoices: number;
+  pendingPurchaseInvoices: number;
+  topSellingProducts: DashboardTopSellingProduct[];
+  recentTransactions: DashboardRecentTransaction[];
 }

@@ -682,10 +682,14 @@ export default function POSPage() {
                     })
                   )
                 }
-                className="h-8 min-w-0 rounded-lg border-0 bg-white/15 px-2 text-xs font-medium text-white focus:ring-2 focus:ring-indigo-400"
+                className="h-8 min-w-0 rounded-lg border border-white/20 bg-white px-2 text-xs font-medium text-slate-900 [color-scheme:light] focus:ring-2 focus:ring-indigo-400"
               >
-                <option value="fixed" className="text-slate-900">Amount</option>
-                <option value="percentage" className="text-slate-900">%</option>
+                <option value="fixed" className="bg-white text-slate-900">
+                  Amount
+                </option>
+                <option value="percentage" className="bg-white text-slate-900">
+                  %
+                </option>
               </select>
               <DecimalInput
                 value={saleDiscountValue}
@@ -703,7 +707,7 @@ export default function POSPage() {
                 integer={saleDiscountType === "percentage"}
                 emptyWhenZero
                 placeholder={saleDiscountType === "percentage" ? "0" : "0.00"}
-                className="h-9 rounded-md border-slate-200 px-2 text-right text-xs font-semibold sm:text-sm"
+                className="h-9 rounded-md border border-slate-200 bg-white px-2 text-right text-xs font-semibold text-slate-900 sm:text-sm"
               />
             </div>
             </div>
@@ -751,11 +755,17 @@ export default function POSPage() {
                     )
                   )
                 }
-                className="h-8 w-full max-w-full rounded-lg border-0 bg-white/15 px-2 text-xs font-medium text-white focus:ring-2 focus:ring-indigo-400"
+                className="h-8 w-full max-w-full rounded-lg border border-white/20 bg-white px-2 text-xs font-medium text-slate-900 [color-scheme:light] focus:ring-2 focus:ring-indigo-400"
               >
-                <option value={CASH_DEPOSIT_ACCOUNT_ID}>Cash</option>
+                <option value={CASH_DEPOSIT_ACCOUNT_ID} className="bg-white text-slate-900">
+                  Cash
+                </option>
                 {bankAccountsExcludingCash.map((a) => (
-                  <option key={a.bankAccountId} value={a.bankAccountId}>
+                  <option
+                    key={a.bankAccountId}
+                    value={a.bankAccountId}
+                    className="bg-white text-slate-900"
+                  >
                     {a.accountName} ({a.accountType})
                   </option>
                 ))}
@@ -789,7 +799,7 @@ export default function POSPage() {
               }}
               emptyWhenZero={paymentMethod === "credit"}
               placeholder="0.00"
-              className="h-9 rounded-lg border-0 bg-white/15 px-2 text-right text-base font-bold text-white"
+              className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-right text-base font-bold text-slate-900"
             />
             <label className="mb-0.5 mt-1.5 block text-[10px] font-bold uppercase text-indigo-200">Note</label>
             <input
@@ -797,7 +807,7 @@ export default function POSPage() {
               value={note}
               onChange={(e) => dispatch(setNote(e.target.value))}
               placeholder="Optional"
-              className="h-8 w-full rounded-lg border-0 bg-white/15 px-2 text-xs text-white placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-400"
+              className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-400"
             />
           </div>
           </div>
@@ -952,7 +962,7 @@ function CreditCustomerPicker({
         }}
         placeholder="Search customer name or code…"
         emptyHint="No customers"
-        triggerClassName="border-blue-200 bg-white py-2.5 text-sm"
+        triggerClassName="border-blue-200 bg-white py-2.5 text-sm text-slate-900"
       />
       {selected ? (
         <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200/80 bg-white px-2.5 py-2">
@@ -1189,10 +1199,14 @@ function LineRow({ item }: { item: CartItem }) {
               })
             );
           }}
-          className="h-9 min-w-0 rounded-md border border-slate-200 bg-white px-1.5 text-xs font-medium text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:px-2 sm:text-sm"
+          className="h-9 min-w-0 rounded-md border border-slate-200 bg-white px-1.5 text-xs font-medium text-slate-900 [color-scheme:light] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:px-2 sm:text-sm"
         >
-          <option value="fixed">Line Disc (Amt)</option>
-          <option value="percentage">Line Disc (%)</option>
+          <option value="fixed" className="bg-white text-slate-900">
+            Line Disc (Amt)
+          </option>
+          <option value="percentage" className="bg-white text-slate-900">
+            Line Disc (%)
+          </option>
         </select>
         <DecimalInput
           value={item.discountValue ?? 0}
@@ -1229,12 +1243,16 @@ function LineRow({ item }: { item: CartItem }) {
               const id = Number(e.target.value);
               if (lineId) dispatch(switchLineBatch({ cartLineId: lineId, purchaseDetailId: id }));
             }}
-            className="mt-0.5 w-full max-w-full rounded-md border border-amber-200/80 bg-white py-1.5 pl-2 pr-6 text-xs font-medium text-slate-800 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-200 sm:text-sm"
+            className="mt-0.5 w-full max-w-full rounded-md border border-amber-200/80 bg-white py-1.5 pl-2 pr-6 text-xs font-medium text-slate-900 [color-scheme:light] focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-200 sm:text-sm"
           >
             {batches
               .filter((b) => (b.remainingQuantity ?? 0) > 0)
               .map((b) => (
-                <option key={b.purchaseDetailId} value={b.purchaseDetailId}>
+                <option
+                  key={b.purchaseDetailId}
+                  value={b.purchaseDetailId}
+                  className="bg-white text-slate-900"
+                >
                   {batchSelectLabel(b, item.purchaseDetailId)}
                 </option>
               ))}
