@@ -282,13 +282,13 @@ export default function Header() {
               
               <div className="py-1">
                 <a
-                  href="/profile"
+                  href="/settings/company"
                   className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
                 >
                   <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
                     <User className="h-4 w-4" />
                   </span>
-                  <span className="font-medium">My Profile</span>
+                  <span className="font-medium">Company profile</span>
                 </a>
                 <a
                   href="/settings"

@@ -17,6 +17,7 @@ import {
   ShoppingBag,
   BarChart3,
   Settings,
+  Building2,
   Monitor,
   List,
   PlusCircle,
@@ -141,6 +142,7 @@ export const sidebarNavigation: NavGroup[] = [
     title: "Settings",
     items: [
       { label: "App settings", href: "/settings", icon: Settings },
+      { label: "Company profile", href: "/settings/company", icon: Building2 },
       { label: "Users", href: "/users", icon: Users },
       { label: "Customer types", href: "/customer-types", icon: Users },
       { label: "Expense categories", href: "/expense-categories", icon: Receipt },

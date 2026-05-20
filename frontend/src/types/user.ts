@@ -3,6 +3,7 @@
 // ============================================
 
 import type { ApiResponse } from "./common";
+import type { CompanyInfoApi } from "./company";
 
 /** Row from `GET /api/User` paginated list. */
 export interface UserListRow {
@@ -38,6 +39,7 @@ export interface LoginUserData {
   roleName: string;
   profileImageUrl?: string | null;
   token: string;
+  companyInfo?: CompanyInfoApi | null;
 }
 
 export type LoginApiResponse = ApiResponse<LoginUserData>;

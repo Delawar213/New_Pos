@@ -1,8 +1,16 @@
+import { store } from "@/store";
 import type { RootState } from "@/store";
 import type { CartItem } from "@/store/slices/cart/cart.slice";
 import { lineGrossAfterLineDiscount } from "@/store/slices/cart/cart.slice";
 import { mapApiSalePayloadToSale } from "@/store/slices/sale/sale.slice";
 import type { Sale } from "@/types/sale";
+import type { CompanyInfo } from "@/types/company";
+import {
+  companyDisplayName,
+  defaultStoreName,
+  hasCompanyText,
+  selectCompanyInfo,
+} from "@/lib/companyInfo";
 import { formatCurrency } from "@/lib/utils";
 
 export interface PosReceiptLine {
@@ -15,6 +23,8 @@ export interface PosReceiptLine {
 
 export interface PosReceiptSnapshot {
   storeName: string;
+  /** Company profile from login (optional fields — empty strings omitted on print). */
+  company?: CompanyInfo | null;
   invoiceNo: string;
   saleId: number | null;
   saleDate: string;
@@ -39,6 +49,28 @@ export interface PosReceiptSnapshot {
 
 function round2(n: number) {
   return Math.round(n * 100) / 100;
+}
+
+function getCompanyForReceipt(company?: CompanyInfo | null): CompanyInfo | null {
+  if (company) return company;
+  if (typeof window === "undefined") return null;
+  try {
+    return selectCompanyInfo(store.getState());
+  } catch {
+    return null;
+  }
+}
+
+function withCompanyOnSnapshot(
+  snapshot: Omit<PosReceiptSnapshot, "company">,
+  company?: CompanyInfo | null
+): PosReceiptSnapshot {
+  const co = getCompanyForReceipt(company);
+  return {
+    ...snapshot,
+    company: co,
+    storeName: companyDisplayName(co, snapshot.storeName),
+  };
 }
 
 function escapeHtml(s: string): string {
@@ -107,10 +139,7 @@ export function buildPosReceiptSnapshot(params: {
 }): PosReceiptSnapshot {
   const { cart, items } = params;
   const meta = parseSaleMetaFromApi(params.apiData);
-  const storeName =
-    (typeof process !== "undefined" &&
-      process.env.NEXT_PUBLIC_STORE_NAME?.trim()) ||
-    "Point of Sale";
+  const storeName = defaultStoreName();
 
   const saleModeLabel =
     cart.paymentMethod === "credit" ? "Credit sale" : "Walking customer";
@@ -133,7 +162,7 @@ export function buildPosReceiptSnapshot(params: {
 
   const itemCount = items.reduce((a, i) => a + i.quantity, 0);
 
-  return {
+  return withCompanyOnSnapshot({
     storeName,
     invoiceNo: meta.invoiceNo,
     saleId: meta.saleId,
@@ -154,15 +183,12 @@ export function buildPosReceiptSnapshot(params: {
     onAccountAmount: round2(params.onAccountAmount),
     accountCreditAmount: round2(params.accountCreditAmount),
     note: (cart.note || "").trim(),
-  };
+  });
 }
 
 /** Build a printable receipt from a normalized `Sale` (e.g. after `fetchSaleById`). */
 export function buildPosReceiptSnapshotFromSale(sale: Sale): PosReceiptSnapshot {
-  const storeName =
-    (typeof process !== "undefined" &&
-      process.env.NEXT_PUBLIC_STORE_NAME?.trim()) ||
-    "Point of Sale";
+  const storeName = defaultStoreName();
 
   const customerId = sale.customerId ?? 0;
   const isWalkIn = customerId === 1;
@@ -191,7 +217,7 @@ export function buildPosReceiptSnapshotFromSale(sale: Sale): PosReceiptSnapshot 
   const changeDue =
     changeFromApi > 0 ? changeFromApi : round2(Math.max(0, paidAmount - grandTotal));
 
-  return {
+  return withCompanyOnSnapshot({
     storeName,
     invoiceNo: sale.invoiceNo?.trim() || "Receipt",
     saleId: sale.id > 0 ? sale.id : null,
@@ -212,7 +238,7 @@ export function buildPosReceiptSnapshotFromSale(sale: Sale): PosReceiptSnapshot 
     onAccountAmount,
     accountCreditAmount: 0,
     note: (sale.note ?? "").trim(),
-  };
+  });
 }
 
 function formatReceiptDate(iso: string): string {
@@ -225,6 +251,31 @@ function formatReceiptDate(iso: string): string {
 }
 
 export function buildReceiptPrintHtml(r: PosReceiptSnapshot): string {
+  const co = r.company ?? null;
+  const headerContact = hasCompanyText(co?.contact)
+    ? `<div class="subbrand">${escapeHtml(co!.contact)}</div>`
+    : "";
+  const headerAddress = hasCompanyText(co?.address)
+    ? `<div class="subbrand">${escapeHtml(co!.address)}</div>`
+    : "";
+  const headerOwner = hasCompanyText(co?.owner)
+    ? `<div class="subbrand">Owner: ${escapeHtml(co!.owner)}</div>`
+    : "";
+  const subbrandLine =
+    headerContact || headerAddress || headerOwner
+      ? ""
+      : `<div class="subbrand">Sales receipt</div>`;
+
+  const termsBlock = hasCompanyText(co?.termsCondition)
+    ? `<div class="terms">${escapeHtml(co!.termsCondition).replace(/\n/g, "<br/>")}</div>`
+    : "";
+  const thankyouBlock = hasCompanyText(co?.thankyouMessage)
+    ? `<div class="footer">${escapeHtml(co!.thankyouMessage)}</div>`
+    : "";
+  const softwareBlock = hasCompanyText(co?.softwareProvided)
+    ? `<div class="software">${escapeHtml(co!.softwareProvided)}</div>`
+    : "";
+
   const rows = r.lines
     .map(
       (line) => `
@@ -370,16 +421,36 @@ export function buildReceiptPrintHtml(r: PosReceiptSnapshot): string {
       color: #475569;
     }
     .footer {
-      margin-top: 18px;
+      margin-top: 14px;
       text-align: center;
-      font-size: 10px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #334155;
+    }
+    .terms {
+      margin-top: 14px;
+      padding: 8px 10px;
+      border-top: 1px dashed #cbd5e1;
+      font-size: 9px;
+      color: #64748b;
+      text-align: center;
+      line-height: 1.45;
+    }
+    .software {
+      margin-top: 8px;
+      text-align: center;
+      font-size: 8px;
       color: #94a3b8;
+      line-height: 1.35;
     }
   </style>
 </head>
 <body>
   <div class="brand">${escapeHtml(r.storeName)}</div>
-  <div class="subbrand">Sales receipt</div>
+  ${subbrandLine}
+  ${headerContact}
+  ${headerAddress}
+  ${headerOwner}
   <hr class="rule" />
   <div class="invoice">${escapeHtml(r.invoiceNo)}</div>
   <div class="when">${escapeHtml(formatReceiptDate(r.saleDate))}</div>
@@ -407,7 +478,9 @@ export function buildReceiptPrintHtml(r: PosReceiptSnapshot): string {
     ${changeRow}
   </div>
   ${noteBlock}
-  <div class="footer">Thank you for your business.</div>
+  ${termsBlock}
+  ${thankyouBlock}
+  ${softwareBlock}
 </body>
 </html>`;
 }

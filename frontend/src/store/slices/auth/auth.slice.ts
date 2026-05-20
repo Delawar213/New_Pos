@@ -6,7 +6,9 @@ import { configureSlice } from "@/lib/utils";
 import { getApiErrorMessage } from "@/lib/apiResult";
 import type { ApiResponse } from "@/types/common";
 import type { AuthUser } from "@/types/auth";
+import type { CompanyInfo } from "@/types/company";
 import type { LoginUserData } from "@/types/user";
+import { normalizeCompanyInfo } from "@/lib/companyInfo";
 
 interface ApiError {
   status?: string;
@@ -19,6 +21,7 @@ interface IState {
   isLoggedIn: boolean;
   user: AuthUser | Record<string, never>;
   token: string;
+  companyInfo: CompanyInfo | null;
   loading: boolean;
   error: ApiError | null;
   success: boolean;
@@ -29,6 +32,7 @@ const initialState: IState = {
   isLoggedIn: false,
   user: {},
   token: "",
+  companyInfo: null,
   loading: false,
   error: null,
   success: false,
@@ -48,7 +52,7 @@ function mapLoginDataToAuthUser(data: LoginUserData): AuthUser {
 }
 
 export const loginUser = createAsyncThunk<
-  { user: AuthUser; token: string; message: string },
+  { user: AuthUser; token: string; companyInfo: CompanyInfo | null; message: string },
   { userName: string; password: string },
   { rejectValue: ApiError }
 >("auth/login", async (credentials, { rejectWithValue }) => {
@@ -81,6 +85,7 @@ export const loginUser = createAsyncThunk<
     return {
       user: mapLoginDataToAuthUser(data),
       token,
+      companyInfo: normalizeCompanyInfo(data.companyInfo),
       message: typeof envelope.message === "string" ? envelope.message : "Login successful",
     };
   } catch (error: unknown) {
@@ -128,6 +133,7 @@ const authSlice = createSlice({
       state.isLoggedIn = false;
       state.user = {};
       state.token = "";
+      state.companyInfo = null;
       state.loading = false;
       state.error = null;
       state.success = false;
@@ -147,6 +153,7 @@ const authSlice = createSlice({
       state.isLoggedIn = true;
       state.user = payload.user;
       state.token = payload.token;
+      state.companyInfo = payload.companyInfo;
       state.loading = false;
       state.error = null;
       state.success = true;
@@ -157,6 +164,7 @@ const authSlice = createSlice({
       state.isLoggedIn = false;
       state.user = {};
       state.token = "";
+      state.companyInfo = null;
       state.loading = false;
       state.success = false;
       state.error = payload || { message: "Login failed" };
