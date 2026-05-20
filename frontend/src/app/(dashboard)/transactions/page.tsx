@@ -19,7 +19,12 @@ import { TransactionDetailModal } from "@/components/transactions/TransactionDet
 import type { Transaction } from "@/types";
 import { formatCurrency, cn } from "@/lib/utils";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { fetchTransactions } from "@/store/slices/transaction/transaction.slice";
+import {
+  fetchTransactions,
+  fetchTransactionsByDateRange,
+  fetchExpensesByDateRange,
+} from "@/store/slices/transaction/transaction.slice";
+import { dateInputToIso, startOfMonthInputDate, todayInputDate } from "@/lib/transactionDate";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { buildPagedFetchArgs } from "@/lib/buildPagedFetchArgs";
 import {
@@ -28,47 +33,89 @@ import {
   transactionDisplayAmount,
 } from "@/lib/transactionUtils";
 
+type ListMode = "ledger" | "daterange" | "expenses";
+
 export default function TransactionsPage() {
   const dispatch = useAppDispatch();
+  const [listMode, setListMode] = useState<ListMode>("ledger");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [searchInput, setSearchInput] = useState("");
+  const [fromDate, setFromDate] = useState(startOfMonthInputDate);
+  const [toDate, setToDate] = useState(todayInputDate);
   const [selected, setSelected] = useState<Transaction | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const debouncedSearch = useDebouncedValue(searchInput, 400);
   const searchPrevRef = useRef<string | null>(null);
 
-  const { transactions, totalCount, totalPages, loading, error } = useAppSelector(
-    (s) => s.transaction
-  );
+  const {
+    transactions,
+    dateRangeTransactions,
+    dateRangeExpenses,
+    totalCount,
+    totalPages,
+    loading,
+    dateRangeLoading,
+    error,
+  } = useAppSelector((s) => s.transaction);
 
-  const refresh = () =>
-    dispatch(
-      fetchTransactions({
-        pageNumber: page,
-        pageSize,
-        sortDirection: "desc",
-        searchTerm: debouncedSearch.trim() || undefined,
-      })
-    );
+  const displayTransactions =
+    listMode === "ledger"
+      ? transactions
+      : listMode === "daterange"
+        ? dateRangeTransactions
+        : dateRangeExpenses;
+
+  const listLoading = listMode === "ledger" ? loading : dateRangeLoading;
+
+  const refresh = () => {
+    if (listMode === "ledger") {
+      void dispatch(
+        fetchTransactions({
+          pageNumber: page,
+          pageSize,
+          sortDirection: "desc",
+          searchTerm: debouncedSearch.trim() || undefined,
+        })
+      );
+      return;
+    }
+    const params = {
+      fromDate: dateInputToIso(fromDate, false),
+      toDate: dateInputToIso(toDate, true),
+    };
+    if (listMode === "daterange") {
+      void dispatch(fetchTransactionsByDateRange(params));
+    } else {
+      void dispatch(fetchExpensesByDateRange(params));
+    }
+  };
 
   useEffect(() => {
-    void dispatch(fetchTransactions(buildPagedFetchArgs(page, pageSize, debouncedSearch, searchPrevRef)));
-  }, [dispatch, debouncedSearch, page, pageSize]);
+    if (listMode === "ledger") {
+      void dispatch(fetchTransactions(buildPagedFetchArgs(page, pageSize, debouncedSearch, searchPrevRef)));
+    }
+  }, [dispatch, debouncedSearch, page, pageSize, listMode]);
+
+  useEffect(() => {
+    if (listMode === "ledger") return;
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh when mode/dates change
+  }, [listMode, fromDate, toDate]);
 
   const pageStats = useMemo(() => {
     let volume = 0;
     let lines = 0;
     let balanced = 0;
-    for (const tx of transactions) {
+    for (const tx of displayTransactions) {
       volume += transactionDisplayAmount(tx);
       lines += tx.transactionDetails?.length ?? 0;
       if (isJournalBalanced(tx.transactionDetails ?? [])) balanced += 1;
     }
-    const purchases = transactions.filter((t) => getTransactionKind(t) === "purchase").length;
-    const sales = transactions.filter((t) => getTransactionKind(t) === "sale").length;
+    const purchases = displayTransactions.filter((t) => getTransactionKind(t) === "purchase").length;
+    const sales = displayTransactions.filter((t) => getTransactionKind(t) === "sale").length;
     return { volume, lines, balanced, purchases, sales };
-  }, [transactions]);
+  }, [displayTransactions]);
 
   const openDetail = (tx: Transaction) => {
     setSelected(tx);
@@ -85,20 +132,58 @@ export default function TransactionsPage() {
           { label: "Transactions" },
         ]}
         actions={
-          <Link
-            href="/transactions/new"
-            className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
-          >
-            <PlusCircle className="h-4 w-4" />
-            Record transaction
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/transactions/new"
+              className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+            >
+              <PlusCircle className="h-4 w-4" />
+              Payment
+            </Link>
+            <Link
+              href="/transactions/expense"
+              className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-800 hover:bg-rose-100"
+            >
+              Expense
+            </Link>
+            <Link
+              href="/transactions/transfer"
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Transfer
+            </Link>
+          </div>
         }
       />
+
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            { id: "ledger" as const, label: "All (paged)" },
+            { id: "daterange" as const, label: "By date range" },
+            { id: "expenses" as const, label: "Expenses by date" },
+          ] as const
+        ).map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setListMode(tab.id)}
+            className={cn(
+              "rounded-lg px-4 py-2 text-sm font-semibold transition",
+              listMode === tab.id
+                ? "bg-indigo-600 text-white shadow-sm"
+                : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatsCard
           title="Total records"
-          value={totalCount}
+          value={listMode === "ledger" ? totalCount : displayTransactions.length}
           icon={BookOpen}
           color="blue"
           variant="outline"
@@ -119,49 +204,74 @@ export default function TransactionsPage() {
         />
         <StatsCard
           title="Balanced entries"
-          value={`${pageStats.balanced} / ${transactions.length}`}
+          value={`${pageStats.balanced} / ${displayTransactions.length}`}
           icon={Scale}
           color="green"
           variant="outline"
         />
       </div>
 
-      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative min-w-0 flex-1 sm:max-w-md">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            type="search"
-            value={searchInput}
-            onChange={(e) => {
-              setSearchInput(e.target.value);
-              setPage(1);
-            }}
-            placeholder="Search code, title, reference…"
-            className="w-full rounded-xl border border-slate-200 bg-slate-50/80 py-2.5 pl-10 pr-3 text-sm outline-none ring-blue-500/20 transition focus:border-blue-500 focus:bg-white focus:ring-4"
-          />
-        </div>
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+        {listMode === "ledger" ? (
+          <div className="relative min-w-0 flex-1 sm:max-w-md">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="search"
+              value={searchInput}
+              onChange={(e) => {
+                setSearchInput(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Search code, title, reference…"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50/80 py-2.5 pl-10 pr-3 text-sm outline-none ring-blue-500/20 transition focus:border-blue-500 focus:bg-white focus:ring-4"
+            />
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-600">From</label>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-600">To</label>
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800"
+              />
+            </div>
+          </div>
+        )}
         <div className="flex items-center gap-2">
-          <select
-            value={pageSize}
-            onChange={(e) => {
-              setPageSize(Number(e.target.value));
-              setPage(1);
-            }}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-          >
-            {[10, 20, 50].map((n) => (
-              <option key={n} value={n}>
-                {n} per page
-              </option>
-            ))}
-          </select>
+          {listMode === "ledger" ? (
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(1);
+              }}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+            >
+              {[10, 20, 50].map((n) => (
+                <option key={n} value={n}>
+                  {n} per page
+                </option>
+              ))}
+            </select>
+          ) : null}
           <button
             type="button"
             onClick={() => void refresh()}
-            disabled={loading}
+            disabled={listLoading}
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
           >
-            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+            <RefreshCw className={cn("h-4 w-4", listLoading && "animate-spin")} />
             Refresh
           </button>
         </div>
@@ -173,12 +283,12 @@ export default function TransactionsPage() {
         </div>
       ) : null}
 
-      {loading && transactions.length === 0 ? (
+      {listLoading && displayTransactions.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-200 bg-white py-16">
           <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
           <p className="text-sm font-medium text-slate-600">Loading transactions…</p>
         </div>
-      ) : transactions.length === 0 ? (
+      ) : displayTransactions.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-white py-16 text-center">
           <BookOpen className="mx-auto h-10 w-10 text-slate-300" />
           <p className="mt-3 text-sm font-medium text-slate-700">No transactions found</p>
@@ -186,7 +296,7 @@ export default function TransactionsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {transactions.map((tx, index) => (
+          {displayTransactions.map((tx, index) => (
             <TransactionCard
               key={tx.transactionId}
               transaction={tx}
@@ -197,7 +307,7 @@ export default function TransactionsPage() {
         </div>
       )}
 
-      {totalCount > 0 ? (
+      {listMode === "ledger" && totalCount > 0 ? (
         <div className="flex flex-col items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white px-4 py-3 shadow-sm sm:flex-row">
           <p className="text-sm text-slate-600">
             Page <span className="font-semibold text-slate-800">{page}</span> of{" "}
@@ -208,7 +318,7 @@ export default function TransactionsPage() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              disabled={page <= 1 || loading}
+              disabled={page <= 1 || listLoading}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
             >
@@ -217,7 +327,7 @@ export default function TransactionsPage() {
             </button>
             <button
               type="button"
-              disabled={page >= totalPages || loading}
+              disabled={page >= totalPages || listLoading}
               onClick={() => setPage((p) => p + 1)}
               className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
             >

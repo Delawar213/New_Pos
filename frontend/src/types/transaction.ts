@@ -61,3 +61,34 @@ export interface CreateTransactionRequest {
 export interface UpdateTransactionRequest extends CreateTransactionRequest {
   transactionId: number;
 }
+
+export interface TransactionDateRangeParams {
+  fromDate: string;
+  toDate: string;
+}
+
+/** POST /api/Transactions/expense */
+export interface CreateExpenseTransactionRequest {
+  expenseDate: string;
+  expenseCategoryId: number;
+  title: string;
+  amountExVat: number;
+  vatRate: number;
+  bankAccountId: number;
+  paymentMethod: string;
+  description?: string;
+  referenceNo?: string;
+  attachmentPath?: string;
+  createdBy?: number | null;
+}
+
+/** POST /api/Transactions/transfer */
+export interface CreateTransferRequest {
+  transferDate: string;
+  fromBankAccountId: number;
+  toBankAccountId: number;
+  amount: number;
+  description?: string;
+  referenceNo?: string;
+  createdBy?: number | null;
+}

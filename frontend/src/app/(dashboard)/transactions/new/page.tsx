@@ -52,7 +52,6 @@ export default function RecordTransactionPage() {
   const [referenceNo, setReferenceNo] = useState("");
   const [amount, setAmount] = useState(0);
   const [bankAccountId, setBankAccountId] = useState(0);
-  const [transferToAccountId, setTransferToAccountId] = useState(0);
   const [customerId, setCustomerId] = useState(0);
   const [supplierId, setSupplierId] = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -100,45 +99,28 @@ export default function RecordTransactionPage() {
     [bankAccounts, bankAccountId]
   );
 
-  const selectedTransferTo = useMemo(
-    () => bankAccounts.find((a) => a.bankAccountId === transferToAccountId),
-    [bankAccounts, transferToAccountId]
-  );
-
   const previewDetails = useMemo(() => {
     if (!selectedBank || amount <= 0) return [];
     return buildPaymentTransactionDetails({
       paymentType,
       amount,
       bankAccount: selectedBank,
-      transferToAccount: selectedTransferTo,
       customerId: customerId > 0 ? customerId : undefined,
       supplierId: supplierId > 0 ? supplierId : undefined,
       lineDescription: description.trim() || title.trim(),
     });
-  }, [
-    paymentType,
-    amount,
-    selectedBank,
-    selectedTransferTo,
-    customerId,
-    supplierId,
-    description,
-    title,
-  ]);
+  }, [paymentType, amount, selectedBank, customerId, supplierId, description, title]);
 
   const needsCustomer =
     paymentType === "collect_customer" || paymentType === "refund_customer";
   const needsSupplier =
     paymentType === "pay_supplier" || paymentType === "receive_supplier";
-  const isTransfer = paymentType === "transfer";
 
   const onPaymentTypeChange = (value: PaymentTransactionType) => {
     setPaymentType(value);
     setTitle(defaultTitleForPaymentType(value));
     setCustomerId(0);
     setSupplierId(0);
-    setTransferToAccountId(0);
   };
 
   const resetForm = () => {
@@ -148,7 +130,6 @@ export default function RecordTransactionPage() {
     setCustomerId(0);
     setSupplierId(0);
     setBankAccountId(0);
-    setTransferToAccountId(0);
     setTitle(defaultTitleForPaymentType(paymentType));
     setTransactionDate(todayInputDate());
   };
@@ -160,7 +141,6 @@ export default function RecordTransactionPage() {
       paymentType,
       amount,
       bankAccountId,
-      transferToAccountId: isTransfer ? transferToAccountId : undefined,
       customerId: needsCustomer ? customerId : undefined,
       supplierId: needsSupplier ? supplierId : undefined,
       title,
@@ -178,15 +158,6 @@ export default function RecordTransactionPage() {
       return;
     }
 
-    let transferToAccount: BankAccountDropdown | undefined;
-    if (isTransfer) {
-      transferToAccount = bankAccounts.find((a) => a.bankAccountId === transferToAccountId);
-      if (!transferToAccount) {
-        dispatch(addToast({ type: "warning", title: "Account required", message: "Select transfer destination." }));
-        return;
-      }
-    }
-
     const payload = buildPaymentTransactionRequest({
       paymentType,
       transactionDate: dateInputToIso(transactionDate),
@@ -195,7 +166,6 @@ export default function RecordTransactionPage() {
       referenceNo: referenceNo.trim() || undefined,
       amount,
       bankAccount,
-      transferToAccount,
       customerId: needsCustomer ? customerId : undefined,
       supplierId: needsSupplier ? supplierId : undefined,
       createdBy: null,
@@ -241,21 +211,35 @@ export default function RecordTransactionPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6 pb-12">
       <PageHeader
-        title="Record transaction"
-        description="Post balanced journal entries for customer payments, supplier payments, refunds, and transfers"
+        title="Record payment"
+        description="Post balanced journal entries for customer and supplier payments"
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "Transactions", href: "/transactions" },
           { label: "Record" },
         ]}
         actions={
-          <Link
-            href="/transactions"
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to ledger
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/transactions/expense"
+              className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-800 hover:bg-rose-100"
+            >
+              Expense
+            </Link>
+            <Link
+              href="/transactions/transfer"
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Transfer
+            </Link>
+            <Link
+              href="/transactions"
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Ledger
+            </Link>
+          </div>
         }
       />
 
@@ -352,59 +336,22 @@ export default function RecordTransactionPage() {
             />
           </div>
 
-          {isTransfer ? (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className={lbl}>
-                  From account (credit) <span className="text-red-500">*</span>
-                </label>
-                <SearchableSelect
-                  options={bankOptions}
-                  value={bankAccountId}
-                  onChange={setBankAccountId}
-                  placeholder="Select source account…"
-                  emptyHint="No accounts"
-                  triggerClassName="border-slate-200 py-2.5"
-                />
-                {selectedBank ? (
-                  <p className={hint}>Balance: {formatCurrency(selectedBank.currentBalance)}</p>
-                ) : null}
-              </div>
-              <div>
-                <label className={lbl}>
-                  To account (debit) <span className="text-red-500">*</span>
-                </label>
-                <SearchableSelect
-                  options={bankOptions}
-                  value={transferToAccountId}
-                  onChange={setTransferToAccountId}
-                  placeholder="Select destination…"
-                  emptyHint="No accounts"
-                  triggerClassName="border-slate-200 py-2.5"
-                />
-                {selectedTransferTo ? (
-                  <p className={hint}>Balance: {formatCurrency(selectedTransferTo.currentBalance)}</p>
-                ) : null}
-              </div>
-            </div>
-          ) : (
-            <div>
-              <label className={lbl}>
-                Bank / cash account <span className="text-red-500">*</span>
-              </label>
-              <SearchableSelect
-                options={bankOptions}
-                value={bankAccountId}
-                onChange={setBankAccountId}
-                placeholder="Select account…"
-                emptyHint="No accounts loaded"
-                triggerClassName="border-slate-200 py-2.5"
-              />
-              {selectedBank ? (
-                <p className={hint}>Balance: {formatCurrency(selectedBank.currentBalance)}</p>
-              ) : null}
-            </div>
-          )}
+          <div>
+            <label className={lbl}>
+              Bank / cash account <span className="text-red-500">*</span>
+            </label>
+            <SearchableSelect
+              options={bankOptions}
+              value={bankAccountId}
+              onChange={setBankAccountId}
+              placeholder="Select account…"
+              emptyHint="No accounts loaded"
+              triggerClassName="border-slate-200 py-2.5"
+            />
+            {selectedBank ? (
+              <p className={hint}>Balance: {formatCurrency(selectedBank.currentBalance)}</p>
+            ) : null}
+          </div>
 
           {needsCustomer ? (
             <div>

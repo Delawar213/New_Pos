@@ -175,7 +175,6 @@ export default function POSPage() {
   const barcodeRef = useRef<HTMLInputElement>(null);
   const scanLockRef = useRef(false);
   const refocusBarcodeAfterScanRef = useRef(false);
-  const walkingPaidTouchedRef = useRef(false);
   const [barcodeInput, setBarcodeInput] = useState("");
   const [scanning, setScanning] = useState(false);
   const [receiptSnapshot, setReceiptSnapshot] = useState<PosReceiptSnapshot | null>(null);
@@ -213,10 +212,9 @@ export default function POSPage() {
     barcodeRef.current?.focus({ preventScroll: true });
   }, [scanning]);
 
-  /** Walking customer: keep Paid in sync with total unless cashier entered a different tender (e.g. overpay for change). */
+  /** Walking customer: paid must match invoice total (full payment). */
   useEffect(() => {
     if (paymentMethod !== "walking") return;
-    if (walkingPaidTouchedRef.current) return;
     dispatch(setPaidAmount(round2(grandTotal)));
   }, [paymentMethod, grandTotal, dispatch]);
 
@@ -234,13 +232,11 @@ export default function POSPage() {
       void dispatch(fetchBankAccountsDropdown());
       dispatch(setPosBankAccountId(CASH_DEPOSIT_ACCOUNT_ID));
       if (value === "credit") {
-        walkingPaidTouchedRef.current = false;
         dispatch(setPaidAmount(0));
         void dispatch(fetchCustomersDropdown());
         return;
       }
       if (value === "walking") {
-        walkingPaidTouchedRef.current = false;
         dispatch(setCustomer({ id: WALK_IN_CUSTOMER_ID, name: "Walking customer" }));
         const gt = round2(selectCartTotal(store.getState()));
         dispatch(setPaidAmount(gt));
@@ -382,6 +378,17 @@ export default function POSPage() {
   const amountDue =
     paymentMethod !== "credit" && grandTotal > tender ? round2(grandTotal - tender) : 0;
 
+  const walkingPaymentComplete =
+    paymentMethod !== "walking" ||
+    grandTotal <= 0 ||
+    tender >= round2(grandTotal) - 0.01;
+
+  const canCompleteSale =
+    items.length > 0 &&
+    !actionLoading &&
+    walkingPaymentComplete &&
+    !(paymentMethod === "credit" && customerId === WALK_IN_CUSTOMER_ID);
+
   const handleCompleteSale = async () => {
     if (items.length === 0) {
       dispatch(
@@ -399,6 +406,21 @@ export default function POSPage() {
           type: "warning",
           title: "Customer required",
           message: "Choose a customer from the list for credit sales.",
+        })
+      );
+      return;
+    }
+    if (
+      paymentMethod === "walking" &&
+      grandTotal > 0 &&
+      round2(Math.max(0, paidAmount)) < round2(grandTotal) - 0.01
+    ) {
+      dispatch(
+        addToast({
+          type: "warning",
+          title: "Full payment required",
+          message: `Walking customer must pay the full amount (${formatCurrency(grandTotal)}) before completing the sale.`,
+          duration: 6000,
         })
       );
       return;
@@ -510,7 +532,6 @@ export default function POSPage() {
       apiData: result.payload?.data,
     });
     dispatch(addToast({ type: "success", title: "Sale saved", message: msg, duration: 2800 }));
-    walkingPaidTouchedRef.current = false;
     dispatch(clearCart());
     setReceiptSnapshot(snapshot);
     setBarcodeInput("");
@@ -538,28 +559,26 @@ export default function POSPage() {
         }}
       />
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-gradient-to-br from-slate-100 via-indigo-50/30 to-slate-100">
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-indigo-200/50 bg-white/95 px-2 py-1.5 shadow-sm sm:px-3">
-        <p className="text-xs font-bold text-slate-700 sm:text-sm">POS Terminal</p>
-        <div className="flex flex-wrap items-center justify-end gap-1.5">
-          <Link
-            href="/sales/return"
-            className="inline-flex h-8 items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 text-xs font-bold text-amber-900 hover:bg-amber-100"
-          >
-            <Undo2 className="h-3.5 w-3.5" />
-            Return
-          </Link>
-          <Link
-            href="/sales"
-            className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            <History className="h-3.5 w-3.5 text-slate-500" />
-            History
-          </Link>
-          <div className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-2.5 py-1 text-white shadow-md">
-            <ShoppingBag className="h-3.5 w-3.5 text-indigo-300" />
-            <span className="text-xs font-black tabular-nums">{formatCurrency(grandTotal)}</span>
-            <span className="text-[10px] text-slate-400">({itemCount})</span>
-          </div>
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-indigo-200/50 bg-white/95 px-2 py-1.5 shadow-sm sm:px-3">
+        <p className="mr-1 text-xs font-bold text-slate-700 sm:text-sm">POS Terminal</p>
+        <Link
+          href="/sales/return"
+          className="inline-flex h-8 items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 text-xs font-bold text-amber-900 hover:bg-amber-100"
+        >
+          <Undo2 className="h-3.5 w-3.5" />
+          Return
+        </Link>
+        <Link
+          href="/sales"
+          className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          <History className="h-3.5 w-3.5 text-slate-500" />
+          History
+        </Link>
+        <div className="flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-indigo-950">
+          <ShoppingBag className="h-3.5 w-3.5 text-indigo-600" />
+          <span className="text-xs font-black tabular-nums">{formatCurrency(grandTotal)}</span>
+          <span className="text-[10px] text-indigo-600/80">({itemCount})</span>
         </div>
         <div className="sr-only" aria-hidden>
           {paymentMethod === "credit" ? (
@@ -575,7 +594,7 @@ export default function POSPage() {
         </div>
       </div>
 
-      <div className="grid min-h-0 w-full flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_min(20rem,38vw)] xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className="grid min-h-0 w-full flex-1 grid-cols-1 items-start lg:grid-cols-[minmax(0,1fr)_min(18rem,34vw)] xl:grid-cols-[minmax(0,1fr)_20rem]">
         <section className="flex min-h-0 min-w-0 flex-col overflow-hidden border-b border-slate-200/80 bg-white/90 lg:border-b-0 lg:border-r">
           <div className="shrink-0 border-b border-indigo-100 bg-gradient-to-r from-indigo-50/90 to-white px-2 py-2 sm:px-3">
             <div className="flex gap-2">
@@ -654,23 +673,23 @@ export default function POSPage() {
           </div>
         </section>
 
-        <aside className="flex min-h-0 w-full min-w-0 flex-col overflow-hidden bg-gradient-to-b from-slate-900 via-slate-900 to-indigo-950 text-white shadow-xl">
-          <div className="shrink-0 border-b border-white/10 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-indigo-300">
+        <aside className="flex min-h-0 w-full min-w-0 flex-col overflow-hidden border-slate-200/80 bg-white/95 shadow-sm lg:max-h-full lg:border-l">
+          <div className="shrink-0 border-b border-slate-100 px-2 py-2 sm:px-3">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
               Total due
             </p>
-            <p className="text-2xl font-black tabular-nums sm:text-4xl">
+            <p className="text-2xl font-black tabular-nums text-slate-900 sm:text-3xl">
               {formatCurrency(grandTotal)}
             </p>
-            <p className="mt-1 text-[11px] text-slate-400">
+            <p className="mt-0.5 text-[11px] text-slate-500">
               Net {formatCurrency(netExVat)} · VAT {formatCurrency(vatTotal)}
               {saleDiscountAmount > 0 ? ` · Disc −${formatCurrency(saleDiscountAmount)}` : ""}
             </p>
           </div>
 
-          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-2 scrollbar-thin">
-            <div className="rounded-xl bg-white/10 p-2">
-              <p className="mb-1.5 text-[10px] font-bold uppercase text-indigo-200">Sale discount</p>
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-2 py-2 scrollbar-thin sm:px-3">
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-2">
+              <p className="mb-1.5 text-[10px] font-bold uppercase text-slate-600">Sale discount</p>
             <div className="grid grid-cols-2 gap-1.5">
               <select
                 value={saleDiscountType}
@@ -712,8 +731,8 @@ export default function POSPage() {
             </div>
             </div>
 
-            <div className="rounded-xl bg-white/10 p-2">
-              <p className="mb-1.5 text-[10px] font-bold uppercase text-indigo-200">Payment</p>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-2">
+              <p className="mb-1.5 text-[10px] font-bold uppercase text-slate-600">Payment</p>
             <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
               {PAYMENT_OPTIONS.map(({ value, label, icon: Icon }) => (
                 <button
@@ -723,8 +742,8 @@ export default function POSPage() {
                   className={cn(
                     "flex items-center justify-center gap-1.5 rounded-lg border py-2 text-[11px] font-bold transition",
                     paymentMethod === value
-                      ? "border-emerald-400 bg-emerald-500/30 text-white"
-                      : "border-white/20 bg-white/5 text-slate-200 hover:bg-white/10"
+                      ? "border-emerald-500 bg-emerald-50 text-emerald-900 shadow-sm"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                   )}
                 >
                   <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -743,7 +762,7 @@ export default function POSPage() {
               />
             ) : null}
             <div className="mt-2">
-              <label className="mb-1 block text-[10px] font-semibold text-indigo-200">
+              <label className="mb-1 block text-[10px] font-semibold text-slate-600">
                 Payment received into
               </label>
               <select
@@ -755,7 +774,7 @@ export default function POSPage() {
                     )
                   )
                 }
-                className="h-8 w-full max-w-full rounded-lg border border-white/20 bg-white px-2 text-xs font-medium text-slate-900 [color-scheme:light] focus:ring-2 focus:ring-indigo-400"
+                className="h-8 w-full max-w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-900 [color-scheme:light] focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200"
               >
                 <option value={CASH_DEPOSIT_ACCOUNT_ID} className="bg-white text-slate-900">
                   Cash
@@ -773,35 +792,41 @@ export default function POSPage() {
             </div>
           </div>
 
-          <div className="rounded-xl bg-white/10 p-2">
-            <div className="mb-1 flex flex-wrap items-center justify-between gap-1">
-              <label className="text-[10px] font-bold uppercase text-indigo-200">
-                {paymentMethod === "credit" ? "Paid now" : "Paid"}
-              </label>
-              {paymentMethod === "credit" && grandTotal > 0 && (
-                <button
-                  type="button"
-                  onClick={() => dispatch(setPaidAmount(grandTotal))}
-                  className="text-[10px] font-semibold text-indigo-300 hover:text-white"
-                >
-                  Pay full
-                </button>
-              )}
-            </div>
-            <DecimalInput
-              value={paidAmount}
-              onChange={(n) => {
-                if (paymentMethod === "walking") {
-                  const g = round2(grandTotal);
-                  walkingPaidTouchedRef.current = Math.abs(round2(n) - g) > 0.01;
-                }
-                dispatch(setPaidAmount(Math.max(0, n)));
-              }}
-              emptyWhenZero={paymentMethod === "credit"}
-              placeholder="0.00"
-              className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-right text-base font-bold text-slate-900"
-            />
-            <label className="mb-0.5 mt-1.5 block text-[10px] font-bold uppercase text-indigo-200">Note</label>
+          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-2">
+            {paymentMethod === "walking" ? (
+              <div className="mb-2 rounded-lg border border-emerald-200 bg-emerald-50/90 px-2.5 py-2">
+                <p className="text-[10px] font-bold uppercase text-emerald-800">Full payment</p>
+                <p className="text-lg font-black tabular-nums text-emerald-950">
+                  {formatCurrency(grandTotal)}
+                </p>
+                <p className="text-[10px] text-emerald-800/90">
+                  Walking customer must pay the full invoice total to complete the sale.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="mb-1 flex flex-wrap items-center justify-between gap-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-600">Paid now</label>
+                  {grandTotal > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => dispatch(setPaidAmount(grandTotal))}
+                      className="text-[10px] font-semibold text-indigo-600 hover:text-indigo-800"
+                    >
+                      Pay full
+                    </button>
+                  )}
+                </div>
+                <DecimalInput
+                  value={paidAmount}
+                  onChange={(n) => dispatch(setPaidAmount(Math.max(0, n)))}
+                  emptyWhenZero
+                  placeholder="0.00"
+                  className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-right text-base font-bold text-slate-900"
+                />
+              </>
+            )}
+            <label className="mb-0.5 mt-1.5 block text-[10px] font-bold uppercase text-slate-600">Note</label>
             <input
               type="text"
               value={note}
@@ -812,36 +837,36 @@ export default function POSPage() {
           </div>
           </div>
 
-          <div className="shrink-0 space-y-2 border-t border-white/10 bg-slate-950/90 px-3 py-2">
-            {(changeDue > 0 || onAccountAmount > 0 || accountCreditAmount > 0 || amountDue > 0) && (
+          <div className="shrink-0 space-y-2 border-t border-slate-100 bg-white px-2 py-2 sm:px-3">
+            {paymentMethod === "walking" && grandTotal > 0 && !walkingPaymentComplete && (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs font-semibold text-amber-900">
+                Pay full amount ({formatCurrency(grandTotal)}) to complete this sale.
+              </p>
+            )}
+            {(changeDue > 0 || onAccountAmount > 0 || accountCreditAmount > 0) && (
               <div className="flex flex-wrap gap-1.5">
                 {changeDue > 0 && (
-                  <span className="rounded-lg bg-emerald-500/25 px-2 py-1 text-xs font-bold text-emerald-200">
+                  <span className="rounded-lg bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-800">
                     Change {formatCurrency(changeDue)}
                   </span>
                 )}
                 {onAccountAmount > 0 && (
-                  <span className="rounded-lg bg-indigo-500/25 px-2 py-1 text-xs font-bold text-indigo-200">
+                  <span className="rounded-lg bg-indigo-100 px-2 py-1 text-xs font-bold text-indigo-800">
                     On account {formatCurrency(onAccountAmount)}
                   </span>
                 )}
                 {accountCreditAmount > 0 && (
-                  <span className="rounded-lg bg-blue-500/25 px-2 py-1 text-xs font-bold text-blue-200">
+                  <span className="rounded-lg bg-blue-100 px-2 py-1 text-xs font-bold text-blue-800">
                     Credit {formatCurrency(accountCreditAmount)}
-                  </span>
-                )}
-                {amountDue > 0 && (
-                  <span className="rounded-lg bg-amber-500/25 px-2 py-1 text-xs font-bold text-amber-200">
-                    Due {formatCurrency(amountDue)}
                   </span>
                 )}
               </div>
             )}
             <button
               type="button"
-              disabled={items.length === 0 || actionLoading}
+              disabled={!canCompleteSale}
               onClick={() => void handleCompleteSale()}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-base font-black text-white shadow-lg transition hover:from-emerald-400 hover:to-teal-400 disabled:opacity-40"
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-base font-black text-white shadow-md transition hover:from-emerald-500 hover:to-teal-500 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {actionLoading ? (
                 <>

@@ -226,13 +226,15 @@ const cartSlice = createSlice({
         cur.expiryDate = p.expiryDate ?? cur.expiryDate;
         const next = cur.quantity + addQty;
         cur.quantity = Math.min(next, cap);
+        state.items.splice(existingIndex, 1);
+        state.items.unshift(cur);
         return;
       }
 
       const cap = getLineStockCap(p);
       const q = Math.min(addQty, cap);
       if (q > 0) {
-        state.items.push({ ...p, quantity: q, maxQuantity: cap });
+        state.items.unshift({ ...p, quantity: q, maxQuantity: cap });
       }
     },
 

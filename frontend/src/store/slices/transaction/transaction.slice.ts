@@ -5,18 +5,25 @@ import { createAuthenticatedAxios } from "@/lib/createAuthenticatedAxios";
 import { getApiErrorMessage } from "@/lib/apiResult";
 import type { ApiResponse, PaginationParams } from "@/types/common";
 import type {
+  CreateExpenseTransactionRequest,
   CreateTransactionRequest,
+  CreateTransferRequest,
   PaginatedTransactionResponse,
   Transaction,
+  TransactionDateRangeParams,
   UpdateTransactionRequest,
 } from "@/types/transaction";
 import type { RootState } from "@/store";
 import { listQueryParams } from "@/lib/listQueryParams";
+import { normalizeTransactionList } from "@/lib/transactionDate";
 
 interface TransactionState {
   transactions: Transaction[];
+  dateRangeTransactions: Transaction[];
+  dateRangeExpenses: Transaction[];
   selectedTransaction: Transaction | null;
   loading: boolean;
+  dateRangeLoading: boolean;
   actionLoading: boolean;
   error: string | null;
   success: boolean;
@@ -31,8 +38,11 @@ interface TransactionState {
 
 const initialState: TransactionState = {
   transactions: [],
+  dateRangeTransactions: [],
+  dateRangeExpenses: [],
   selectedTransaction: null,
   loading: false,
+  dateRangeLoading: false,
   actionLoading: false,
   error: null,
   success: false,
@@ -44,6 +54,15 @@ const initialState: TransactionState = {
   hasPreviousPage: false,
   hasNextPage: false,
 };
+
+function unwrapList(raw: unknown): Transaction[] {
+  if (Array.isArray(raw)) return normalizeTransactionList(raw);
+  if (raw && typeof raw === "object" && "data" in raw) {
+    const inner = (raw as { data: unknown }).data;
+    if (Array.isArray(inner)) return normalizeTransactionList(inner);
+  }
+  return [];
+}
 
 export const fetchTransactions = createAsyncThunk<
   ApiResponse<PaginatedTransactionResponse>,
@@ -116,6 +135,82 @@ export const updateTransaction = createAsyncThunk<
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } }; message?: string };
     return rejectWithValue(err.response?.data?.message || err.message || "Failed to update transaction");
+  }
+});
+
+export const fetchTransactionsByDateRange = createAsyncThunk<
+  Transaction[],
+  TransactionDateRangeParams,
+  { rejectValue: string; state: RootState }
+>("transaction/fetchByDateRange", async (params, { rejectWithValue }) => {
+  try {
+    const api = createAuthenticatedAxios();
+    const response = await api.get<unknown>("/proxy/transactions/daterange", {
+      params: { fromDate: params.fromDate, toDate: params.toDate },
+    });
+    const failMsg = getApiErrorMessage(response.data as ApiResponse<unknown>);
+    if (failMsg) return rejectWithValue(failMsg);
+    return unwrapList(response.data);
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string };
+    return rejectWithValue(
+      err.response?.data?.message || err.message || "Failed to fetch transactions for date range"
+    );
+  }
+});
+
+export const fetchExpensesByDateRange = createAsyncThunk<
+  Transaction[],
+  TransactionDateRangeParams,
+  { rejectValue: string; state: RootState }
+>("transaction/fetchExpensesByDateRange", async (params, { rejectWithValue }) => {
+  try {
+    const api = createAuthenticatedAxios();
+    const response = await api.get<unknown>("/proxy/transactions/expenses/daterange", {
+      params: { fromDate: params.fromDate, toDate: params.toDate },
+    });
+    const failMsg = getApiErrorMessage(response.data as ApiResponse<unknown>);
+    if (failMsg) return rejectWithValue(failMsg);
+    return unwrapList(response.data);
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string };
+    return rejectWithValue(
+      err.response?.data?.message || err.message || "Failed to fetch expenses for date range"
+    );
+  }
+});
+
+export const createExpenseTransaction = createAsyncThunk<
+  ApiResponse<Transaction>,
+  CreateExpenseTransactionRequest,
+  { rejectValue: string; state: RootState }
+>("transaction/createExpense", async (payload, { rejectWithValue }) => {
+  try {
+    const api = createAuthenticatedAxios();
+    const response = await api.post<ApiResponse<Transaction>>("/proxy/transactions/expense", payload);
+    const failMsg = getApiErrorMessage(response.data);
+    if (failMsg) return rejectWithValue(failMsg);
+    return response.data;
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string };
+    return rejectWithValue(err.response?.data?.message || err.message || "Failed to record expense");
+  }
+});
+
+export const createTransferTransaction = createAsyncThunk<
+  ApiResponse<Transaction>,
+  CreateTransferRequest,
+  { rejectValue: string; state: RootState }
+>("transaction/createTransfer", async (payload, { rejectWithValue }) => {
+  try {
+    const api = createAuthenticatedAxios();
+    const response = await api.post<ApiResponse<Transaction>>("/proxy/transactions/transfer", payload);
+    const failMsg = getApiErrorMessage(response.data);
+    if (failMsg) return rejectWithValue(failMsg);
+    return response.data;
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string };
+    return rejectWithValue(err.response?.data?.message || err.message || "Failed to record transfer");
   }
 });
 
@@ -242,6 +337,62 @@ const transactionSlice = createSlice({
     builder.addCase(deleteTransaction.rejected, (state, { payload }) => {
       state.actionLoading = false;
       state.error = payload || "Failed to delete transaction";
+    });
+
+    builder.addCase(fetchTransactionsByDateRange.pending, (state) => {
+      state.dateRangeLoading = true;
+      state.error = null;
+    });
+    builder.addCase(fetchTransactionsByDateRange.fulfilled, (state, { payload }) => {
+      state.dateRangeLoading = false;
+      state.dateRangeTransactions = payload;
+    });
+    builder.addCase(fetchTransactionsByDateRange.rejected, (state, { payload }) => {
+      state.dateRangeLoading = false;
+      state.error = payload || "Failed to load transactions";
+      state.dateRangeTransactions = [];
+    });
+
+    builder.addCase(fetchExpensesByDateRange.pending, (state) => {
+      state.dateRangeLoading = true;
+      state.error = null;
+    });
+    builder.addCase(fetchExpensesByDateRange.fulfilled, (state, { payload }) => {
+      state.dateRangeLoading = false;
+      state.dateRangeExpenses = payload;
+    });
+    builder.addCase(fetchExpensesByDateRange.rejected, (state, { payload }) => {
+      state.dateRangeLoading = false;
+      state.error = payload || "Failed to load expenses";
+      state.dateRangeExpenses = [];
+    });
+
+    builder.addCase(createExpenseTransaction.pending, (state) => {
+      state.actionLoading = true;
+      state.error = null;
+    });
+    builder.addCase(createExpenseTransaction.fulfilled, (state, { payload }) => {
+      state.actionLoading = false;
+      state.success = true;
+      state.message = payload.message || "Expense recorded successfully";
+    });
+    builder.addCase(createExpenseTransaction.rejected, (state, { payload }) => {
+      state.actionLoading = false;
+      state.error = payload || "Failed to record expense";
+    });
+
+    builder.addCase(createTransferTransaction.pending, (state) => {
+      state.actionLoading = true;
+      state.error = null;
+    });
+    builder.addCase(createTransferTransaction.fulfilled, (state, { payload }) => {
+      state.actionLoading = false;
+      state.success = true;
+      state.message = payload.message || "Transfer recorded successfully";
+    });
+    builder.addCase(createTransferTransaction.rejected, (state, { payload }) => {
+      state.actionLoading = false;
+      state.error = payload || "Failed to record transfer";
     });
   },
 });

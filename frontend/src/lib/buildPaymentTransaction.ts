@@ -16,7 +16,6 @@ export const PAYMENT_TYPE_OPTIONS: {
   { value: "refund_customer", label: "Refund customer" },
   { value: "pay_supplier", label: "Pay supplier" },
   { value: "receive_supplier", label: "Receive from supplier (return)" },
-  { value: "transfer", label: "Transfer (cash ↔ bank)" },
 ];
 
 const CUSTOMER_RECEIVABLE = {

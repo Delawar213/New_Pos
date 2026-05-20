@@ -107,7 +107,9 @@ export const sidebarNavigation: NavGroup[] = [
         icon: ArrowLeftRight,
         children: [
           { label: "Ledger", href: "/transactions", icon: List },
-          { label: "Record transaction", href: "/transactions/new", icon: PlusCircle },
+          { label: "Record payment", href: "/transactions/new", icon: PlusCircle },
+          { label: "Record expense", href: "/transactions/expense", icon: Receipt },
+          { label: "Record transfer", href: "/transactions/transfer", icon: ArrowLeftRight },
         ],
       },
     ],
