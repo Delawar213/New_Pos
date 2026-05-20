@@ -101,7 +101,15 @@ export const sidebarNavigation: NavGroup[] = [
     title: "Finance",
     items: [
       { label: "Bank accounts", href: "/bank-accounts", icon: Landmark },
-      { label: "Transactions", href: "/transactions", icon: ArrowLeftRight },
+      {
+        label: "Transactions",
+        href: "/transactions",
+        icon: ArrowLeftRight,
+        children: [
+          { label: "Ledger", href: "/transactions", icon: List },
+          { label: "Record transaction", href: "/transactions/new", icon: PlusCircle },
+        ],
+      },
     ],
   },
   {

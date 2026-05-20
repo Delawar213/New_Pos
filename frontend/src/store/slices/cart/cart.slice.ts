@@ -33,6 +33,71 @@ export interface CartItem {
   hasMultipleBatches?: boolean;
   /** Missing on older persisted carts; POS sanitizes on load. */
   availableBatches?: SaleScanBatch[];
+  /** Product total on hand from last scan (may be lower than a single batch row). */
+  qtyInStock?: number;
+}
+
+/** Tolerance for decimal qty vs batch remaining stock. */
+const STOCK_QTY_EPS = 0.0001;
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Authoritative sellable qty for this cart line (batch + product total). */
+export function getLineStockCap(item: CartItem): number {
+  const batches = item.availableBatches ?? [];
+  const batch = batches.find((b) => b.purchaseDetailId === item.purchaseDetailId);
+  const fromBatch = batch != null ? Number(batch.remainingQuantity) : NaN;
+  const fromLine = Number(item.maxQuantity);
+  const fromProduct = Number(item.qtyInStock);
+
+  let cap = 0;
+  if (Number.isFinite(fromBatch) && fromBatch > 0) {
+    cap = fromBatch;
+  } else if (Number.isFinite(fromLine) && fromLine > 0) {
+    cap = fromLine;
+  }
+
+  if (Number.isFinite(fromProduct) && fromProduct > 0) {
+    cap = cap > 0 ? Math.min(cap, fromProduct) : fromProduct;
+  }
+
+  return Math.max(0, round2(cap));
+}
+
+export type CartStockValidation =
+  | { ok: true }
+  | { ok: false; title: string; message: string };
+
+/** Block checkout when any line exceeds batch `maxQuantity` or has no stock. */
+export function validateCartStockForSale(items: CartItem[]): CartStockValidation {
+  for (const item of items) {
+    const cap = getLineStockCap(item);
+    const qty = item.quantity ?? 0;
+    if (cap <= STOCK_QTY_EPS) {
+      return {
+        ok: false,
+        title: "Out of stock",
+        message: `${item.name} has no stock available for this batch.`,
+      };
+    }
+    if (qty > cap + STOCK_QTY_EPS) {
+      const capLabel = Number.isInteger(cap) ? String(cap) : cap.toFixed(2);
+      const qtyLabel = Number.isInteger(qty) ? String(qty) : qty.toFixed(2);
+      return {
+        ok: false,
+        title: "Quantity exceeds stock",
+        message: `${item.name}: ${qtyLabel} requested but only ${capLabel} available.`,
+      };
+    }
+    if (qty <= STOCK_QTY_EPS) {
+      return {
+        ok: false,
+        title: "Invalid quantity",
+        message: `${item.name}: quantity must be greater than zero.`,
+      };
+    }
+  }
+  return { ok: true };
 }
 
 interface CartState {
@@ -148,8 +213,9 @@ const cartSlice = createSlice({
 
       if (existingIndex >= 0) {
         const cur = state.items[existingIndex];
-        const cap = Math.max(0, p.maxQuantity);
+        const cap = getLineStockCap(p);
         cur.maxQuantity = cap;
+        if (p.qtyInStock != null) cur.qtyInStock = p.qtyInStock;
         if (p.availableBatches?.length) {
           cur.availableBatches = p.availableBatches;
         }
@@ -163,9 +229,10 @@ const cartSlice = createSlice({
         return;
       }
 
-      const q = Math.min(addQty, Math.max(0, p.maxQuantity));
+      const cap = getLineStockCap(p);
+      const q = Math.min(addQty, cap);
       if (q > 0) {
-        state.items.push({ ...p, quantity: q });
+        state.items.push({ ...p, quantity: q, maxQuantity: cap });
       }
     },
 
@@ -175,13 +242,23 @@ const cartSlice = createSlice({
 
     updateQuantity: (state, action: PayloadAction<{ cartLineId: string; quantity: number }>) => {
       const item = state.items.find((i) => i.cartLineId === action.payload.cartLineId);
-      if (
-        item &&
-        action.payload.quantity <= item.maxQuantity &&
-        action.payload.quantity > 0
-      ) {
-        item.quantity = action.payload.quantity;
-      }
+      if (!item) return;
+      const cap = getLineStockCap(item);
+      item.maxQuantity = cap;
+      const q = action.payload.quantity;
+      if (!Number.isFinite(q) || q <= STOCK_QTY_EPS) return;
+      item.quantity = round2(Math.min(q, cap));
+    },
+
+    /** Sync caps from batch list and clamp qty — run before checkout. */
+    syncCartStockCaps: (state) => {
+      state.items.forEach((item) => {
+        const cap = getLineStockCap(item);
+        item.maxQuantity = cap;
+        if (item.quantity > cap + STOCK_QTY_EPS) {
+          item.quantity = cap;
+        }
+      });
     },
 
     /**
@@ -238,6 +315,11 @@ const cartSlice = createSlice({
         if (item.hasMultipleBatches == null) {
           item.hasMultipleBatches = inStock.length > 1;
         }
+        const cap = getLineStockCap(item);
+        item.maxQuantity = cap;
+        if (cap > 0 && item.quantity > cap + STOCK_QTY_EPS) {
+          item.quantity = round2(cap);
+        }
       });
     },
 
@@ -259,10 +341,12 @@ const cartSlice = createSlice({
       item.purchaseDetailId = batch.purchaseDetailId;
       item.batchNumber = batch.batchNumber;
       item.expiryDate = batch.expiryDate ?? null;
-      item.maxQuantity = batch.remainingQuantity;
+      item.maxQuantity = Math.max(0, Number(batch.remainingQuantity) || 0);
       item.unitPriceIncVat = batch.sellingPrice;
       item.unitPriceExVat = batch.sellingPriceExVat;
-      if (item.quantity > item.maxQuantity) item.quantity = item.maxQuantity;
+      const cap = getLineStockCap(item);
+      item.maxQuantity = cap;
+      if (item.quantity > cap) item.quantity = round2(cap);
     },
 
     setLineSellingPrices: (
@@ -334,6 +418,7 @@ export const {
   removeFromCart,
   updateQuantity,
   sanitizeCartLinesForPos,
+  syncCartStockCaps,
   switchLineBatch,
   setLineSellingPrices,
   updateItemDiscount,

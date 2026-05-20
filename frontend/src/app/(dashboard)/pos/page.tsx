@@ -14,6 +14,9 @@ import {
   AlertTriangle,
   Check,
   X,
+  Undo2,
+  History,
+  ShoppingBag,
 } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
 import { buildCartItemFromScan, incVatToExVat, selectBatchForNextScan } from "@/lib/saleScan";
@@ -46,6 +49,9 @@ import {
   selectCartVatTotal,
   selectCartGrossBeforeCartDiscount,
   type CartItem,
+  validateCartStockForSale,
+  getLineStockCap,
+  syncCartStockCaps,
 } from "@/store/slices/cart/cart.slice";
 import { createSale, scanPosBarcode, validatePosPriceOverride } from "@/store/slices/sale/sale.slice";
 import { buildPosReceiptSnapshot } from "@/lib/posReceipt";
@@ -412,7 +418,28 @@ export default function POSPage() {
       );
       return;
     }
-    const payload = buildCreateSaleRequest(cart);
+    (document.activeElement as HTMLElement | null)?.blur?.();
+
+    const overStockBefore = items.some(
+      (i) => (i.quantity ?? 0) > getLineStockCap(i) + 0.0001
+    );
+    dispatch(syncCartStockCaps());
+    const freshItems = store.getState().cart.items;
+    const stockCheck = validateCartStockForSale(freshItems);
+    if (!stockCheck.ok || overStockBefore) {
+      dispatch(
+        addToast({
+          type: "error",
+          title: stockCheck.ok ? "Quantity exceeds stock" : stockCheck.title,
+          message: stockCheck.ok
+            ? "One or more lines exceed available stock. Quantity was reduced to the maximum allowed."
+            : stockCheck.message,
+          duration: 6000,
+        })
+      );
+      return;
+    }
+    const payload = buildCreateSaleRequest(store.getState().cart);
     const result = await dispatch(createSale(payload));
     if (createSale.rejected.match(result)) {
       dispatch(
@@ -510,100 +537,82 @@ export default function POSPage() {
           queueMicrotask(() => barcodeRef.current?.focus({ preventScroll: true }));
         }}
       />
-    <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden bg-slate-50/80 px-2 pb-2 pt-2 sm:gap-3 sm:px-3 sm:pb-3 sm:pt-3">
-      <div className="shrink-0 rounded-lg border border-slate-200 bg-white shadow-sm">
-        <div className="px-2 py-2 sm:px-3 sm:py-2.5">
-          <div className="grid w-full grid-cols-1 gap-2 sm:gap-3 md:grid-cols-12 md:items-end">
-            <div className="min-w-0 md:col-span-6 lg:col-span-7">
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 sm:text-xs">
-                Barcode
-              </label>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
-                <div className="relative min-w-0 flex-1">
-                  <Barcode className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <input
-                    ref={barcodeRef}
-                    type="text"
-                    autoComplete="off"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    placeholder="Scan or type, Enter"
-                    value={barcodeInput}
-                    onChange={(e) => setBarcodeInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        void submitScan();
-                      }
-                    }}
-                    disabled={scanning}
-                    className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-3 text-sm font-mono focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:h-10 sm:pl-10 sm:text-sm"
-                  />
-                </div>
-                <div className="flex w-full shrink-0 gap-2 sm:w-auto">
-                  {/*
-                  <button
-                    type="button"
-                    disabled={scanning}
-                    onClick={() => setCameraScannerOpen(true)}
-                    className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-40 sm:flex-initial sm:px-4"
-                    title="Scan with device camera"
-                  >
-                    <Camera className="h-4 w-4 shrink-0 text-blue-600" />
-                    <span>Camera</span>
-                  </button>
-                  */}
-                  <button
-                    type="button"
-                    disabled={scanning || !barcodeInput.trim()}
-                    onClick={() => void submitScan()}
-                    className="flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-40 sm:flex-initial sm:px-5"
-                  >
-                    {scanning ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                    Add
-                  </button>
-                </div>
-              </div>
-              <p className="mt-1 hidden text-[10px] text-slate-500 sm:block sm:text-xs">
-                USB scanner: keep this field focused — it refocuses after each scan. Repeat scan adds qty;
-                at batch max, scan again for the next batch.
-              </p>
-            </div>
-            <div className="min-w-0 md:col-span-4 lg:col-span-3">
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 sm:text-xs">
-                Customer
-              </label>
-              {paymentMethod === "credit" ? (
-                <CreditCustomerSummary
-                  walkInId={WALK_IN_CUSTOMER_ID}
-                  options={dropdownCustomers}
-                  customerId={customerId}
-                  customerName={customerName}
-                />
-              ) : (
-                <div className="flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700">
-                  <span className="font-semibold">Walking customer</span>
-                  <span className="ml-2 text-xs tabular-nums text-slate-400">
-                    ID {WALK_IN_CUSTOMER_ID}
-                  </span>
-                </div>
-              )}
-            </div>
-            <div className="flex items-center justify-end md:col-span-2 lg:col-span-2 md:justify-end md:pb-0.5">
-              <Link
-                href="/sales"
-                className="text-xs font-semibold text-blue-600 underline-offset-2 hover:underline sm:text-sm"
-              >
-                Sales history
-              </Link>
-            </div>
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-gradient-to-br from-slate-100 via-indigo-50/30 to-slate-100">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-indigo-200/50 bg-white/95 px-2 py-1.5 shadow-sm sm:px-3">
+        <p className="text-xs font-bold text-slate-700 sm:text-sm">POS Terminal</p>
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          <Link
+            href="/sales/return"
+            className="inline-flex h-8 items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 text-xs font-bold text-amber-900 hover:bg-amber-100"
+          >
+            <Undo2 className="h-3.5 w-3.5" />
+            Return
+          </Link>
+          <Link
+            href="/sales"
+            className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            <History className="h-3.5 w-3.5 text-slate-500" />
+            History
+          </Link>
+          <div className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-2.5 py-1 text-white shadow-md">
+            <ShoppingBag className="h-3.5 w-3.5 text-indigo-300" />
+            <span className="text-xs font-black tabular-nums">{formatCurrency(grandTotal)}</span>
+            <span className="text-[10px] text-slate-400">({itemCount})</span>
           </div>
+        </div>
+        <div className="sr-only" aria-hidden>
+          {paymentMethod === "credit" ? (
+            <CreditCustomerSummary
+              walkInId={WALK_IN_CUSTOMER_ID}
+              options={dropdownCustomers}
+              customerId={customerId}
+              customerName={customerName}
+            />
+          ) : (
+            <span>Walking customer ID {WALK_IN_CUSTOMER_ID}</span>
+          )}
         </div>
       </div>
 
-      <div className="grid min-h-0 w-full flex-1 grid-cols-1 gap-2 sm:gap-3 lg:grid-cols-[minmax(0,1fr)_min(18rem,92vw)] xl:grid-cols-[minmax(0,1fr)_20rem] 2xl:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-100 px-2 py-2 sm:px-3 sm:py-2">
+      <div className="grid min-h-0 w-full flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_min(20rem,38vw)] xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden border-b border-slate-200/80 bg-white/90 lg:border-b-0 lg:border-r">
+          <div className="shrink-0 border-b border-indigo-100 bg-gradient-to-r from-indigo-50/90 to-white px-2 py-2 sm:px-3">
+            <div className="flex gap-2">
+              <div className="relative min-w-0 flex-1">
+                <Barcode className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-indigo-500" />
+                <input
+                  ref={barcodeRef}
+                  type="text"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  placeholder="Scan barcode — Enter to add"
+                  value={barcodeInput}
+                  onChange={(e) => setBarcodeInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void submitScan();
+                    }
+                  }}
+                  disabled={scanning}
+                  className="h-10 w-full rounded-xl border-2 border-indigo-100 bg-white py-2 pl-10 pr-3 font-mono text-sm shadow-inner focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                />
+              </div>
+              <button
+                type="button"
+                disabled={scanning || !barcodeInput.trim()}
+                onClick={() => void submitScan()}
+                className="flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 text-sm font-bold text-white shadow-md hover:from-indigo-500 hover:to-violet-500 disabled:opacity-40"
+              >
+                {scanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                Add
+              </button>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/50 px-2 py-1.5 sm:px-3">
             <div className="flex min-w-0 items-center gap-2">
               <Receipt className="h-4 w-4 shrink-0 text-slate-500" />
               <span className="truncate text-sm font-bold text-slate-800">Cart</span>
@@ -623,11 +632,17 @@ export default function POSPage() {
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-2 sm:p-3">
             {items.length === 0 ? (
-              <p className="py-8 text-center text-sm text-slate-500 sm:py-12">
-                Scan a barcode to add a line.
-              </p>
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-500">
+                  <Barcode className="h-7 w-7" />
+                </div>
+                <p className="text-sm font-semibold text-slate-700">Ready to scan</p>
+                <p className="mt-1 max-w-xs text-xs text-slate-500">
+                  Scan or type a barcode and press Enter
+                </p>
+              </div>
             ) : (
-              <ul className="space-y-2 sm:space-y-3">
+              <ul className="divide-y divide-slate-100">
                 {items.map((item, index) => (
                   <LineRow
                     key={item.cartLineId ?? `${item.lineKey ?? "line"}-${index}`}
@@ -637,18 +652,26 @@ export default function POSPage() {
               </ul>
             )}
           </div>
-        </div>
+        </section>
 
-        <div className="flex min-h-0 w-full min-w-0 flex-col gap-2 sm:gap-3 lg:max-h-full lg:overflow-y-auto">
-          <div className="rounded-lg border border-slate-200 bg-white p-2.5 text-xs shadow-sm sm:p-3 sm:text-sm">
-            <div className="space-y-1 border-b border-slate-100 pb-2">
-              <Row label="Net (ex VAT)" value={formatCurrency(netExVat)} />
-              <Row label="VAT" value={formatCurrency(vatTotal)} />
-              {saleDiscountAmount > 0 && (
-                <Row label="Sale discount" value={`−${formatCurrency(saleDiscountAmount)}`} muted />
-              )}
-            </div>
-            <div className="mt-2 grid grid-cols-2 gap-1.5">
+        <aside className="flex min-h-0 w-full min-w-0 flex-col overflow-hidden bg-gradient-to-b from-slate-900 via-slate-900 to-indigo-950 text-white shadow-xl">
+          <div className="shrink-0 border-b border-white/10 px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-indigo-300">
+              Total due
+            </p>
+            <p className="text-2xl font-black tabular-nums sm:text-4xl">
+              {formatCurrency(grandTotal)}
+            </p>
+            <p className="mt-1 text-[11px] text-slate-400">
+              Net {formatCurrency(netExVat)} · VAT {formatCurrency(vatTotal)}
+              {saleDiscountAmount > 0 ? ` · Disc −${formatCurrency(saleDiscountAmount)}` : ""}
+            </p>
+          </div>
+
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-2 scrollbar-thin">
+            <div className="rounded-xl bg-white/10 p-2">
+              <p className="mb-1.5 text-[10px] font-bold uppercase text-indigo-200">Sale discount</p>
+            <div className="grid grid-cols-2 gap-1.5">
               <select
                 value={saleDiscountType}
                 onChange={(e) =>
@@ -659,10 +682,10 @@ export default function POSPage() {
                     })
                   )
                 }
-                className="h-9 min-w-0 rounded-md border border-slate-200 bg-white px-1.5 text-xs font-medium text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:px-2 sm:text-sm"
+                className="h-8 min-w-0 rounded-lg border-0 bg-white/15 px-2 text-xs font-medium text-white focus:ring-2 focus:ring-indigo-400"
               >
-                <option value="fixed">Sale Disc (Amt)</option>
-                <option value="percentage">Sale Disc (%)</option>
+                <option value="fixed" className="text-slate-900">Amount</option>
+                <option value="percentage" className="text-slate-900">%</option>
               </select>
               <DecimalInput
                 value={saleDiscountValue}
@@ -683,19 +706,10 @@ export default function POSPage() {
                 className="h-9 rounded-md border-slate-200 px-2 text-right text-xs font-semibold sm:text-sm"
               />
             </div>
-            <div className="flex items-center justify-between pt-2 text-base font-bold text-slate-900 sm:text-lg">
-              <span>Total</span>
-              <span className="tabular-nums">{formatCurrency(grandTotal)}</span>
             </div>
-            {cart.discountValue > 0 && grossBeforeCartDisc > grandTotal && (
-              <p className="mt-0.5 text-[10px] text-slate-400">
-                Before discount: {formatCurrency(grossBeforeCartDisc)}
-              </p>
-            )}
-          </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm sm:p-3">
-            <p className="mb-2 text-xs font-bold text-slate-600 sm:text-sm">Payment</p>
+            <div className="rounded-xl bg-white/10 p-2">
+              <p className="mb-1.5 text-[10px] font-bold uppercase text-indigo-200">Payment</p>
             <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
               {PAYMENT_OPTIONS.map(({ value, label, icon: Icon }) => (
                 <button
@@ -703,10 +717,10 @@ export default function POSPage() {
                   type="button"
                   onClick={() => applyPaymentMethod(value)}
                   className={cn(
-                    "flex flex-col items-center justify-center gap-0.5 rounded-lg border py-1.5 text-[10px] font-semibold leading-tight transition-colors sm:gap-1 sm:py-2 sm:text-xs",
+                    "flex items-center justify-center gap-1.5 rounded-lg border py-2 text-[11px] font-bold transition",
                     paymentMethod === value
-                      ? "border-blue-500 bg-blue-50 text-blue-900"
-                      : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                      ? "border-emerald-400 bg-emerald-500/30 text-white"
+                      : "border-white/20 bg-white/5 text-slate-200 hover:bg-white/10"
                   )}
                 >
                   <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -725,7 +739,7 @@ export default function POSPage() {
               />
             ) : null}
             <div className="mt-2">
-              <label className="mb-1 block text-[10px] font-semibold text-slate-500 sm:text-xs">
+              <label className="mb-1 block text-[10px] font-semibold text-indigo-200">
                 Payment received into
               </label>
               <select
@@ -737,7 +751,7 @@ export default function POSPage() {
                     )
                   )
                 }
-                className="h-9 w-full max-w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:text-sm"
+                className="h-8 w-full max-w-full rounded-lg border-0 bg-white/15 px-2 text-xs font-medium text-white focus:ring-2 focus:ring-indigo-400"
               >
                 <option value={CASH_DEPOSIT_ACCOUNT_ID}>Cash</option>
                 {bankAccountsExcludingCash.map((a) => (
@@ -749,18 +763,18 @@ export default function POSPage() {
             </div>
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm sm:p-3">
-            <div className="mb-1.5 flex flex-wrap items-center justify-between gap-1">
-              <label className="text-xs font-bold text-slate-600 sm:text-sm">
-                {paymentMethod === "credit" ? "Amount paid now" : "Paid"}
+          <div className="rounded-xl bg-white/10 p-2">
+            <div className="mb-1 flex flex-wrap items-center justify-between gap-1">
+              <label className="text-[10px] font-bold uppercase text-indigo-200">
+                {paymentMethod === "credit" ? "Paid now" : "Paid"}
               </label>
               {paymentMethod === "credit" && grandTotal > 0 && (
                 <button
                   type="button"
                   onClick={() => dispatch(setPaidAmount(grandTotal))}
-                  className="text-[10px] font-semibold text-blue-600 hover:underline sm:text-xs"
+                  className="text-[10px] font-semibold text-indigo-300 hover:text-white"
                 >
-                  Pay full amount
+                  Pay full
                 </button>
               )}
             </div>
@@ -775,93 +789,64 @@ export default function POSPage() {
               }}
               emptyWhenZero={paymentMethod === "credit"}
               placeholder="0.00"
-              className="mb-1.5 h-10 rounded-lg border-slate-200 px-3 text-right text-lg font-bold sm:h-11 sm:text-xl"
+              className="h-9 rounded-lg border-0 bg-white/15 px-2 text-right text-base font-bold text-white"
             />
-            {paymentMethod === "walking" && grandTotal > 0 && (
-              <p className="mb-1 text-[10px] text-slate-500 sm:text-xs">
-                Paid defaults to the sale total. Enter a higher amount to show change to give back.
-              </p>
-            )}
-            {paymentMethod === "credit" && (
-              <p className="mb-1 text-[10px] leading-snug text-slate-500 sm:text-xs">
-                Below invoice total → <span className="font-semibold text-slate-700">on account</span>.
-                Above total → <span className="font-semibold text-slate-700">credited to customer</span>{" "}
-                (not change).
-              </p>
-            )}
-            {paymentMethod === "credit" && onAccountAmount > 0 && (
-              <p className="text-xs font-semibold text-indigo-900 sm:text-sm">
-                On account: <strong>{formatCurrency(onAccountAmount)}</strong>
-              </p>
-            )}
-            {paymentMethod === "credit" && accountCreditAmount > 0 && grandTotal > 0 && (
-              <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50/90 px-3 py-2.5 text-xs shadow-sm sm:text-sm">
-                <p className="font-bold uppercase tracking-wide text-blue-900">
-                  Credit to customer account
-                </p>
-                <p className="mt-1.5 flex flex-wrap items-baseline justify-between gap-2 tabular-nums text-blue-950">
-                  <span>
-                    Invoice <strong>{formatCurrency(grandTotal)}</strong>
-                    <span className="mx-1 text-blue-700">·</span>
-                    Tendered <strong>{formatCurrency(tender)}</strong>
-                  </span>
-                  <span className="text-base font-extrabold text-blue-800 sm:text-lg">
-                    = {formatCurrency(accountCreditAmount)}
-                  </span>
-                </p>
-              </div>
-            )}
-            {changeDue > 0 && grandTotal > 0 && (
-              <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50/90 px-3 py-2.5 text-xs shadow-sm sm:text-sm">
-                <p className="font-bold uppercase tracking-wide text-emerald-900">Change to return</p>
-                <p className="mt-1.5 flex flex-wrap items-baseline justify-between gap-2 tabular-nums text-emerald-950">
-                  <span>
-                    Tendered <strong>{formatCurrency(tender)}</strong>
-                    <span className="mx-1 text-emerald-700">−</span>
-                    Total <strong>{formatCurrency(grandTotal)}</strong>
-                  </span>
-                  <span className="text-base font-extrabold text-emerald-800 sm:text-lg">
-                    = {formatCurrency(changeDue)}
-                  </span>
-                </p>
-              </div>
-            )}
-            {changeDue > 0 && grandTotal <= 0 && (
-              <p className="mt-0.5 text-xs text-emerald-800 sm:text-sm">
-                Change: <strong>{formatCurrency(changeDue)}</strong>
-              </p>
-            )}
-            {amountDue > 0 && (
-              <p className="mt-0.5 text-xs text-amber-800 sm:text-sm">
-                Due: <strong>{formatCurrency(amountDue)}</strong>
-              </p>
-            )}
-            <label className="mb-1 mt-2 block text-xs font-bold text-slate-600 sm:text-sm">Note</label>
+            <label className="mb-0.5 mt-1.5 block text-[10px] font-bold uppercase text-indigo-200">Note</label>
             <input
               type="text"
               value={note}
               onChange={(e) => dispatch(setNote(e.target.value))}
               placeholder="Optional"
-              className="h-9 w-full rounded-lg border border-slate-200 px-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:h-10 sm:px-3 sm:text-sm"
+              className="h-8 w-full rounded-lg border-0 bg-white/15 px-2 text-xs text-white placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-400"
             />
           </div>
+          </div>
 
-          <button
-            type="button"
-            disabled={items.length === 0 || actionLoading}
-            onClick={() => void handleCompleteSale()}
-            className="flex h-11 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-40 sm:h-12 sm:rounded-xl sm:text-base"
-          >
-            {actionLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Saving…
-              </>
-            ) : (
-              "Complete sale"
+          <div className="shrink-0 space-y-2 border-t border-white/10 bg-slate-950/90 px-3 py-2">
+            {(changeDue > 0 || onAccountAmount > 0 || accountCreditAmount > 0 || amountDue > 0) && (
+              <div className="flex flex-wrap gap-1.5">
+                {changeDue > 0 && (
+                  <span className="rounded-lg bg-emerald-500/25 px-2 py-1 text-xs font-bold text-emerald-200">
+                    Change {formatCurrency(changeDue)}
+                  </span>
+                )}
+                {onAccountAmount > 0 && (
+                  <span className="rounded-lg bg-indigo-500/25 px-2 py-1 text-xs font-bold text-indigo-200">
+                    On account {formatCurrency(onAccountAmount)}
+                  </span>
+                )}
+                {accountCreditAmount > 0 && (
+                  <span className="rounded-lg bg-blue-500/25 px-2 py-1 text-xs font-bold text-blue-200">
+                    Credit {formatCurrency(accountCreditAmount)}
+                  </span>
+                )}
+                {amountDue > 0 && (
+                  <span className="rounded-lg bg-amber-500/25 px-2 py-1 text-xs font-bold text-amber-200">
+                    Due {formatCurrency(amountDue)}
+                  </span>
+                )}
+              </div>
             )}
-          </button>
-        </div>
+            <button
+              type="button"
+              disabled={items.length === 0 || actionLoading}
+              onClick={() => void handleCompleteSale()}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-base font-black text-white shadow-lg transition hover:from-emerald-400 hover:to-teal-400 disabled:opacity-40"
+            >
+              {actionLoading ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                <>
+                  <Check className="h-5 w-5" />
+                  Complete sale
+                </>
+              )}
+            </button>
+          </div>
+        </aside>
       </div>
     </div>
     </>
@@ -1006,7 +991,8 @@ function Row({ label, value, muted }: { label: string; value: string; muted?: bo
 function LineRow({ item }: { item: CartItem }) {
   const dispatch = useAppDispatch();
   const lineId = item.cartLineId ?? "";
-  const isAtQtyLimit = item.quantity >= item.maxQuantity && item.maxQuantity > 0;
+  const stockCap = getLineStockCap(item);
+  const isAtQtyLimit = item.quantity >= stockCap - 0.0001 && stockCap > 0;
   const lineDiscountType = item.discountType ?? "fixed";
   const [priceInput, setPriceInput] = useState(() =>
     Number(item.unitPriceIncVat ?? 0).toFixed(2)
@@ -1022,17 +1008,24 @@ function LineRow({ item }: { item: CartItem }) {
   const batches = item.availableBatches ?? [];
   const batchCount = batches.filter((b) => (b.remainingQuantity ?? 0) > 0).length;
   const showBatchPicker = Boolean(item.hasMultipleBatches) && batchCount > 1;
-  const maxQty =
-    item.maxQuantity > 0 ? item.maxQuantity : Math.max(POS_MIN_QTY, item.quantity);
+  const maxQty = stockCap > 0 ? stockCap : POS_MIN_QTY;
 
   const setLineQty = (raw: number) => {
     if (!lineId) return;
     let n = round2(raw);
     if (!Number.isFinite(n) || n <= 0) n = POS_MIN_QTY;
-    n = round2(Math.max(POS_MIN_QTY, Math.min(n, maxQty)));
-    if (Math.abs(n - item.quantity) > 0.0001) {
-      dispatch(updateQuantity({ cartLineId: lineId, quantity: n }));
+    const capped = round2(Math.max(POS_MIN_QTY, Math.min(n, maxQty)));
+    if (raw > maxQty + 0.0001) {
+      dispatch(
+        addToast({
+          type: "warning",
+          title: "Stock limit",
+          message: `Max ${maxQty} available for this batch.`,
+          duration: 3500,
+        })
+      );
     }
+    dispatch(updateQuantity({ cartLineId: lineId, quantity: capped }));
   };
 
   const validateAndApplyPrice = async () => {
@@ -1088,9 +1081,9 @@ function LineRow({ item }: { item: CartItem }) {
   };
 
   return (
-    <li className="rounded-lg border border-slate-200 bg-white p-2.5 text-sm shadow-sm sm:p-3">
-      <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2">
-        <p className="min-w-0 flex-1 text-sm font-bold leading-snug text-slate-900 sm:text-base">
+    <li className="px-2 py-2.5 text-sm transition hover:bg-indigo-50/40 sm:px-3">
+      <div className="flex items-start justify-between gap-2">
+        <p className="min-w-0 flex-1 text-sm font-bold leading-snug text-slate-900">
           {item.name}
         </p>
         <button
@@ -1148,6 +1141,7 @@ function LineRow({ item }: { item: CartItem }) {
             </button>
             <DecimalInput
               min={POS_MIN_QTY}
+              max={maxQty}
               emptyWhenZero={false}
               value={item.quantity}
               onChange={setLineQty}
@@ -1268,7 +1262,7 @@ function LineRow({ item }: { item: CartItem }) {
       )}
 
       <p className="mt-1 text-[10px] text-slate-400">
-        {item.productCode} · Max {item.maxQuantity} {item.unitOfMeasurement}
+        {item.productCode} · Max {stockCap} {item.unitOfMeasurement}
       </p>
       {isAtQtyLimit && (
         <p className="mt-1 text-[10px] font-semibold leading-snug text-rose-600 sm:text-xs">

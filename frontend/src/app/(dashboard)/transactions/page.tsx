@@ -1,12 +1,14 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import {
   ArrowLeftRight,
   BookOpen,
   ChevronLeft,
   ChevronRight,
   Loader2,
+  PlusCircle,
   RefreshCw,
   Scale,
   Search,
@@ -82,6 +84,15 @@ export default function TransactionsPage() {
           { label: "Dashboard", href: "/dashboard" },
           { label: "Transactions" },
         ]}
+        actions={
+          <Link
+            href="/transactions/new"
+            className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+          >
+            <PlusCircle className="h-4 w-4" />
+            Record transaction
+          </Link>
+        }
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

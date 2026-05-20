@@ -26,6 +26,7 @@ interface DecimalInputProps {
   placeholder?: string;
   disabled?: boolean;
   min?: number;
+  max?: number;
   /** Whole numbers only (quantity, etc.) */
   integer?: boolean;
   emptyWhenZero?: boolean;
@@ -39,6 +40,7 @@ export default function DecimalInput({
   placeholder = "0",
   disabled,
   min = 0,
+  max,
   integer = false,
   emptyWhenZero = true,
 }: DecimalInputProps) {
@@ -68,13 +70,18 @@ export default function DecimalInput({
         const raw = e.target.value;
         if (raw !== "" && !pattern.test(raw)) return;
         setText(raw);
-        onChange(parseDecimalInput(raw));
+        let n = parseDecimalInput(raw);
+        if (integer) n = Math.round(n);
+        if (min != null) n = Math.max(min, n);
+        if (max != null && Number.isFinite(max)) n = Math.min(max, n);
+        onChange(n);
       }}
       onBlur={() => {
         focusedRef.current = false;
         let n = parseDecimalInput(text);
         if (integer) n = Math.round(n);
         if (min != null) n = Math.max(min, n);
+        if (max != null && Number.isFinite(max)) n = Math.min(max, n);
         onChange(n);
         setText(formatDecimalInputValue(n, emptyWhenZero));
       }}

@@ -37,13 +37,25 @@ export interface PaginatedTransactionResponse {
   hasNextPage: boolean;
 }
 
+export interface CreateTransactionDetailLine {
+  accountType: string;
+  accountName: string;
+  refTable: string | null;
+  refId: number | null;
+  bankAccountId: number | null;
+  debit: number;
+  credit: number;
+  description: string;
+}
+
 export interface CreateTransactionRequest {
   transactionDate: string;
   title: string;
   referenceNo?: string;
   description?: string;
   status?: string;
-  transactionDetails: Omit<TransactionDetail, "detailId">[];
+  createdBy?: number | null;
+  transactionDetails: CreateTransactionDetailLine[];
 }
 
 export interface UpdateTransactionRequest extends CreateTransactionRequest {

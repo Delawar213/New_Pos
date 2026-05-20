@@ -108,6 +108,15 @@ export function buildCartItemFromScan(
   const hasMultipleBatches =
     Boolean(root.hasMultipleBatches) && inStockBatches.length > 1;
 
+  const batchRem = Math.max(0, Number(fifo.remainingQuantity) || 0);
+  const productStock = Math.max(0, Number(root.qtyInStock) || 0);
+  const stockCap =
+    batchRem > 0 && productStock > 0
+      ? Math.min(batchRem, productStock)
+      : batchRem > 0
+        ? batchRem
+        : productStock;
+
   return {
     cartLineId: newCartLineId(),
     lineKey,
@@ -125,7 +134,8 @@ export function buildCartItemFromScan(
     vatRate,
     isVatExempt: root.isVatExempt,
     quantity: 1,
-    maxQuantity: fifo.remainingQuantity,
+    maxQuantity: stockCap,
+    qtyInStock: productStock,
     discountType: "fixed",
     discountValue: 0,
     hasMultipleBatches,

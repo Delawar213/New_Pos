@@ -226,7 +226,22 @@ function parseScanResponse(body: ApiResponse<SaleBarcodeScanData>): {
   if (data == null || typeof data !== "object") {
     return { data: null, error: "No product returned for this barcode." };
   }
-  return { data, error: null };
+  const normalized = normalizeScanData(data);
+  return { data: normalized, error: null };
+}
+
+function normalizeScanData(data: SaleBarcodeScanData): SaleBarcodeScanData {
+  return {
+    ...data,
+    qtyInStock: num(data.qtyInStock),
+    remainingQuantity: num(data.remainingQuantity),
+    availableBatches: (data.availableBatches ?? []).map((b) => ({
+      ...b,
+      remainingQuantity: num(b.remainingQuantity),
+      sellingPrice: num(b.sellingPrice),
+      sellingPriceExVat: num(b.sellingPriceExVat),
+    })),
+  };
 }
 
 /** GET scan — uses first working route: Sales/sales/pos. */

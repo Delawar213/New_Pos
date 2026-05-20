@@ -29,6 +29,8 @@ export interface BankAccountDropdown {
   accountName: string;
   accountType: string;
   currentBalance: number;
+  refTable?: string | null;
+  refId?: number | null;
 }
 
 export interface CreateBankAccountRequest {
