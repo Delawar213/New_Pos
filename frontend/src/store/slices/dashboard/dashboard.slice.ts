@@ -3,7 +3,7 @@ import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import { configureSlice } from "@/lib/utils";
 import { createAuthenticatedAxios } from "@/lib/createAuthenticatedAxios";
 import { getApiErrorMessage } from "@/lib/apiResult";
-import type { DashboardSummary } from "@/types/dashboard";
+import type { DashboardSummary, ProfitRangeParams, ProfitRangeReport, ProfitInvoiceRow } from "@/types/dashboard";
 import type { RootState } from "@/store";
 
 interface ApiEnvelope<T> {
@@ -64,16 +64,53 @@ function normalizeSummary(raw: Record<string, unknown>): DashboardSummary {
   };
 }
 
+function normalizeProfitInvoice(row: Record<string, unknown>): ProfitInvoiceRow {
+  return {
+    saleId: num(row.saleId),
+    invoiceNumber: String(row.invoiceNumber ?? ""),
+    saleDate: String(row.saleDate ?? ""),
+    customerName: String(row.customerName ?? ""),
+    totalItems: num(row.totalItems),
+    subtotalExVat: num(row.subtotalExVat),
+    discountAmount: num(row.discountAmount),
+    netAmountExVat: num(row.netAmountExVat),
+    totalVat: num(row.totalVat),
+    totalAmountIncVat: num(row.totalAmountIncVat),
+    totalCost: num(row.totalCost),
+    profitAmount: num(row.profitAmount),
+    profitPercentage: num(row.profitPercentage),
+    paymentStatus: String(row.paymentStatus ?? ""),
+  };
+}
+
+function normalizeProfitRange(raw: Record<string, unknown>): ProfitRangeReport {
+  const invRaw = Array.isArray(raw.invoices) ? raw.invoices : [];
+  return {
+    totalSales: num(raw.totalSales),
+    totalRevenue: num(raw.totalRevenue),
+    totalCost: num(raw.totalCost),
+    totalProfit: num(raw.totalProfit),
+    profitPercentage: num(raw.profitPercentage),
+    invoices: invRaw.map((row) => normalizeProfitInvoice(row as Record<string, unknown>)),
+  };
+}
+
 interface DashboardState {
   summary: DashboardSummary | null;
   loading: boolean;
   error: string | null;
+  profitReport: ProfitRangeReport | null;
+  profitLoading: boolean;
+  profitError: string | null;
 }
 
 const initialState: DashboardState = {
   summary: null,
   loading: false,
   error: null,
+  profitReport: null,
+  profitLoading: false,
+  profitError: null,
 };
 
 export const fetchDashboardSummary = createAsyncThunk<
@@ -101,12 +138,42 @@ export const fetchDashboardSummary = createAsyncThunk<
   }
 });
 
+export const fetchProfitByRange = createAsyncThunk<
+  ProfitRangeReport,
+  ProfitRangeParams,
+  { rejectValue: string; state: RootState }
+>("dashboard/fetchProfitByRange", async (params, { rejectWithValue }) => {
+  try {
+    const api = createAuthenticatedAxios();
+    const response = await api.get<ApiEnvelope<Record<string, unknown>>>(
+      "/proxy/dashboard/profit/range",
+      { params: { fromDate: params.fromDate, toDate: params.toDate } }
+    );
+    const failMsg = getApiErrorMessage(response.data);
+    if (failMsg) return rejectWithValue(failMsg);
+    const data = response.data?.data;
+    if (!data || typeof data !== "object") {
+      return rejectWithValue("Invalid profit report response.");
+    }
+    return normalizeProfitRange(data);
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string };
+    return rejectWithValue(
+      err.response?.data?.message || err.message || "Failed to load profit report"
+    );
+  }
+});
+
 const dashboardSlice = createSlice({
   name: "dashboard",
   initialState,
   reducers: {
     clearDashboardState(state) {
       state.error = null;
+    },
+    clearProfitReport(state) {
+      state.profitReport = null;
+      state.profitError = null;
     },
   },
   extraReducers: (builder) => {
@@ -122,10 +189,22 @@ const dashboardSlice = createSlice({
       state.loading = false;
       state.error = payload || "Failed to load dashboard";
     });
+    builder.addCase(fetchProfitByRange.pending, (state) => {
+      state.profitLoading = true;
+      state.profitError = null;
+    });
+    builder.addCase(fetchProfitByRange.fulfilled, (state, { payload }) => {
+      state.profitLoading = false;
+      state.profitReport = payload;
+    });
+    builder.addCase(fetchProfitByRange.rejected, (state, { payload }) => {
+      state.profitLoading = false;
+      state.profitError = payload || "Failed to load profit report";
+    });
   },
 });
 
-export const { clearDashboardState } = dashboardSlice.actions;
+export const { clearDashboardState, clearProfitReport } = dashboardSlice.actions;
 export const dashboardSliceConfig = configureSlice(dashboardSlice, false);
 
 export default dashboardSlice.reducer;

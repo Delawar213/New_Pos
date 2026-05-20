@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { PageHeader, SearchableSelect, StatsCard } from "@/components/ui";
 import type { SearchableSelectOption } from "@/components/ui";
+import { toSupplierSelectOptions } from "@/lib/partyDropdownLabels";
 import { SupplierLedgerTable } from "@/components/suppliers/SupplierLedgerTable";
 import { formatCurrency, cn } from "@/lib/utils";
 import {
@@ -85,15 +86,7 @@ export default function SupplierLedgerPage() {
     [dropdownSuppliers, suppliersFromList]
   );
 
-  const supplierOptions: SearchableSelectOption<number>[] = useMemo(
-    () =>
-      suppliers.map((s) => ({
-        value: s.supplierId,
-        label: `${s.supplierCode} — ${s.supplierName}`,
-        search: `${s.supplierCode} ${s.supplierName}`.toLowerCase(),
-      })),
-    [suppliers]
-  );
+  const supplierOptions = useMemo(() => toSupplierSelectOptions(suppliers), [suppliers]);
 
   const selectedSupplier = useMemo(
     () => suppliers.find((s) => s.supplierId === supplierId),

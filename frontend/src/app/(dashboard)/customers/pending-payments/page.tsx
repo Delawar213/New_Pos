@@ -15,6 +15,11 @@ import { SalePaymentModal } from "@/components/sales/SalePaymentModal";
 import type { CustomerPendingSale } from "@/types/customer";
 import type { Sale } from "@/types";
 import { cn, formatCurrency } from "@/lib/utils";
+import {
+  customerDropdownLabel,
+  customerSearchText,
+  pendingCustomerDropdownLabel,
+} from "@/lib/partyDropdownLabels";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   clearPendingPayments,
@@ -91,8 +96,8 @@ export default function CustomerPendingPaymentsPage() {
     const fromApi = pendingPayments?.customerSummaries ?? [];
     const fromDropdown = dropdownCustomers.map((c) => ({
       value: c.customerId,
-      label: `${c.customerCode} — ${c.customerName}`,
-      search: `${c.customerCode} ${c.customerName}`.toLowerCase(),
+      label: customerDropdownLabel(c),
+      search: customerSearchText(c),
     }));
     if (fromApi.length === 0) {
       return [{ value: 0, label: "All customers", search: "all" }, ...fromDropdown];
@@ -106,8 +111,8 @@ export default function CustomerPendingPaymentsPage() {
       seen.add(row.customerId);
       opts.push({
         value: row.customerId,
-        label: `${row.customerCode} — ${row.customerName}`,
-        search: `${row.customerCode} ${row.customerName}`.toLowerCase(),
+        label: pendingCustomerDropdownLabel(row),
+        search: customerSearchText(row),
       });
     }
     for (const d of fromDropdown) {

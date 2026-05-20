@@ -64,6 +64,10 @@ import {
 import { DecimalInput, SearchableSelect } from "@/components/ui";
 import type { SearchableSelectOption } from "@/components/ui";
 import { fetchBankAccountsDropdown } from "@/store/slices/bankAccount/bankAccount.slice";
+import {
+  bankAccountDropdownLabel,
+  toCustomerSelectOptions,
+} from "@/lib/partyDropdownLabels";
 // import { BarcodeCameraScanner } from "@/components/pos/BarcodeCameraScanner";
 
 /** Default retail / walk-in customer id expected by the sales API. */
@@ -250,6 +254,10 @@ export default function POSPage() {
   const bankAccountsExcludingCash = useMemo(
     () =>
       bankDropdownAccounts.filter((a) => a.bankAccountId !== CASH_DEPOSIT_ACCOUNT_ID),
+    [bankDropdownAccounts]
+  );
+  const cashDepositAccount = useMemo(
+    () => bankDropdownAccounts.find((a) => a.bankAccountId === CASH_DEPOSIT_ACCOUNT_ID),
     [bankDropdownAccounts]
   );
 
@@ -777,7 +785,9 @@ export default function POSPage() {
                 className="h-8 w-full max-w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-900 [color-scheme:light] focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200"
               >
                 <option value={CASH_DEPOSIT_ACCOUNT_ID} className="bg-white text-slate-900">
-                  Cash
+                  {cashDepositAccount
+                    ? bankAccountDropdownLabel(cashDepositAccount)
+                    : "Cash — " + formatCurrency(0)}
                 </option>
                 {bankAccountsExcludingCash.map((a) => (
                   <option
@@ -785,7 +795,7 @@ export default function POSPage() {
                     value={a.bankAccountId}
                     className="bg-white text-slate-900"
                   >
-                    {a.accountName} ({a.accountType})
+                    {bankAccountDropdownLabel(a)}
                   </option>
                 ))}
               </select>
@@ -951,13 +961,8 @@ function CreditCustomerPicker({
     [options, walkInId]
   );
 
-  const selectOptions: SearchableSelectOption<number>[] = useMemo(
-    () =>
-      creditOptions.map((c) => ({
-        value: c.customerId,
-        label: `${c.customerCode} — ${c.customerName}`,
-        search: `${c.customerCode} ${c.customerName} ${c.customerTypeName ?? ""}`.toLowerCase(),
-      })),
+  const selectOptions = useMemo(
+    () => toCustomerSelectOptions(creditOptions),
     [creditOptions]
   );
 

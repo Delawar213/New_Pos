@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { PageHeader, SearchableSelect, StatsCard } from "@/components/ui";
 import type { SearchableSelectOption } from "@/components/ui";
+import { toCustomerSelectOptions } from "@/lib/partyDropdownLabels";
 import { CustomerLedgerTable } from "@/components/customers/CustomerLedgerTable";
 import { formatCurrency, cn } from "@/lib/utils";
 import {
@@ -86,15 +87,7 @@ export default function CustomerLedgerPage() {
     [dropdownCustomers, customersFromList]
   );
 
-  const customerOptions: SearchableSelectOption<number>[] = useMemo(
-    () =>
-      customers.map((c) => ({
-        value: c.customerId,
-        label: `${c.customerCode} — ${c.customerName}`,
-        search: `${c.customerCode} ${c.customerName} ${c.customerTypeName ?? ""}`.toLowerCase(),
-      })),
-    [customers]
-  );
+  const customerOptions = useMemo(() => toCustomerSelectOptions(customers), [customers]);
 
   const selectedCustomer = useMemo(
     () => customers.find((c) => c.customerId === customerId),

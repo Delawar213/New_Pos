@@ -40,3 +40,37 @@ export interface DashboardSummary {
   topSellingProducts: DashboardTopSellingProduct[];
   recentTransactions: DashboardRecentTransaction[];
 }
+
+/** Query params for GET /api/Dashboard/profit/range */
+export interface ProfitRangeParams {
+  fromDate: string;
+  toDate: string;
+}
+
+/** Invoice row in profit range report */
+export interface ProfitInvoiceRow {
+  saleId: number;
+  invoiceNumber: string;
+  saleDate: string;
+  customerName: string;
+  totalItems: number;
+  subtotalExVat: number;
+  discountAmount: number;
+  netAmountExVat: number;
+  totalVat: number;
+  totalAmountIncVat: number;
+  totalCost: number;
+  profitAmount: number;
+  profitPercentage: number;
+  paymentStatus: string;
+}
+
+/** `data` from GET /api/Dashboard/profit/range */
+export interface ProfitRangeReport {
+  totalSales: number;
+  totalRevenue: number;
+  totalCost: number;
+  totalProfit: number;
+  profitPercentage: number;
+  invoices: ProfitInvoiceRow[];
+}

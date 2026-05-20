@@ -13,6 +13,7 @@ import {
   processSaleReturn,
 } from "@/store/slices/sale/sale.slice";
 import { fetchBankAccountsDropdown } from "@/store/slices/bankAccount/bankAccount.slice";
+import { bankAccountDropdownLabel } from "@/lib/partyDropdownLabels";
 import { addToast } from "@/store/slices/ui/ui.slice";
 import { Loader2, Search, RotateCcw } from "lucide-react";
 
@@ -191,6 +192,10 @@ export default function SaleReturnPage() {
   };
 
   const canReturn = sale && !isCancelled(sale) && returnable.length > 0;
+  const cashAccount = useMemo(
+    () => bankAccounts.find((a) => a.bankAccountId === CASH_ACCOUNT_ID),
+    [bankAccounts]
+  );
   const banksExCash = bankAccounts.filter((a) => a.bankAccountId !== CASH_ACCOUNT_ID);
 
   return (
@@ -331,10 +336,14 @@ export default function SaleReturnPage() {
                       onChange={(e) => setBankAccountId(Number(e.target.value) || CASH_ACCOUNT_ID)}
                       className="h-10 w-full max-w-md rounded-lg border border-slate-200 px-2 text-sm"
                     >
-                      <option value={CASH_ACCOUNT_ID}>Cash</option>
+                      <option value={CASH_ACCOUNT_ID}>
+                        {cashAccount
+                          ? bankAccountDropdownLabel(cashAccount)
+                          : `Cash — ${formatCurrency(0)}`}
+                      </option>
                       {banksExCash.map((a) => (
                         <option key={a.bankAccountId} value={a.bankAccountId}>
-                          {a.accountName} ({a.accountType})
+                          {bankAccountDropdownLabel(a)}
                         </option>
                       ))}
                     </select>

@@ -8,6 +8,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { addToast } from "@/store/slices/ui/ui.slice";
 import { customerSalePayment } from "@/store/slices/customer/customer.slice";
 import { fetchBankAccountsDropdown } from "@/store/slices/bankAccount/bankAccount.slice";
+import { bankAccountDropdownLabel } from "@/lib/partyDropdownLabels";
 import { fetchSaleById } from "@/store/slices/sale/sale.slice";
 
 function todayInputDate(): string {
@@ -234,7 +235,7 @@ export function SalePaymentModal({ open, onClose, sale, onSuccess }: SalePayment
               <option value="">Select bank account</option>
               {dropdownAccounts.map((a) => (
                 <option key={a.bankAccountId} value={a.bankAccountId}>
-                  {a.accountName} ({a.accountType})
+                  {bankAccountDropdownLabel(a)}
                 </option>
               ))}
             </select>

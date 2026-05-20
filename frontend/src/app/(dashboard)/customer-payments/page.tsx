@@ -16,6 +16,10 @@ import {
   fetchCustomersDropdown,
 } from "@/store/slices/customer/customer.slice";
 import { fetchBankAccountsDropdown } from "@/store/slices/bankAccount/bankAccount.slice";
+import {
+  bankAccountDropdownLabel,
+  toCustomerSelectOptions,
+} from "@/lib/partyDropdownLabels";
 import { fetchSaleById, fetchSaleByInvoiceNumber } from "@/store/slices/sale/sale.slice";
 
 type PaymentMode = "bulk" | "sale";
@@ -91,15 +95,7 @@ export default function CustomerPaymentsPage() {
     [dropdownCustomers, customersFromList]
   );
 
-  const customerOptions: SearchableSelectOption<number>[] = useMemo(
-    () =>
-      customers.map((c) => ({
-        value: c.customerId,
-        label: `${c.customerCode} — ${c.customerName}`,
-        search: `${c.customerCode} ${c.customerName}`.toLowerCase(),
-      })),
-    [customers]
-  );
+  const customerOptions = useMemo(() => toCustomerSelectOptions(customers), [customers]);
 
   const selectedCustomer = useMemo(
     () => customers.find((c) => c.customerId === customerId),
@@ -472,7 +468,7 @@ export default function CustomerPaymentsPage() {
                 <option value="">Select bank account</option>
                 {dropdownAccounts.map((a) => (
                   <option key={a.bankAccountId} value={a.bankAccountId}>
-                    {a.accountName} ({a.accountType}) · {formatCurrency(a.currentBalance ?? 0)}
+                    {bankAccountDropdownLabel(a)}
                   </option>
                 ))}
               </select>

@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { PageHeader, SearchableSelect, type SearchableSelectOption } from "@/components/ui";
+import { customerDropdownLabel, customerSearchText } from "@/lib/partyDropdownLabels";
 import { formatCurrency, cn } from "@/lib/utils";
 import {
   authUserIsAdmin,
@@ -218,8 +219,8 @@ export default function SaleEditPage() {
     const rows = dropdownCustomers ?? [];
     const opts = rows.map((c: CustomerDropdown) => ({
       value: c.customerId,
-      label: `${c.customerName} (${c.customerCode})`,
-      search: `${c.customerName} ${c.customerCode} ${c.customerId}`.toLowerCase(),
+      label: customerDropdownLabel(c),
+      search: customerSearchText(c),
     }));
     if (!opts.some((o) => o.value === WALK_IN_CUSTOMER_ID)) {
       opts.unshift({

@@ -21,6 +21,11 @@ import { fetchCustomersDropdown } from "@/store/slices/customer/customer.slice";
 import { fetchSuppliersDropdown } from "@/store/slices/supplier/supplier.slice";
 import { createTransaction } from "@/store/slices/transaction/transaction.slice";
 import type { BankAccountDropdown } from "@/types/bankAccount";
+import {
+  toBankSelectOptions,
+  toCustomerSelectOptions,
+  toSupplierSelectOptions,
+} from "@/lib/partyDropdownLabels";
 
 function todayInputDate(): string {
   const d = new Date();
@@ -64,33 +69,13 @@ export default function RecordTransactionPage() {
 
   const bankAccounts = dropdownAccounts;
 
-  const bankOptions: SearchableSelectOption<number>[] = useMemo(
-    () =>
-      bankAccounts.map((a) => ({
-        value: a.bankAccountId,
-        label: `${a.accountName} (${a.accountType}) — ${formatCurrency(a.currentBalance)}`,
-        search: `${a.accountName} ${a.accountType}`.toLowerCase(),
-      })),
-    [bankAccounts]
-  );
-
-  const customerOptions: SearchableSelectOption<number>[] = useMemo(
-    () =>
-      dropdownCustomers.map((c) => ({
-        value: c.customerId,
-        label: `${c.customerCode} — ${c.customerName}`,
-        search: `${c.customerCode} ${c.customerName}`.toLowerCase(),
-      })),
+  const bankOptions = useMemo(() => toBankSelectOptions(bankAccounts), [bankAccounts]);
+  const customerOptions = useMemo(
+    () => toCustomerSelectOptions(dropdownCustomers),
     [dropdownCustomers]
   );
-
-  const supplierOptions: SearchableSelectOption<number>[] = useMemo(
-    () =>
-      dropdownSuppliers.map((s) => ({
-        value: s.supplierId,
-        label: `${s.supplierCode} — ${s.supplierName}`,
-        search: `${s.supplierCode} ${s.supplierName}`.toLowerCase(),
-      })),
+  const supplierOptions = useMemo(
+    () => toSupplierSelectOptions(dropdownSuppliers),
     [dropdownSuppliers]
   );
 

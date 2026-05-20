@@ -16,6 +16,10 @@ import {
   supplierBulkPayment,
 } from "@/store/slices/supplier/supplier.slice";
 import { fetchBankAccountsDropdown } from "@/store/slices/bankAccount/bankAccount.slice";
+import {
+  bankAccountDropdownLabel,
+  toSupplierSelectOptions,
+} from "@/lib/partyDropdownLabels";
 
 const CREATED_BY = 1;
 
@@ -108,15 +112,7 @@ export default function SupplierPaymentsPage() {
     [dropdownSuppliers, suppliersFromList]
   );
 
-  const supplierOptions: SearchableSelectOption<number>[] = useMemo(
-    () =>
-      suppliers.map((s) => ({
-        value: s.supplierId,
-        label: `${s.supplierCode} — ${s.supplierName}`,
-        search: `${s.supplierCode} ${s.supplierName}`.toLowerCase(),
-      })),
-    [suppliers]
-  );
+  const supplierOptions = useMemo(() => toSupplierSelectOptions(suppliers), [suppliers]);
 
   const totalOutstanding = useMemo(
     () => unpaidPurchases.reduce((sum, p) => sum + remainingBalance(p), 0),
@@ -316,7 +312,7 @@ export default function SupplierPaymentsPage() {
                 <option value="">Select bank account</option>
                 {dropdownAccounts.map((a) => (
                   <option key={a.bankAccountId} value={a.bankAccountId}>
-                    {a.accountName} ({a.accountType}) · {formatCurrency(a.currentBalance ?? 0)}
+                    {bankAccountDropdownLabel(a)}
                   </option>
                 ))}
               </select>

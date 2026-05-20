@@ -7,6 +7,7 @@ import { DecimalInput, PageHeader, SearchableSelect } from "@/components/ui";
 import type { SearchableSelectOption } from "@/components/ui";
 import { cn, formatCurrency } from "@/lib/utils";
 import { todayInputDate, dateInputToIso } from "@/lib/transactionDate";
+import { toBankSelectOptions } from "@/lib/partyDropdownLabels";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { addToast } from "@/store/slices/ui/ui.slice";
 import { fetchBankAccountsDropdown } from "@/store/slices/bankAccount/bankAccount.slice";
@@ -55,15 +56,7 @@ export default function RecordExpensePage() {
     [categories]
   );
 
-  const bankOptions: SearchableSelectOption<number>[] = useMemo(
-    () =>
-      dropdownAccounts.map((a) => ({
-        value: a.bankAccountId,
-        label: `${a.accountName} (${a.accountType})`,
-        search: `${a.accountName} ${a.accountType}`.toLowerCase(),
-      })),
-    [dropdownAccounts]
-  );
+  const bankOptions = useMemo(() => toBankSelectOptions(dropdownAccounts), [dropdownAccounts]);
 
   const selectedCategory = categories.find((c) => c.expenseCategoryId === expenseCategoryId);
   const vatAmount = round2((amountExVat * vatRate) / 100);

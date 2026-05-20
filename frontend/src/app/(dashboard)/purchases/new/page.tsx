@@ -22,6 +22,7 @@ import {
 import { fetchAllProducts, fetchProductByBarcode } from "@/store/slices/product/product.slice";
 import { fetchSuppliers, fetchSuppliersDropdown } from "@/store/slices/supplier/supplier.slice";
 import { cn, formatCurrency } from "@/lib/utils";
+import { supplierDropdownLabel, supplierSearchText } from "@/lib/partyDropdownLabels";
 
 const VAT_RATE_OPTIONS = [0, 5, 20] as const;
 
@@ -466,8 +467,8 @@ function NewPurchasePageContent() {
     () =>
       suppliers.map((s) => ({
         id: s.supplierId,
-        label: `${s.supplierCode} — ${s.supplierName}`,
-        search: `${s.supplierCode} ${s.supplierName}`.toLowerCase(),
+        label: supplierDropdownLabel(s),
+        search: supplierSearchText(s),
       })),
     [suppliers]
   );
