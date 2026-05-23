@@ -68,6 +68,10 @@ import {
   bankAccountDropdownLabel,
   toCustomerSelectOptions,
 } from "@/lib/partyDropdownLabels";
+import {
+  openCashDrawerIfNeeded,
+  resolveReceiveIntoAccountId,
+} from "@/lib/cashDrawer";
 // import { BarcodeCameraScanner } from "@/components/pos/BarcodeCameraScanner";
 
 /** Default retail / walk-in customer id expected by the sales API. */
@@ -539,6 +543,22 @@ export default function POSPage() {
       saleDiscountAmount,
       apiData: result.payload?.data,
     });
+    const receiveIntoId = resolveReceiveIntoAccountId(
+      paidTowardInvoice,
+      posBankAccountId,
+      CASH_DEPOSIT_ACCOUNT_ID
+    );
+    void openCashDrawerIfNeeded({
+      paidAmount: paidTowardInvoice,
+      bankAccountId: receiveIntoId,
+      cashAccountId: CASH_DEPOSIT_ACCOUNT_ID,
+    }).then((opened) => {
+      if (opened) return;
+      if (paidTowardInvoice > 0 && receiveIntoId === CASH_DEPOSIT_ACCOUNT_ID) {
+        console.info("[POS] Cash paid — configure drawer bridge or QZ Tray in .env.local");
+      }
+    });
+
     dispatch(addToast({ type: "success", title: "Sale saved", message: msg, duration: 2800 }));
     dispatch(clearCart());
     setReceiptSnapshot(snapshot);
