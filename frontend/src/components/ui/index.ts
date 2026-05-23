@@ -8,6 +8,8 @@ export { default as StatusBadge } from "./StatusBadge";
 export { default as Modal, ModalCancelButton, ModalConfirmButton } from "./Modal";
 export { default as ToastContainer } from "./ToastContainer";
 export { default as PageHeader } from "./PageHeader";
+export { default as ListFiltersModal } from "./ListFiltersModal";
+export type { FilterSelectOption } from "./ListFiltersModal";
 export { default as SearchableSelect } from "./SearchableSelect";
 export type { SearchableSelectOption } from "./SearchableSelect";
 export { default as DecimalInput, parseDecimalInput, formatDecimalInputValue } from "./DecimalInput";

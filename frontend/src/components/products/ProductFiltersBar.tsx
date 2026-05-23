@@ -71,7 +71,10 @@ export function ProductFiltersBar({
     searchInput.trim().length > 0;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+    <div
+      id="product-filters"
+      className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm scroll-mt-24"
+    >
       <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50/90 to-white px-4 py-3 sm:px-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">

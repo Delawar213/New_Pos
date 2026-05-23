@@ -25,6 +25,10 @@ export interface PaginationParams {
   searchTerm?: string;
   sortBy?: string;
   sortDirection?: "asc" | "desc";
+  fromDate?: string;
+  toDate?: string;
+  status?: string;
+  paymentStatus?: string;
 }
 
 export interface SelectOption {

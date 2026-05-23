@@ -207,7 +207,7 @@ const initialState: SaleState = {
   hasNextPage: false,
 };
 
-export type FetchSalesArgs = PaginationParams & { status?: string };
+export type FetchSalesArgs = PaginationParams;
 
 /** Tries backend routes in order — many APIs use `Sales` not `pos`. */
 const SCAN_PATH_BUILDERS = [
@@ -370,14 +370,11 @@ export const fetchSales = createAsyncThunk<
   { rejectValue: string; state: RootState }
 >("sale/fetchList", async (params = {}, { rejectWithValue }) => {
   const api = createAuthenticatedAxios();
-  const query = {
-    ...listQueryParams({
-      ...params,
-      sortBy: params.sortBy ?? "saleDate",
-      sortDirection: params.sortDirection ?? "desc",
-    }),
-    ...(params.status ? { status: params.status } : {}),
-  };
+  const query = listQueryParams({
+    ...params,
+    sortBy: params.sortBy ?? "saleDate",
+    sortDirection: params.sortDirection ?? "desc",
+  });
   const paths = ["/proxy/Sales", "/proxy/sales"];
   let lastMessage = "Failed to fetch sales";
 

@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { PageHeader, DataTable, StatusBadge, Modal } from "@/components/ui";
+import { PageHeader, DataTable, StatusBadge, Modal, ListFiltersModal } from "@/components/ui";
 import type { Column } from "@/components/ui/DataTable";
 import type { Purchase } from "@/types";
 import { formatCurrency } from "@/lib/utils";
@@ -17,6 +17,26 @@ import {
 import { addToast } from "@/store/slices/ui/ui.slice";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { buildPagedFetchArgs } from "@/lib/buildPagedFetchArgs";
+import {
+  countActiveListFilters,
+  emptyListFilters,
+  listFiltersToApiParams,
+  type ListFiltersState,
+} from "@/lib/listFilters";
+import { downloadCsv, timestampForFilename } from "@/lib/exportCsv";
+import type { PaginationParams } from "@/types/common";
+
+const PURCHASE_STATUS_OPTIONS = [
+  { value: "Completed", label: "Completed" },
+  { value: "Pending", label: "Pending" },
+  { value: "Cancelled", label: "Cancelled" },
+] as const;
+
+const PURCHASE_PAYMENT_OPTIONS = [
+  { value: "Paid", label: "Paid" },
+  { value: "Partial", label: "Partial" },
+  { value: "Unpaid", label: "Unpaid" },
+] as const;
 
 function lineTotalFromDetails(item: Purchase): number | null {
   const details = item.purchaseDetails;
@@ -44,29 +64,120 @@ export default function PurchasesPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Purchase | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [filterModalOpen, setFilterModalOpen] = useState(false);
+  const [listFilters, setListFilters] = useState<ListFiltersState>(emptyListFilters);
+  const [exporting, setExporting] = useState(false);
+
+  const purchasesListParams = useMemo((): PaginationParams => {
+    const base = buildPagedFetchArgs(page, pageSize, debouncedSearch, searchPrevRef);
+    return { ...base, ...listFiltersToApiParams(listFilters) };
+  }, [page, pageSize, debouncedSearch, listFilters]);
+
+  const activeFilterCount = countActiveListFilters(listFilters, {
+    includePaymentStatus: true,
+  });
 
   useEffect(() => {
-    void dispatch(fetchPurchases(buildPagedFetchArgs(page, pageSize, debouncedSearch, searchPrevRef)));
-  }, [dispatch, debouncedSearch, page, pageSize]);
+    void dispatch(fetchPurchases(purchasesListParams));
+  }, [dispatch, purchasesListParams]);
 
   useEffect(() => {
     if (success && message) {
       dispatch(addToast({ type: "success", title: "Success", message, duration: 3000 }));
       dispatch(clearPurchasesState());
-      void dispatch(
-        fetchPurchases({
-          pageNumber: page,
-          pageSize,
-          sortDirection: "desc",
-          searchTerm: debouncedSearch.trim() || undefined,
-        })
-      );
+      void dispatch(fetchPurchases(purchasesListParams));
     }
     if (error) {
       dispatch(addToast({ type: "error", title: "Error", message: error, duration: 5000 }));
       dispatch(clearPurchasesState());
     }
-  }, [success, error, message, dispatch, page, pageSize, debouncedSearch]);
+  }, [success, error, message, dispatch, purchasesListParams]);
+
+  const refreshPurchases = useCallback(() => {
+    void dispatch(fetchPurchases(purchasesListParams));
+  }, [dispatch, purchasesListParams]);
+
+  const handleApplyFilters = useCallback((next: ListFiltersState) => {
+    setListFilters(next);
+    setPage(1);
+  }, []);
+
+  const handleExportPurchases = useCallback(async () => {
+    setExporting(true);
+    try {
+      let rows = purchases;
+      if (totalCount > purchases.length) {
+        const exportSize = Math.min(Math.max(totalCount, 1), 5000);
+        try {
+          const page = await dispatch(
+            fetchPurchases({
+              pageNumber: 1,
+              pageSize: exportSize,
+              sortDirection: "desc",
+              searchTerm: debouncedSearch.trim() || undefined,
+              ...listFiltersToApiParams(listFilters),
+            })
+          ).unwrap();
+          rows = page.data?.data ?? rows;
+        } catch {
+          dispatch(
+            addToast({
+              type: "warning",
+              title: "Partial export",
+              message: "Could not load all pages — exporting the current page only.",
+            })
+          );
+        } finally {
+          void dispatch(fetchPurchases(purchasesListParams));
+        }
+      }
+      if (rows.length === 0) {
+        dispatch(
+          addToast({
+            type: "warning",
+            title: "Nothing to export",
+            message: "No purchases match the current search and filters.",
+          })
+        );
+        return;
+      }
+      downloadCsv(
+        `purchases-${timestampForFilename()}.csv`,
+        [
+          "Reference",
+          "Supplier",
+          "Date",
+          "Total (inc VAT)",
+          "Invoice",
+          "Discount %",
+          "Payment",
+          "Status",
+        ],
+        rows.map((p) => [
+          p.purchaseCode,
+          p.supplierName ?? "",
+          new Date(p.purchaseDate).toLocaleDateString(),
+          p.totalAmountIncVat != null
+            ? Number(p.totalAmountIncVat)
+            : lineTotalFromDetails(p) ?? "",
+          p.invoiceNumber ?? "",
+          p.discountPercentage ?? 0,
+          p.paymentStatus ?? "",
+          p.status ?? "",
+        ])
+      );
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Export ready",
+          message: `Downloaded ${rows.length} purchase(s) as CSV.`,
+          duration: 3000,
+        })
+      );
+    } finally {
+      setExporting(false);
+    }
+  }, [dispatch, totalCount, purchases, debouncedSearch, listFilters, purchasesListParams]);
 
   const openView = useCallback(
     async (row: Purchase) => {
@@ -216,6 +327,11 @@ export default function PurchasesPage() {
         data={purchases}
         rowKey="purchaseId"
         title="All Purchases"
+        description={
+          activeFilterCount > 0
+            ? `${activeFilterCount} filter${activeFilterCount === 1 ? "" : "s"} active`
+            : undefined
+        }
         totalCount={totalCount}
         pageNumber={page}
         pageSize={pageSize}
@@ -229,19 +345,20 @@ export default function PurchasesPage() {
         searchPlaceholder="Search reference, supplier, invoice…"
         onAdd={() => router.push("/purchases/new")}
         addLabel="Add Purchase"
-        onFilter={() => {}}
-        onExport={() => {}}
-        onRefresh={() =>
-          void dispatch(
-            fetchPurchases({
-              pageNumber: page,
-              pageSize,
-              sortDirection: "desc",
-              searchTerm: debouncedSearch.trim() || undefined,
-            })
-          )
-        }
-        loading={loading}
+        onFilter={() => setFilterModalOpen(true)}
+        onExport={() => void handleExportPurchases()}
+        onRefresh={refreshPurchases}
+        loading={loading || exporting}
+      />
+
+      <ListFiltersModal
+        open={filterModalOpen}
+        onClose={() => setFilterModalOpen(false)}
+        filters={listFilters}
+        onApply={handleApplyFilters}
+        title="Filter purchases"
+        statusOptions={[...PURCHASE_STATUS_OPTIONS]}
+        paymentStatusOptions={[...PURCHASE_PAYMENT_OPTIONS]}
       />
 
       <Modal

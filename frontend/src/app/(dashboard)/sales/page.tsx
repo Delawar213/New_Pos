@@ -2,7 +2,8 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { PageHeader, DataTable, StatusBadge } from "@/components/ui";
+import { useRouter } from "next/navigation";
+import { PageHeader, DataTable, StatusBadge, ListFiltersModal } from "@/components/ui";
 import type { Column } from "@/components/ui/DataTable";
 import type { Sale } from "@/types";
 import { formatCurrency } from "@/lib/utils";
@@ -18,8 +19,30 @@ import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { buildPagedFetchArgs } from "@/lib/buildPagedFetchArgs";
 import { SaleDetailModal } from "@/components/sales/SaleDetailModal";
 import { SalePaymentModal } from "@/components/sales/SalePaymentModal";
+import {
+  applySaleClientFilters,
+  countActiveListFilters,
+  emptyListFilters,
+  listFiltersToApiParams,
+  type ListFiltersState,
+} from "@/lib/listFilters";
+import { downloadCsv, timestampForFilename } from "@/lib/exportCsv";
+import type { FetchSalesArgs } from "@/store/slices/sale/sale.slice";
+
+const SALE_STATUS_OPTIONS = [
+  { value: "completed", label: "Completed" },
+  { value: "pending", label: "Pending" },
+  { value: "cancelled", label: "Cancelled" },
+  { value: "returned", label: "Returned" },
+] as const;
+
+function saleDateLabel(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
+}
 
 export default function SalesPage() {
+  const router = useRouter();
   const dispatch = useAppDispatch();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -27,20 +50,29 @@ export default function SalesPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentSale, setPaymentSale] = useState<Sale | null>(null);
+  const [filterModalOpen, setFilterModalOpen] = useState(false);
+  const [listFilters, setListFilters] = useState<ListFiltersState>(emptyListFilters);
+  const [exporting, setExporting] = useState(false);
   const debouncedSearch = useDebouncedValue(searchInput, 400);
   const searchPrevRef = useRef<string | null>(null);
   const { sales, totalCount, loading, error, selectedSale, actionLoading } = useAppSelector(
     (s) => s.sale
   );
 
-  const salesListParams = useMemo(
-    () =>
-      buildPagedFetchArgs(page, pageSize, debouncedSearch, searchPrevRef, {
-        sortBy: "saleDate",
-        sortDirection: "desc",
-      }),
-    [page, pageSize, debouncedSearch]
+  const salesListParams = useMemo((): FetchSalesArgs => {
+    const base = buildPagedFetchArgs(page, pageSize, debouncedSearch, searchPrevRef, {
+      sortBy: "saleDate",
+      sortDirection: "desc",
+    });
+    return { ...base, ...listFiltersToApiParams(listFilters) };
+  }, [page, pageSize, debouncedSearch, listFilters]);
+
+  const displaySales = useMemo(
+    () => applySaleClientFilters(sales, listFilters),
+    [sales, listFilters]
   );
+
+  const activeFilterCount = countActiveListFilters(listFilters, { includeDue: true });
 
   useEffect(() => {
     void dispatch(fetchSales(salesListParams));
@@ -78,9 +110,82 @@ export default function SalesPage() {
         sortBy: "saleDate",
         sortDirection: "desc",
         searchTerm: debouncedSearch.trim() || undefined,
+        ...listFiltersToApiParams(listFilters),
       })
     );
-  }, [dispatch, page, pageSize, debouncedSearch]);
+  }, [dispatch, page, pageSize, debouncedSearch, listFilters]);
+
+  const handleApplyFilters = useCallback((next: ListFiltersState) => {
+    setListFilters(next);
+    setPage(1);
+  }, []);
+
+  const handleExportSales = useCallback(async () => {
+    setExporting(true);
+    try {
+      let rows = displaySales;
+      if (totalCount > displaySales.length) {
+        const exportSize = Math.min(Math.max(totalCount, 1), 5000);
+        try {
+          const page = await dispatch(
+            fetchSales({
+              pageNumber: 1,
+              pageSize: exportSize,
+              sortBy: "saleDate",
+              sortDirection: "desc",
+              searchTerm: debouncedSearch.trim() || undefined,
+              ...listFiltersToApiParams(listFilters),
+            })
+          ).unwrap();
+          rows = applySaleClientFilters(page.items, listFilters);
+        } catch {
+          dispatch(
+            addToast({
+              type: "warning",
+              title: "Partial export",
+              message: "Could not load all pages — exporting the current page only.",
+            })
+          );
+        } finally {
+          void dispatch(fetchSales(salesListParams));
+        }
+      }
+      if (rows.length === 0) {
+        dispatch(
+          addToast({
+            type: "warning",
+            title: "Nothing to export",
+            message: "No sales match the current search and filters.",
+          })
+        );
+        return;
+      }
+      downloadCsv(
+        `sales-${timestampForFilename()}.csv`,
+        ["Invoice", "Customer", "Date", "Total", "Paid", "Due", "Payment", "Status"],
+        rows.map((s) => [
+          s.invoiceNo,
+          s.customerName ?? "",
+          saleDateLabel(s.saleDate),
+          s.grandTotal,
+          s.paidAmount,
+          s.dueAmount,
+          s.paymentMethod ?? "",
+          s.status,
+        ])
+      );
+      dispatch(
+        addToast({
+          type: "success",
+          title: "Export ready",
+          message: `Downloaded ${rows.length} sale(s) as CSV.`,
+          duration: 3000,
+        })
+      );
+    } finally {
+      setExporting(false);
+    }
+  }, [dispatch, totalCount, displaySales, debouncedSearch, listFilters, salesListParams]);
 
   const printSaleReceipt = useCallback(
     async (saleId: number) => {
@@ -209,9 +314,14 @@ export default function SalesPage() {
       )}
       <DataTable
         columns={columns}
-        data={sales}
+        data={displaySales}
         rowKey="id"
         title="All Sales"
+        description={
+          activeFilterCount > 0
+            ? `${activeFilterCount} filter${activeFilterCount === 1 ? "" : "s"} active`
+            : undefined
+        }
         totalCount={totalCount}
         pageNumber={page}
         pageSize={pageSize}
@@ -223,22 +333,23 @@ export default function SalesPage() {
         searchQuery={searchInput}
         onSearchChange={setSearchInput}
         searchPlaceholder="Search invoice, customer…"
-        onAdd={() => {}}
+        onAdd={() => router.push("/pos")}
         addLabel="New Sale"
-        onFilter={() => {}}
-        onExport={() => {}}
-        onRefresh={() =>
-          void dispatch(
-            fetchSales({
-              pageNumber: page,
-              pageSize,
-              sortDirection: "desc",
-              searchTerm: debouncedSearch.trim() || undefined,
-            })
-          )
-        }
-        loading={loading}
+        onFilter={() => setFilterModalOpen(true)}
+        onExport={() => void handleExportSales()}
+        onRefresh={refreshSalesList}
+        loading={loading || exporting}
         sortNewestFirst
+      />
+
+      <ListFiltersModal
+        open={filterModalOpen}
+        onClose={() => setFilterModalOpen(false)}
+        filters={listFilters}
+        onApply={handleApplyFilters}
+        title="Filter sales"
+        statusOptions={[...SALE_STATUS_OPTIONS]}
+        showDueFilter
       />
 
       <SaleDetailModal

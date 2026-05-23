@@ -52,6 +52,7 @@ import { fetchCategories } from "@/store/slices/category/category.slice";
 import { fetchBrands } from "@/store/slices/brand/brand.slice";
 import { fetchSubCategories } from "@/store/slices/subCategory/subCategory.slice";
 import { addToast } from "@/store/slices/ui/ui.slice";
+import { downloadCsv, timestampForFilename } from "@/lib/exportCsv";
 
 function suggestNextProductCode(products: Product[], totalRecords: number): string {
   let maxNum = 0;
@@ -394,6 +395,82 @@ export default function ProductsPage() {
     return loadCatalogPage();
   };
 
+  const handleExportProducts = useCallback(async () => {
+    let rows = products;
+    if (isCatalogMode && totalCount > rows.length) {
+      try {
+        const page = await dispatch(
+          fetchProducts({
+            pageNumber: 1,
+            pageSize: Math.min(Math.max(totalCount, 1), 5000),
+            sortDirection: "desc",
+          })
+        ).unwrap();
+        rows = page.data?.data ?? rows;
+      } catch {
+        dispatch(
+          addToast({
+            type: "warning",
+            title: "Partial export",
+            message: "Could not load all pages — exporting the current list only.",
+          })
+        );
+      } finally {
+        refreshProductList();
+      }
+    }
+    if (rows.length === 0) {
+      dispatch(
+        addToast({
+          type: "warning",
+          title: "Nothing to export",
+          message: "No products match the current filters.",
+        })
+      );
+      return;
+    }
+    const label = (listFilterLabel || "products").replace(/[^\w-]+/g, "_").slice(0, 40);
+    downloadCsv(
+      `${label || "products"}-${timestampForFilename()}.csv`,
+      [
+        "Code",
+        "Name",
+        "Barcode",
+        "Category",
+        "Brand",
+        "Unit",
+        "Cost",
+        "Price",
+        "VAT %",
+        "Stock",
+        "Alert level",
+        "Active",
+      ],
+      rows.map((p) => [
+        p.productCode,
+        p.productName,
+        p.barcode ?? "",
+        p.categoryName ?? "",
+        p.brandName ?? "",
+        p.unitOfMeasurement,
+        p.costPrice ?? p.lastPurchasePrice ?? "",
+        p.sellingPrice,
+        p.vatRate,
+        p.qtyInStock,
+        p.stockAlertLevel,
+        p.isActive ? "Yes" : "No",
+      ])
+    );
+    dispatch(
+      addToast({
+        type: "success",
+        title: "Export ready",
+        message: `Downloaded ${rows.length} product(s) as CSV.`,
+        duration: 3000,
+      })
+    );
+  }, [products, isCatalogMode, totalCount, dispatch, listFilterLabel, refreshProductList]);
+
   const handleCategoryFilterChange = (id: number | "") => {
     setCategoryFilterId(id);
     setBrandFilterId("");
@@ -452,6 +529,10 @@ export default function ProductsPage() {
     setBrandFilterId("");
     setStockFilter("all");
     void dispatch(fetchProducts(buildPagedFetchArgs(1, pageSize, "", searchPrevRef)));
+  };
+
+  const handleShowFilters = () => {
+    document.getElementById("product-filters")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   useEffect(() => {
@@ -872,7 +953,8 @@ export default function ProductsPage() {
         sortNewestFirst={isCatalogMode}
         onAdd={openCreateModal}
         addLabel="Add Product"
-        onExport={() => {}}
+        onFilter={handleShowFilters}
+        onExport={() => void handleExportProducts()}
         onPrint={canPrintStock ? handlePrintStockList : undefined}
         printLabel="Print list"
         onRefresh={() => void refreshProductList()}
