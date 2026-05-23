@@ -7,7 +7,12 @@
 // For UI state, auth, and cart management
 // ============================================
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
+import {
+  applyThemeToDocument,
+  readThemeForHydration,
+  type ThemeMode,
+} from "@/lib/theme";
 
 // Types
 interface User {
@@ -32,12 +37,13 @@ interface AppContextType {
   // UI State
   sidebarOpen: boolean;
   sidebarCollapsed: boolean;
-  theme: "light" | "dark";
+  theme: ThemeMode;
   setSidebarOpen: (open: boolean) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   toggleSidebar: () => void;
   toggleSidebarCollapse: () => void;
-  setTheme: (theme: "light" | "dark") => void;
+  setTheme: (theme: ThemeMode) => void;
+  toggleTheme: () => void;
 
   // Auth State
   user: User | null;
@@ -71,7 +77,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // UI State
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [theme, setThemeState] = useState<ThemeMode>(() =>
+    typeof window !== "undefined" ? readThemeForHydration() : "light"
+  );
+
+  const setTheme = useCallback((next: ThemeMode) => {
+    setThemeState(next);
+    applyThemeToDocument(next);
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    setThemeState((prev) => {
+      const next: ThemeMode = prev === "light" ? "dark" : "light";
+      applyThemeToDocument(next);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    applyThemeToDocument(theme);
+  }, [theme]);
 
   useEffect(() => {
     try {
@@ -183,6 +208,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toggleSidebar,
     toggleSidebarCollapse,
     setTheme,
+    toggleTheme,
     // Auth
     user,
     isAuthenticated: !!user,

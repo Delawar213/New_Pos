@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   /* Main colors */
   --background: #f0f4f8;
@@ -34,6 +36,19 @@
   --radius-xl: 20px;
 }
 
+.dark {
+  color-scheme: dark;
+  --background: #0b1220;
+  --foreground: #e2e8f0;
+  --card: #1e293b;
+  --card-hover: #273549;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.35);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.35);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.45), 0 4px 6px -4px rgb(0 0 0 / 0.4);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.5), 0 8px 10px -6px rgb(0 0 0 / 0.45);
+  --shadow-glow: 0 0 20px rgb(59 130 246 / 0.2);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -44,6 +59,10 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+html.dark {
+  color-scheme: dark;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
@@ -51,6 +70,12 @@ body {
   font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+html.dark body {
+  background: var(--background);
+  color: var(--foreground);
 }
 
 /* Custom scrollbar */
@@ -66,6 +91,12 @@ body {
 }
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(180deg, #94a3b8 0%, #64748b 100%);
+}
+.dark .scrollbar-thin::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #475569 0%, #334155 100%);
+}
+.dark .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #64748b 0%, #475569 100%);
 }
 
 /* Hide scrollbar but keep functionality */
@@ -153,6 +184,125 @@ body {
     radial-gradient(at 0% 50%, rgba(6, 182, 212, 0.05) 0px, transparent 50%),
     radial-gradient(at 80% 50%, rgba(16, 185, 129, 0.05) 0px, transparent 50%),
     radial-gradient(at 0% 100%, rgba(244, 63, 94, 0.04) 0px, transparent 50%);
+}
+.dark .bg-mesh {
+  background-color: #0b1220;
+  background-image:
+    radial-gradient(at 40% 20%, rgba(59, 130, 246, 0.12) 0px, transparent 50%),
+    radial-gradient(at 80% 0%, rgba(139, 92, 246, 0.1) 0px, transparent 50%),
+    radial-gradient(at 0% 50%, rgba(6, 182, 212, 0.08) 0px, transparent 50%),
+    radial-gradient(at 80% 50%, rgba(16, 185, 129, 0.06) 0px, transparent 50%),
+    radial-gradient(at 0% 100%, rgba(244, 63, 94, 0.05) 0px, transparent 50%);
+}
+
+/* Common page surfaces — keeps existing pages readable in dark mode */
+.dark .bg-white,
+.dark .bg-white\/80,
+.dark .bg-white\/90 {
+  background-color: rgb(30 41 59) !important;
+}
+.dark .bg-slate-50,
+.dark .bg-slate-50\/50,
+.dark .bg-slate-50\/80 {
+  background-color: rgb(15 23 42 / 0.65) !important;
+}
+.dark .bg-slate-100 {
+  background-color: rgb(30 41 59) !important;
+}
+.dark .border-slate-100,
+.dark .border-slate-200,
+.dark .border-slate-200\/80,
+.dark .border-gray-200 {
+  border-color: rgb(51 65 85 / 0.85) !important;
+}
+.dark .text-slate-900,
+.dark .text-gray-900 {
+  color: rgb(241 245 249) !important;
+}
+.dark .text-slate-800 {
+  color: rgb(226 232 240) !important;
+}
+.dark .text-slate-700 {
+  color: rgb(203 213 225) !important;
+}
+.dark .text-slate-600 {
+  color: rgb(148 163 184) !important;
+}
+.dark .text-slate-500,
+.dark .text-slate-400 {
+  color: rgb(100 116 139) !important;
+}
+.dark .hover\:bg-slate-50:hover {
+  background-color: rgb(51 65 85 / 0.45) !important;
+}
+.dark .hover\:bg-slate-100:hover {
+  background-color: rgb(51 65 85) !important;
+}
+.dark .card,
+.dark .card-elevated {
+  background: var(--card);
+  border-color: rgb(51 65 85 / 0.8);
+}
+.dark .input {
+  background: rgb(15 23 42);
+  border-color: rgb(71 85 105);
+  color: rgb(241 245 249);
+}
+.dark .input::placeholder {
+  color: rgb(100 116 139);
+}
+.dark .btn-secondary {
+  background: rgb(30 41 59);
+  color: rgb(226 232 240);
+  border-color: rgb(71 85 105);
+}
+.dark .btn-secondary:hover {
+  background: rgb(51 65 85);
+}
+.dark .btn-ghost:hover {
+  background: rgb(51 65 85);
+  color: rgb(241 245 249);
+}
+.dark .skeleton {
+  background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+}
+.dark .glass {
+  background: rgba(15, 23, 42, 0.85);
+}
+.dark .from-blue-50 {
+  --tw-gradient-from: rgb(30 58 138 / 0.35) !important;
+}
+.dark .to-violet-50 {
+  --tw-gradient-to: rgb(76 29 149 / 0.25) !important;
+}
+.dark .bg-blue-50,
+.dark .bg-blue-50\/50,
+.dark .bg-blue-50\/60 {
+  background-color: rgb(30 58 138 / 0.25) !important;
+}
+.dark .bg-emerald-50,
+.dark .bg-emerald-50\/60,
+.dark .bg-emerald-50\/90 {
+  background-color: rgb(6 78 59 / 0.25) !important;
+}
+.dark .bg-amber-50,
+.dark .bg-amber-50\/60 {
+  background-color: rgb(120 53 15 / 0.25) !important;
+}
+.dark .bg-rose-50 {
+  background-color: rgb(136 19 55 / 0.2) !important;
+}
+.dark .border-blue-100,
+.dark .border-blue-200 {
+  border-color: rgb(59 130 246 / 0.35) !important;
+}
+.dark .border-emerald-100,
+.dark .border-emerald-200 {
+  border-color: rgb(16 185 129 / 0.35) !important;
+}
+.dark .border-amber-100,
+.dark .border-amber-200 {
+  border-color: rgb(245 158 11 / 0.35) !important;
 }
 
 /* Button base styles */

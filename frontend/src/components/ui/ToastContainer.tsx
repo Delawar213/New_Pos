@@ -11,10 +11,30 @@ import { CheckCircle2, XCircle, AlertCircle, Info, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const toastIcons = {
-  success: { Icon: CheckCircle2, color: "text-green-500", bg: "bg-green-50", border: "border-green-200" },
-  error: { Icon: XCircle, color: "text-red-500", bg: "bg-red-50", border: "border-red-200" },
-  warning: { Icon: AlertCircle, color: "text-amber-500", bg: "bg-amber-50", border: "border-amber-200" },
-  info: { Icon: Info, color: "text-blue-500", bg: "bg-blue-50", border: "border-blue-200" },
+  success: {
+    Icon: CheckCircle2,
+    color: "text-green-500",
+    bg: "bg-green-50 dark:bg-green-950/80",
+    border: "border-green-200 dark:border-green-800",
+  },
+  error: {
+    Icon: XCircle,
+    color: "text-red-500",
+    bg: "bg-red-50 dark:bg-red-950/80",
+    border: "border-red-200 dark:border-red-800",
+  },
+  warning: {
+    Icon: AlertCircle,
+    color: "text-amber-500",
+    bg: "bg-amber-50 dark:bg-amber-950/80",
+    border: "border-amber-200 dark:border-amber-800",
+  },
+  info: {
+    Icon: Info,
+    color: "text-blue-500",
+    bg: "bg-blue-50 dark:bg-blue-950/80",
+    border: "border-blue-200 dark:border-blue-800",
+  },
 };
 
 export default function ToastContainer() {
@@ -56,9 +76,9 @@ export default function ToastContainer() {
           >
             <Icon className={cn("h-5 w-5 flex-shrink-0 mt-0.5", color)} />
             <div className="flex-1 min-w-0">
-              <h4 className="text-sm font-semibold text-slate-800">{toast.title}</h4>
+              <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100">{toast.title}</h4>
               {toast.message && (
-                <p className="mt-1 text-sm text-slate-600 leading-relaxed">{toast.message}</p>
+                <p className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-400">{toast.message}</p>
               )}
             </div>
             <button

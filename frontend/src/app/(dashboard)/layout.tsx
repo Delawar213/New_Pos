@@ -20,7 +20,7 @@ export default function DashboardLayout({
 
   return (
     <DashboardAuthGate>
-      <div className="flex h-screen overflow-hidden bg-mesh">
+      <div className="flex h-screen overflow-hidden bg-mesh text-slate-900 dark:text-slate-100">
         <Sidebar />
 
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">

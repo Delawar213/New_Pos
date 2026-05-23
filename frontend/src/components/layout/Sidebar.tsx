@@ -10,6 +10,7 @@ import { usePathname } from "next/navigation";
 import { ChevronDown, ChevronLeft, X, Sparkles } from "lucide-react";
 import { sidebarNavigation, type NavGroup, type NavItem } from "@/config/navigation";
 import { useApp } from "@/contexts/AppContext";
+import { useAppBrandName } from "@/hooks/useAppBrand";
 import { cn } from "@/lib/utils";
 
 function itemOrChildActive(item: NavItem, isActive: (href: string) => boolean): boolean {
@@ -36,6 +37,7 @@ function findActiveMenuInGroup(
 export default function Sidebar() {
   const pathname = usePathname();
   const { sidebarOpen, sidebarCollapsed, setSidebarOpen, toggleSidebarCollapse } = useApp();
+  const brandName = useAppBrandName();
   /** Only one section (e.g. Finance, Customers) open at a time. */
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
   /** Only one submenu (e.g. Sales vs Purchases) open at a time within a section. */
@@ -85,14 +87,14 @@ export default function Sidebar() {
       <aside
         className={cn(
           "fixed left-0 top-0 z-50 flex h-screen flex-col bg-white transition-all duration-300 ease-out lg:relative lg:z-auto",
-          "border-r border-slate-200/80 shadow-xl shadow-slate-200/50 lg:shadow-none",
+          "border-r border-slate-200/80 shadow-xl shadow-slate-200/50 dark:border-slate-700/80 dark:bg-slate-900 dark:shadow-black/30 lg:shadow-none",
           sidebarCollapsed ? "w-[72px]" : "w-[260px]",
           sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
         <div
           className={cn(
-            "flex h-16 items-center border-b border-slate-100 px-4",
+            "flex h-16 items-center border-b border-slate-100 px-4 dark:border-slate-800",
             sidebarCollapsed ? "justify-center" : "justify-between"
           )}
         >
@@ -109,11 +111,16 @@ export default function Sidebar() {
               <div className="absolute -inset-0.5 -z-10 rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 opacity-30 blur-sm" />
             </div>
             {!sidebarCollapsed && (
-              <div className="animate-fadeIn">
-                <span className="bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-lg font-bold text-transparent">
-                  FlexPOS
+              <div className="animate-fadeIn min-w-0 max-w-[11rem]">
+                <span
+                  className="block truncate bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-base font-bold leading-tight text-transparent dark:from-slate-100 dark:to-slate-300"
+                  title={brandName}
+                >
+                  {brandName}
                 </span>
-                <p className="-mt-0.5 text-[10px] font-medium text-slate-400">Business Suite</p>
+                <p className="-mt-0.5 text-[10px] font-medium text-slate-400 dark:text-slate-500">
+                  Business Suite
+                </p>
               </div>
             )}
           </Link>
@@ -140,8 +147,8 @@ export default function Sidebar() {
                     className={cn(
                       "mb-1 flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider transition-colors",
                       groupExpanded || groupActive
-                        ? "bg-slate-100 text-slate-700"
-                        : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+                        ? "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                        : "text-slate-400 hover:bg-slate-50 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-800/60 dark:hover:text-slate-300"
                     )}
                     aria-expanded={groupExpanded}
                   >
@@ -173,8 +180,8 @@ export default function Sidebar() {
                                 "group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
                                 sidebarCollapsed && "justify-center px-2",
                                 active
-                                  ? "bg-gradient-to-r from-blue-50 to-violet-50 text-blue-700"
-                                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                                  ? "bg-gradient-to-r from-blue-50 to-violet-50 text-blue-700 dark:from-blue-950/50 dark:to-violet-950/40 dark:text-blue-300"
+                                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                               )}
                               title={sidebarCollapsed ? item.label : undefined}
                             >
@@ -186,7 +193,7 @@ export default function Sidebar() {
                                   "flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
                                   active
                                     ? "bg-gradient-to-br from-blue-500 to-violet-500 text-white shadow-md shadow-blue-500/20"
-                                    : "bg-slate-100 text-slate-500 group-hover:bg-slate-200 group-hover:text-slate-700"
+                                    : "bg-slate-100 text-slate-500 group-hover:bg-slate-200 group-hover:text-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:group-hover:bg-slate-700 dark:group-hover:text-slate-200"
                                 )}
                               >
                                 <Icon className="h-[18px] w-[18px]" />
@@ -211,8 +218,8 @@ export default function Sidebar() {
                                 "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
                                 sidebarCollapsed && "justify-center px-2",
                                 isActive(item.href)
-                                  ? "bg-gradient-to-r from-blue-50 to-violet-50 text-blue-700"
-                                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                                  ? "bg-gradient-to-r from-blue-50 to-violet-50 text-blue-700 dark:from-blue-950/50 dark:to-violet-950/40 dark:text-blue-300"
+                                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                               )}
                               title={sidebarCollapsed ? item.label : undefined}
                             >
@@ -224,7 +231,7 @@ export default function Sidebar() {
                                   "flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
                                   isActive(item.href)
                                     ? "bg-gradient-to-br from-blue-500 to-violet-500 text-white shadow-md shadow-blue-500/20"
-                                    : "bg-slate-100 text-slate-500 group-hover:bg-slate-200 group-hover:text-slate-700"
+                                    : "bg-slate-100 text-slate-500 group-hover:bg-slate-200 group-hover:text-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:group-hover:bg-slate-700 dark:group-hover:text-slate-200"
                                 )}
                               >
                                 <Icon className="h-[18px] w-[18px]" />
@@ -243,7 +250,7 @@ export default function Sidebar() {
                           )}
 
                           {hasChildren && menuExpanded && !sidebarCollapsed && (
-                            <div className="animate-slideDown ml-5 mt-1 space-y-0.5 border-l-2 border-slate-100 pl-4">
+                            <div className="animate-slideDown ml-5 mt-1 space-y-0.5 border-l-2 border-slate-100 pl-4 dark:border-slate-700">
                               {item.children!.map((child) => (
                                 <Link
                                   key={child.href}
@@ -252,8 +259,8 @@ export default function Sidebar() {
                                   className={cn(
                                     "block rounded-lg px-3 py-2 text-[13px] transition-all duration-200",
                                     isActive(child.href)
-                                      ? "bg-blue-50/50 font-semibold text-blue-600"
-                                      : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                                      ? "bg-blue-50/50 font-semibold text-blue-600 dark:bg-blue-950/40 dark:text-blue-400"
+                                      : "text-slate-500 hover:bg-slate-50 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-300"
                                   )}
                                 >
                                   {child.label}
@@ -271,7 +278,7 @@ export default function Sidebar() {
           })}
         </nav>
 
-        <div className="border-t border-slate-100 p-3">
+        <div className="border-t border-slate-100 p-3 dark:border-slate-800">
           <button
             type="button"
             onClick={() => toggleSidebarCollapse()}

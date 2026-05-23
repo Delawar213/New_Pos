@@ -1,4 +1,10 @@
 import type { Product } from "@/types/product";
+import {
+  buildPrintCompanyFooterHtml,
+  buildPrintCompanyHeaderHtml,
+  getPrintBranding,
+  PRINT_COMPANY_HEADER_STYLES,
+} from "@/lib/printBranding";
 
 export type StockPrintKind = "outofstock" | "lowstock";
 
@@ -25,9 +31,7 @@ function reportTitle(kind: StockPrintKind): string {
 }
 
 function buildStockPrintHtml(kind: StockPrintKind, products: Product[]): string {
-  const storeName =
-    (typeof process !== "undefined" && process.env.NEXT_PUBLIC_STORE_NAME?.trim()) ||
-    "Point of Sale";
+  const branding = getPrintBranding();
   const title = reportTitle(kind);
   const printedAt = formatPrintedAt();
 
@@ -98,7 +102,7 @@ function buildStockPrintHtml(kind: StockPrintKind, products: Product[]): string 
 </head>
 <body>
   <div class="header">
-    <p class="store">${escapeHtml(storeName)}</p>
+    ${buildPrintCompanyHeaderHtml(branding)}
     <p class="title">${escapeHtml(title)}</p>
     <p class="meta">Printed ${escapeHtml(printedAt)} · ${products.length} product${products.length === 1 ? "" : "s"}</p>
   </div>
@@ -118,7 +122,8 @@ function buildStockPrintHtml(kind: StockPrintKind, products: Product[]): string 
       ${rows || '<tr><td colspan="7" style="text-align:center;padding:16px;color:#64748b">No products</td></tr>'}
     </tbody>
   </table>
-  <p class="footer">Generated from POS inventory · ${escapeHtml(title)}</p>
+  <p class="footer">Generated from POS inventory · ${escapeHtml(title)} · ${escapeHtml(branding.storeName)}</p>
+  ${buildPrintCompanyFooterHtml(branding)}
 </body>
 </html>`;
 }

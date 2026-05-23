@@ -8,20 +8,20 @@ import React from "react";
 import {
   Menu,
   PanelLeftClose,
-  Bell,
-  Search,
+  // Bell,
+  // Search,
   Sun,
   Moon,
   Settings,
   ChevronDown,
   LogOut,
   User,
-  HelpCircle,
-  Command,
+  // HelpCircle,
+  // Command,
 } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { useState, useRef, useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { clearAuthState } from "@/store/slices/auth/auth.slice";
@@ -40,18 +40,16 @@ function isAuthUser(u: unknown): u is AuthUser {
 }
 
 export default function Header() {
-  const pathname = usePathname();
   const router = useRouter();
   const dispatch = useAppDispatch();
   const auth = useAppSelector((s) => s.auth);
-  const isPos = pathname === "/pos";
-  const { theme, user, toggleSidebar, toggleSidebarCollapse, sidebarCollapsed, setTheme, logout } =
+  const { theme, user, toggleSidebar, toggleSidebarCollapse, sidebarCollapsed, toggleTheme, logout } =
     useApp();
   const [profileOpen, setProfileOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [searchFocused, setSearchFocused] = useState(false);
+  // const [notificationsOpen, setNotificationsOpen] = useState(false);
+  // const [searchFocused, setSearchFocused] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
-  const notificationsRef = useRef<HTMLDivElement>(null);
+  // const notificationsRef = useRef<HTMLDivElement>(null);
 
   const profile =
     auth.isLoggedIn && isAuthUser(auth.user)
@@ -78,23 +76,11 @@ export default function Header() {
     router.replace("/login");
   };
 
-  // Sample notifications
-  const notifications = [
-    { id: 1, title: "New order received", message: "Order #1234 from Ahmed Hassan", time: "2m ago", unread: true },
-    { id: 2, title: "Low stock alert", message: "Premium Wall Paint is running low", time: "1h ago", unread: true },
-    { id: 3, title: "Payment received", message: "£450.00 from walk-in customer", time: "3h ago", unread: false },
-  ];
-
-  const unreadCount = notifications.filter(n => n.unread).length;
-
-  // Close dropdowns on outside click
+  // Close profile dropdown on outside click
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
         setProfileOpen(false);
-      }
-      if (notificationsRef.current && !notificationsRef.current.contains(e.target as Node)) {
-        setNotificationsOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClick);
@@ -102,13 +88,13 @@ export default function Header() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200/80 bg-white/80 backdrop-blur-xl px-4 lg:px-6">
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200/80 bg-white/80 backdrop-blur-xl px-4 dark:border-slate-700/80 dark:bg-slate-900/85 lg:px-6">
       {/* Left side */}
       <div className="flex items-center gap-4">
         <button
           type="button"
           onClick={() => toggleSidebar()}
-          className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 lg:hidden"
+          className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200 lg:hidden"
           aria-label="Open menu"
         >
           <Menu className="h-5 w-5" />
@@ -117,7 +103,7 @@ export default function Header() {
         <button
           type="button"
           onClick={() => toggleSidebarCollapse()}
-          className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 lg:flex"
+          className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200 lg:flex"
           title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
@@ -126,123 +112,37 @@ export default function Header() {
           />
         </button>
 
-        {/* Search — hidden on POS for maximum checkout space */}
-        <div
-          className={cn(
-            "hidden items-center gap-3 rounded-xl border px-4 py-2.5 transition-all duration-200 md:flex",
-            isPos && "md:hidden",
-            searchFocused 
-              ? "w-96 border-blue-500 bg-white shadow-lg shadow-blue-500/10" 
-              : "w-72 border-slate-200 bg-slate-50/50 hover:bg-white hover:border-slate-300"
-          )}
-        >
-          <Search className={cn(
-            "h-4 w-4 transition-colors",
-            searchFocused ? "text-blue-500" : "text-slate-400"
-          )} />
-          <input
-            type="text"
-            placeholder="Search anything..."
-            className="flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
-          />
-          <kbd className={cn(
-            "hidden items-center gap-0.5 rounded-lg border px-2 py-1 text-[10px] font-medium lg:flex transition-colors",
-            searchFocused 
-              ? "border-blue-200 bg-blue-50 text-blue-600" 
-              : "border-slate-200 bg-white text-slate-400"
-          )}>
-            <Command className="h-3 w-3" />
-            <span>K</span>
-          </kbd>
-        </div>
+        {/* Search — hidden for now */}
+        {/* <div className={cn("hidden items-center gap-3 rounded-xl border px-4 py-2.5 md:flex", ...)}>
+          ...
+        </div> */}
       </div>
 
       {/* Right side */}
       <div className="flex items-center gap-1">
-        {/* Help button */}
-        <button className="hidden h-10 w-10 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors sm:flex">
+        {/* Help — hidden for now */}
+        {/* <button className="hidden h-10 w-10 ... sm:flex">
           <HelpCircle className="h-5 w-5" />
-        </button>
+        </button> */}
 
         {/* Theme toggle */}
         <button
-          onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-          className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+          type="button"
+          onClick={toggleTheme}
+          aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+          title={theme === "light" ? "Dark mode" : "Light mode"}
+          className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-amber-300"
         >
           {theme === "light" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
         </button>
 
-        {/* Notifications */}
-        <div className="relative" ref={notificationsRef}>
-          <button 
-            onClick={() => setNotificationsOpen(!notificationsOpen)}
-            className="relative flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-          >
-            <Bell className="h-5 w-5" />
-            {unreadCount > 0 && (
-              <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-r from-rose-500 to-pink-500 text-[10px] font-bold text-white shadow-lg shadow-rose-500/30">
-                {unreadCount}
-              </span>
-            )}
-          </button>
+        {/* Notifications — hidden for now */}
+        {/* <div className="relative" ref={notificationsRef}>...</div> */}
 
-          {/* Notifications dropdown */}
-          {notificationsOpen && (
-            <div className="absolute right-0 top-full mt-2 w-80 rounded-2xl border border-slate-200 bg-white py-2 shadow-xl shadow-slate-200/50 animate-slideDown">
-              <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100">
-                <h3 className="font-semibold text-slate-800">Notifications</h3>
-                <button className="text-xs font-medium text-blue-600 hover:text-blue-700">
-                  Mark all read
-                </button>
-              </div>
-              <div className="max-h-80 overflow-y-auto">
-                {notifications.map((notification) => (
-                  <button
-                    key={notification.id}
-                    className={cn(
-                      "w-full px-4 py-3 text-left hover:bg-slate-50 transition-colors flex gap-3",
-                      notification.unread && "bg-blue-50/50"
-                    )}
-                  >
-                    <div className={cn(
-                      "h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0",
-                      notification.unread 
-                        ? "bg-gradient-to-br from-blue-500 to-violet-500 text-white" 
-                        : "bg-slate-100 text-slate-500"
-                    )}>
-                      <Bell className="h-4 w-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={cn(
-                        "text-sm truncate",
-                        notification.unread ? "font-semibold text-slate-800" : "font-medium text-slate-600"
-                      )}>
-                        {notification.title}
-                      </p>
-                      <p className="text-xs text-slate-500 truncate">{notification.message}</p>
-                      <p className="text-[10px] text-slate-400 mt-1">{notification.time}</p>
-                    </div>
-                    {notification.unread && (
-                      <span className="h-2 w-2 rounded-full bg-blue-500 mt-2 flex-shrink-0" />
-                    )}
-                  </button>
-                ))}
-              </div>
-              <div className="border-t border-slate-100 px-4 py-2">
-                <button className="w-full rounded-xl bg-slate-100 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 transition-colors">
-                  View all notifications
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Settings */}
-        <button className="hidden h-10 w-10 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors sm:flex">
+        {/* Settings icon — hidden for now (settings still in profile menu) */}
+        {/* <button className="hidden h-10 w-10 ... sm:flex">
           <Settings className="h-5 w-5" />
-        </button>
+        </button> */}
 
         {/* Divider */}
         <div className="mx-2 h-8 w-px bg-slate-200" />
@@ -273,7 +173,7 @@ export default function Header() {
 
           {/* Profile Dropdown */}
           {profileOpen && (
-            <div className="absolute right-0 top-full mt-2 w-56 rounded-2xl border border-slate-200 bg-white py-2 shadow-xl shadow-slate-200/50 animate-slideDown">
+            <div className="absolute right-0 top-full mt-2 w-56 rounded-2xl border border-slate-200 bg-white py-2 shadow-xl shadow-slate-200/50 animate-slideDown dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/40">
               {/* User info header */}
               <div className="px-4 py-3 border-b border-slate-100">
                 <p className="font-semibold text-slate-800">{profile?.name || "User"}</p>

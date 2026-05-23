@@ -45,7 +45,7 @@ export default function PageHeader({
         <nav className="mb-3 flex items-center gap-1.5 text-sm">
           <Link 
             href="/dashboard" 
-            className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
           >
             <Home className="h-4 w-4" />
           </Link>
@@ -55,12 +55,12 @@ export default function PageHeader({
               {item.href ? (
                 <Link 
                   href={item.href} 
-                  className="rounded-md px-2 py-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                  className="rounded-md px-2 py-1 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                 >
                   {item.label}
                 </Link>
               ) : (
-                <span className="rounded-md px-2 py-1 font-medium text-slate-700 bg-slate-100">
+                <span className="rounded-md bg-slate-100 px-2 py-1 font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                   {item.label}
                 </span>
               )}
@@ -72,7 +72,7 @@ export default function PageHeader({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
               {title}
             </h1>
             {badge && (

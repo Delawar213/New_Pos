@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Lock, User } from "lucide-react";
+import { Loader2, Lock, Moon, Sun, User } from "lucide-react";
+import { useApp } from "@/contexts/AppContext";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { loginUser } from "@/store/slices/auth/auth.slice";
 import { cn } from "@/lib/utils";
@@ -10,6 +11,7 @@ import { cn } from "@/lib/utils";
 export default function LoginPage() {
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const { theme, toggleTheme } = useApp();
   const { loading, error, isLoggedIn, token } = useAppSelector((s) => s.auth);
 
   const [userName, setUserName] = useState("");
@@ -37,14 +39,22 @@ export default function LoginPage() {
       : "";
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center px-4 py-12">
+    <div className="relative flex min-h-screen flex-col items-center justify-center px-4 py-12">
+      <button
+        type="button"
+        onClick={toggleTheme}
+        aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+        className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200/80 bg-white/80 text-slate-500 shadow-sm backdrop-blur transition hover:bg-white dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-400 dark:hover:bg-slate-800"
+      >
+        {theme === "light" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+      </button>
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Sign in</h1>
-          <p className="mt-2 text-sm text-slate-600">Use your account to access the POS dashboard.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Sign in</h1>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Use your account to access the POS dashboard.</p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200/80 bg-white/90 p-8 shadow-xl shadow-slate-200/50 backdrop-blur">
+        <div className="rounded-2xl border border-slate-200/80 bg-white/90 p-8 shadow-xl shadow-slate-200/50 backdrop-blur dark:border-slate-700 dark:bg-slate-900/90 dark:shadow-black/40">
           <form onSubmit={(e) => void handleSubmit(e)} className="space-y-5">
             <div>
               <label htmlFor="login-userName" className="mb-1.5 block text-xs font-semibold text-slate-600">
@@ -57,8 +67,8 @@ export default function LoginPage() {
                   name="userName"
                   autoComplete="username"
                   className={cn(
-                    "w-full rounded-xl border border-slate-200 bg-slate-50/80 py-2.5 pl-10 pr-3 text-sm",
-                    "outline-none ring-blue-500/20 transition focus:border-blue-500 focus:bg-white focus:ring-4"
+                    "w-full rounded-xl border border-slate-200 bg-slate-50/80 py-2.5 pl-10 pr-3 text-sm dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-100",
+                    "outline-none ring-blue-500/20 transition focus:border-blue-500 focus:bg-white focus:ring-4 dark:focus:border-blue-500 dark:focus:bg-slate-800"
                   )}
                   value={userName}
                   onChange={(e) => setUserName(e.target.value)}
@@ -80,8 +90,8 @@ export default function LoginPage() {
                   type="password"
                   autoComplete="current-password"
                   className={cn(
-                    "w-full rounded-xl border border-slate-200 bg-slate-50/80 py-2.5 pl-10 pr-3 text-sm",
-                    "outline-none ring-blue-500/20 transition focus:border-blue-500 focus:bg-white focus:ring-4"
+                    "w-full rounded-xl border border-slate-200 bg-slate-50/80 py-2.5 pl-10 pr-3 text-sm dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-100",
+                    "outline-none ring-blue-500/20 transition focus:border-blue-500 focus:bg-white focus:ring-4 dark:focus:border-blue-500 dark:focus:bg-slate-800"
                   )}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

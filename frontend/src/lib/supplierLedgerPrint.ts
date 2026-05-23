@@ -1,5 +1,11 @@
 import type { SupplierLedgerEntry } from "@/types/supplier";
 import { summarizeSupplierLedger } from "@/lib/supplierLedgerUtils";
+import {
+  buildPrintCompanyFooterHtml,
+  buildPrintCompanyHeaderHtml,
+  getPrintBranding,
+  PRINT_COMPANY_HEADER_STYLES,
+} from "@/lib/printBranding";
 
 export interface SupplierLedgerPrintMeta {
   supplierCode: string;
@@ -65,9 +71,7 @@ function buildLedgerPrintHtml(
   entries: SupplierLedgerEntry[],
   meta: SupplierLedgerPrintMeta
 ): string {
-  const storeName =
-    (typeof process !== "undefined" && process.env.NEXT_PUBLIC_STORE_NAME?.trim()) ||
-    "Point of Sale";
+  const branding = getPrintBranding();
   const printedAt = formatPrintedAt();
   const { totalDebit, totalCredit, closingBalance } = summarizeSupplierLedger(entries);
 
@@ -116,8 +120,8 @@ function buildLedgerPrintHtml(
       padding-bottom: 12px;
       margin-bottom: 14px;
     }
-    .store { font-size: 18px; font-weight: 700; margin: 0 0 4px; }
-    .title { font-size: 14px; font-weight: 600; color: #334155; margin: 0; }
+    ${PRINT_COMPANY_HEADER_STYLES}
+    .title { font-size: 14px; font-weight: 600; color: #334155; margin: 8px 0 0; }
     .supplier { margin-top: 6px; font-size: 12px; font-weight: 600; }
     .meta { margin-top: 8px; font-size: 10px; color: #64748b; line-height: 1.5; }
     .summary {
@@ -171,7 +175,7 @@ function buildLedgerPrintHtml(
 </head>
 <body>
   <div class="header">
-    <p class="store">${escapeHtml(storeName)}</p>
+    ${buildPrintCompanyHeaderHtml(branding)}
     <p class="title">Supplier account ledger</p>
     <p class="supplier">${escapeHtml(meta.supplierCode)} — ${escapeHtml(meta.supplierName)}</p>
     <p class="meta">${periodLine}<br />Printed ${escapeHtml(printedAt)} · ${entries.length} entr${entries.length === 1 ? "y" : "ies"}${balanceLine}</p>
@@ -207,7 +211,8 @@ function buildLedgerPrintHtml(
       </tr>
     </tfoot>
   </table>
-  <p class="footer">Supplier ledger statement · ${escapeHtml(meta.supplierName)}</p>
+  <p class="footer">Supplier ledger statement · ${escapeHtml(meta.supplierName)} · ${escapeHtml(branding.storeName)}</p>
+  ${buildPrintCompanyFooterHtml(branding)}
 </body>
 </html>`;
 }
