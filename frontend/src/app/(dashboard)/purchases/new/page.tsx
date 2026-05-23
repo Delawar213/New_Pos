@@ -1005,113 +1005,148 @@ function NewPurchasePageContent() {
           )}
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="mb-3 text-sm font-semibold text-slate-800">Purchase discount</p>
-          <p className="mb-3 text-xs text-slate-500">
-            Applied to the line subtotal (after per-line unit discounts). Choose percentage or a fixed amount.
-          </p>
-          <div className="flex flex-wrap gap-4">
-            <div className="min-w-[160px] flex-1">
-              <label htmlFor="purchase-discount-type" className="mb-1 block text-xs font-medium text-slate-600">
-                Discount type
-              </label>
-              <select
-                id="purchase-discount-type"
-                value={discountMode}
-                onChange={(e) => {
-                  const m = e.target.value as "percent" | "fixed";
-                  setDiscountMode(m);
-                  setDiscountInput(0);
-                }}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-              >
-                <option value="percent">Percentage (%)</option>
-                <option value="fixed">Fixed amount</option>
-              </select>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
+          {/* Left: discount + notes */}
+          <div className="space-y-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-slate-800">Purchase discount</p>
+                <span className="text-[11px] text-slate-500">On line subtotal</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label
+                    htmlFor="purchase-discount-type"
+                    className="mb-1 block text-xs font-medium text-slate-600"
+                  >
+                    Type
+                  </label>
+                  <select
+                    id="purchase-discount-type"
+                    value={discountMode}
+                    onChange={(e) => {
+                      const m = e.target.value as "percent" | "fixed";
+                      setDiscountMode(m);
+                      setDiscountInput(0);
+                    }}
+                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+                  >
+                    <option value="percent">%</option>
+                    <option value="fixed">Fixed</option>
+                  </select>
+                </div>
+                <div>
+                  <label
+                    htmlFor="purchase-discount-value"
+                    className="mb-1 block text-xs font-medium text-slate-600"
+                  >
+                    {discountMode === "percent" ? "Percent" : "Amount"}
+                  </label>
+                  <input
+                    id="purchase-discount-value"
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    max={discountMode === "percent" ? 100 : undefined}
+                    value={discountInput}
+                    onChange={(e) => setDiscountInput(Number(e.target.value) || 0)}
+                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm tabular-nums"
+                  />
+                </div>
+              </div>
+              {purchaseTotals.headerDisc > 0 ? (
+                <p className="mt-2 text-xs text-rose-600">
+                  Discount applied: −{formatCurrency(purchaseTotals.headerDisc)}
+                </p>
+              ) : null}
             </div>
-            <div className="min-w-[180px] flex-1">
-              <label htmlFor="purchase-discount-value" className="mb-1 block text-xs font-medium text-slate-600">
-                {discountMode === "percent" ? "Discount (%)" : "Discount amount"}
-              </label>
-              <input
-                id="purchase-discount-value"
-                type="number"
-                step="0.01"
-                min={0}
-                max={discountMode === "percent" ? 100 : undefined}
-                value={discountInput}
-                onChange={(e) => setDiscountInput(Number(e.target.value) || 0)}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-              />
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+              <div>
+                <label
+                  htmlFor="purchase-desc"
+                  className="mb-1 block text-xs font-medium text-slate-600"
+                >
+                  Description
+                </label>
+                <textarea
+                  id="purchase-desc"
+                  value={form.description || ""}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  placeholder="Optional header text…"
+                  className="w-full resize-y rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+                  rows={2}
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="purchase-notes"
+                  className="mb-1 block text-xs font-medium text-slate-600"
+                >
+                  Notes
+                </label>
+                <textarea
+                  id="purchase-notes"
+                  value={form.notes || ""}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                  placeholder="Internal notes…"
+                  className="w-full resize-y rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+                  rows={2}
+                />
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="rounded-xl border border-blue-100 bg-gradient-to-br from-slate-50 to-blue-50/40 p-4">
-          <p className="mb-3 text-sm font-semibold text-slate-800">Order summary</p>
-          <dl className="grid gap-2 text-sm sm:grid-cols-2">
-            <div className="flex justify-between gap-4 rounded-lg bg-white/80 px-3 py-2">
-              <dt className="text-slate-600">Lines subtotal (ex VAT)</dt>
-              <dd className="font-semibold tabular-nums text-slate-900">
-                {formatCurrency(purchaseTotals.itemsSubtotalExVat)}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-4 rounded-lg bg-white/80 px-3 py-2">
-              <dt className="text-slate-600">
-                Purchase discount
-                {discountMode === "percent" ? ` (${discountInput}%)` : ""}
-              </dt>
-              <dd className="font-semibold tabular-nums text-rose-600">
-                −{formatCurrency(purchaseTotals.headerDisc)}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-4 rounded-lg bg-white/80 px-3 py-2">
-              <dt className="text-slate-600">Net (ex VAT)</dt>
-              <dd className="font-semibold tabular-nums text-slate-900">
-                {formatCurrency(purchaseTotals.netExVat)}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-4 rounded-lg bg-white/80 px-3 py-2">
-              <dt className="text-slate-600">VAT (proportional)</dt>
-              <dd className="font-semibold tabular-nums text-slate-900">
-                {formatCurrency(purchaseTotals.totalVat)}
-              </dd>
-            </div>
-            <div className="sm:col-span-2 flex justify-between gap-4 rounded-lg border border-blue-200 bg-white px-3 py-3">
-              <dt className="text-base font-semibold text-slate-800">Estimated total (inc VAT)</dt>
-              <dd className="text-base font-bold tabular-nums text-blue-700">
-                {formatCurrency(purchaseTotals.grandTotal)}
-              </dd>
-            </div>
-          </dl>
-          <p className="mt-2 text-[11px] text-slate-500">
-            Summary is for reference; the server may recalculate tax totals from line VAT rates.
-          </p>
-        </div>
-
-        <div>
-          <label htmlFor="purchase-desc" className="mb-1 block text-sm font-medium text-gray-700">
-            Description
-          </label>
-          <textarea
-            id="purchase-desc"
-            value={form.description || ""}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-            rows={2}
-          />
-        </div>
-        <div>
-          <label htmlFor="purchase-notes" className="mb-1 block text-sm font-medium text-gray-700">
-            Notes
-          </label>
-          <textarea
-            id="purchase-notes"
-            value={form.notes || ""}
-            onChange={(e) => setForm({ ...form, notes: e.target.value })}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-            rows={2}
-          />
+          {/* Right: compact order summary */}
+          <div className="rounded-xl border border-blue-200/80 bg-gradient-to-br from-slate-50 to-blue-50/50 p-4 lg:sticky lg:top-4">
+            <p className="mb-3 text-sm font-semibold text-slate-800">Order summary</p>
+            <dl className="space-y-1.5 text-sm">
+              <p className="border-b border-slate-200/80 pb-2 text-xs text-slate-500">
+                {purchaseTotals.lineCount} line{purchaseTotals.lineCount !== 1 ? "s" : ""} ·{" "}
+                {purchaseTotals.totalQty} units
+              </p>
+              <div className="flex justify-between gap-3 py-0.5">
+                <dt className="text-slate-600">Subtotal (ex VAT)</dt>
+                <dd className="tabular-nums text-slate-800">
+                  {formatCurrency(purchaseTotals.itemsSubtotalExVat)}
+                </dd>
+              </div>
+              {purchaseTotals.headerDisc > 0.009 ? (
+                <div className="flex justify-between gap-3 py-0.5">
+                  <dt className="text-slate-600">
+                    Discount
+                    {discountMode === "percent" && discountInput > 0
+                      ? ` (${discountInput}%)`
+                      : ""}
+                  </dt>
+                  <dd className="tabular-nums font-medium text-rose-600">
+                    −{formatCurrency(purchaseTotals.headerDisc)}
+                  </dd>
+                </div>
+              ) : null}
+              <div className="flex justify-between gap-3 py-0.5">
+                <dt className="text-slate-600">Net (ex VAT)</dt>
+                <dd className="tabular-nums text-slate-800">
+                  {formatCurrency(purchaseTotals.netExVat)}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3 py-0.5">
+                <dt className="text-slate-600">VAT</dt>
+                <dd className="tabular-nums text-slate-800">
+                  {formatCurrency(purchaseTotals.totalVat)}
+                </dd>
+              </div>
+              <div className="mt-2 flex justify-between gap-3 rounded-lg border border-blue-200 bg-white px-3 py-2.5">
+                <dt className="font-semibold text-slate-800">Total (inc VAT)</dt>
+                <dd className="text-lg font-bold tabular-nums text-blue-700">
+                  {formatCurrency(purchaseTotals.grandTotal)}
+                </dd>
+              </div>
+            </dl>
+            <p className="mt-2 text-[10px] leading-snug text-slate-500">
+              Estimate only — server may adjust VAT from line rates.
+            </p>
+          </div>
         </div>
 
         <div className="flex flex-wrap justify-end gap-3 border-t border-gray-100 pt-4">
@@ -1145,7 +1180,8 @@ function NewPurchasePageContent() {
         }}
         title={editingIndex === null ? "Add line item" : "Edit line item"}
         description="Search for a product, adjust quantities and pricing, then add to this purchase."
-        size="xl"
+        size="2xl"
+        className="max-w-[min(96vw,88rem)]"
         scrollableContent={false}
         footer={
           <div className="w-full space-y-3">
@@ -1217,7 +1253,7 @@ function NewPurchasePageContent() {
               Tip: scan a barcode in the field below — the product name above updates when the code matches.
             </p>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">
                 Barcode {barcodeLookupLoading ? "(looking up…)" : ""}

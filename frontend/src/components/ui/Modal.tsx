@@ -14,11 +14,13 @@ interface ModalProps {
   title: string;
   description?: string;
   children: React.ReactNode;
-  size?: "sm" | "md" | "lg" | "xl" | "full";
+  size?: "sm" | "md" | "lg" | "xl" | "2xl" | "full";
   footer?: React.ReactNode;
   showCloseButton?: boolean;
   /** When false, body is not max-height constrained (e.g. wide forms that should fit without inner scroll). */
   scrollableContent?: boolean;
+  /** Extra classes on the modal panel (e.g. custom max-width). */
+  className?: string;
 }
 
 const sizeMap = {
@@ -26,7 +28,8 @@ const sizeMap = {
   md: "max-w-lg",
   lg: "max-w-2xl",
   xl: "max-w-4xl",
-  full: "max-w-6xl",
+  "2xl": "max-w-6xl",
+  full: "max-w-7xl",
 };
 
 export default function Modal({
@@ -39,6 +42,7 @@ export default function Modal({
   footer,
   showCloseButton = true,
   scrollableContent = true,
+  className,
 }: ModalProps) {
   // Close on Escape key
   useEffect(() => {
@@ -72,7 +76,8 @@ export default function Modal({
       <div
         className={cn(
           "relative w-full rounded-2xl bg-white shadow-2xl animate-scaleIn",
-          sizeMap[size]
+          sizeMap[size],
+          className
         )}
       >
         {/* Header */}
