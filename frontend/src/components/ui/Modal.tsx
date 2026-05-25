@@ -64,34 +64,38 @@ export default function Modal({
 
   if (!open) return null;
 
+  const isFullHeight = scrollableContent;
+
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[60] flex items-end justify-center p-0 sm:items-center sm:p-4">
       {/* Backdrop */}
-      <div 
+      <div
         className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-fadeIn"
         onClick={onClose}
       />
-      
+
       {/* Modal */}
       <div
         className={cn(
-          "relative w-full rounded-2xl bg-white shadow-2xl animate-scaleIn",
+          "relative flex w-full max-h-[min(92dvh,920px)] flex-col bg-white shadow-2xl animate-scaleIn",
+          "rounded-t-2xl sm:max-h-[min(90dvh,920px)] sm:rounded-2xl",
           sizeMap[size],
           className
         )}
       >
         {/* Header */}
-        <div className="flex items-start justify-between border-b border-slate-100 px-6 py-5">
-          <div>
-            <h2 className="text-xl font-bold text-slate-800">{title}</h2>
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-6 sm:py-5">
+          <div className="min-w-0 pr-2">
+            <h2 className="text-lg font-bold text-slate-800 sm:text-xl">{title}</h2>
             {description && (
               <p className="mt-1 text-sm text-slate-500">{description}</p>
             )}
           </div>
           {showCloseButton && (
             <button
+              type="button"
               onClick={onClose}
-              className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
             >
               <X className="h-5 w-5" />
             </button>
@@ -101,10 +105,10 @@ export default function Modal({
         {/* Content */}
         <div
           className={cn(
-            "px-6 py-5",
-            scrollableContent
-              ? "max-h-[calc(100vh-16rem)] overflow-y-auto scrollbar-thin"
-              : "max-h-none overflow-visible"
+            "min-h-0 px-4 py-4 sm:px-6 sm:py-5",
+            isFullHeight
+              ? "flex-1 overflow-y-auto overscroll-contain scrollbar-thin"
+              : "overflow-visible"
           )}
         >
           {children}
@@ -112,7 +116,7 @@ export default function Modal({
 
         {/* Footer */}
         {footer && (
-          <div className="flex items-center justify-end gap-3 border-t border-slate-100 bg-slate-50/50 px-6 py-4 rounded-b-2xl">
+          <div className="shrink-0 border-t border-slate-100 bg-slate-50/80 px-4 py-4 sm:rounded-b-2xl sm:px-6">
             {footer}
           </div>
         )}

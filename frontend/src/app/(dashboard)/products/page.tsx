@@ -54,6 +54,11 @@ import {
 import { ProductPriceUpdateModal } from "@/components/products/ProductPriceUpdateModal";
 import { ProductBarcodeLabelModal } from "@/components/products/ProductBarcodeLabelModal";
 import {
+  ProductFormSection,
+  productFieldClass,
+  productLabelClass,
+} from "@/components/products/productFormStyles";
+import {
   suggestNextInternalBarcode,
   barcodeUsedByOther,
   isInternalBarcode,
@@ -1050,11 +1055,11 @@ export default function ProductsPage() {
         open={modalOpen}
         onClose={resetModal}
         title={editingProduct ? "Edit Product" : "Add Product"}
-        description={editingProduct ? "Update product details" : "Create a new product"}
-        size="full"
-        scrollableContent={false}
+        size="xl"
+        scrollableContent
+        className="sm:max-w-[40rem] lg:max-w-5xl"
         footer={
-          <div className="flex w-full flex-wrap items-center justify-between gap-2">
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <button
               type="button"
               disabled={!form.barcode.trim() && !(barcodeInputRef.current?.value ?? "").trim()}
@@ -1083,17 +1088,17 @@ export default function ProductsPage() {
                   } as Product,
                 ]);
               }}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 sm:w-auto sm:min-w-[140px]"
             >
               <Printer className="h-4 w-4" />
               Print label
             </button>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:ml-auto sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={resetModal}
                 disabled={actionLoading}
-                className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 sm:w-auto"
               >
                 Cancel
               </button>
@@ -1101,208 +1106,253 @@ export default function ProductsPage() {
                 type="button"
                 onClick={handleSubmit}
                 disabled={actionLoading}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                className="h-11 w-full rounded-xl bg-blue-600 px-6 text-sm font-semibold text-white shadow-md hover:bg-blue-700 disabled:opacity-50 sm:w-auto sm:min-w-[140px]"
               >
-                {actionLoading ? "Saving..." : editingProduct ? "Update Product" : "Save Product"}
+                {actionLoading ? "Saving…" : editingProduct ? "Update" : "Save product"}
               </button>
             </div>
           </div>
         }
       >
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 lg:gap-x-4 lg:gap-y-2">
-          <div className="lg:col-span-2">
-            <label htmlFor="prod-code" className="mb-1 block text-sm font-medium text-gray-700">
-              Product code <span className="font-normal text-gray-500">(auto-suggested, editable)</span>
-            </label>
-            <input
-              id="prod-code"
-              value={form.productCode}
-              onChange={(e) => setForm({ ...form, productCode: e.target.value })}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-            />
-          </div>
-          <div className="lg:col-span-3">
-            <label htmlFor="prod-name" className="mb-1 block text-sm font-medium text-gray-700">
-              Product name <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="prod-name"
-              value={form.productName}
-              onChange={(e) => setForm({ ...form, productName: e.target.value })}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-            />
-          </div>
-          <div className="lg:col-span-2">
-            <label htmlFor="prod-barcode" className="mb-1 block text-sm font-medium text-gray-700">
-              Barcode
-              {isInternalBarcode(form.barcode) ? (
-                <span className="ml-2 text-xs font-normal text-emerald-600">Internal shelf code</span>
-              ) : null}
-            </label>
-            <div className="flex gap-2">
-              <input
-                ref={barcodeInputRef}
-                id="prod-barcode"
-                name="barcode"
-                defaultValue={form.barcode}
-                onInput={(e) => {
-                  const v = (e.currentTarget as HTMLInputElement).value;
-                  setForm((f) => (f.barcode === v ? f : { ...f, barcode: v }));
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === "Tab") {
-                    e.preventDefault();
-                  }
-                }}
-                autoComplete="off"
-                spellCheck={false}
-                placeholder="Supplier barcode or generate internal (200001…)"
-                className="min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm"
-              />
-              <button
-                type="button"
-                onClick={handleGenerateInternalBarcode}
-                title="Assign next free code 200001–299999 for shelf labels"
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                Generate
-              </button>
+        <form
+          className="grid grid-cols-1 gap-4 lg:grid-cols-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleSubmit();
+          }}
+        >
+          <ProductFormSection title="Basics" className="lg:col-span-2">
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label htmlFor="prod-name" className={productLabelClass}>
+                  Product name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="prod-name"
+                  value={form.productName}
+                  onChange={(e) => setForm({ ...form, productName: e.target.value })}
+                  className={productFieldClass}
+                  placeholder="e.g. Tomato, Chicken breast"
+                  autoComplete="off"
+                />
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="prod-code" className={productLabelClass}>
+                    Product code
+                  </label>
+                  <input
+                    id="prod-code"
+                    value={form.productCode}
+                    onChange={(e) => setForm({ ...form, productCode: e.target.value })}
+                    className={productFieldClass}
+                    placeholder="Auto-suggested"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="prod-uom" className={productLabelClass}>
+                    Unit
+                  </label>
+                  <SearchableSelect
+                    id="prod-uom"
+                    options={uomOptions}
+                    value={form.unitOfMeasurement}
+                    onChange={(v) => setForm({ ...form, unitOfMeasurement: v })}
+                    placeholder="kg, Each, Pack…"
+                    emptyHint="No matching unit"
+                  />
+                </div>
+              </div>
             </div>
-            <p className="mt-1 text-xs text-gray-500">
-              For tomato, chicken, fruit, etc.: generate → save → print label → scan at POS.
-            </p>
-          </div>
-          <div>
-            <label htmlFor="prod-uom" className="mb-1 block text-sm font-medium text-gray-700">
-              Unit of measurement
-            </label>
-            <SearchableSelect
-              id="prod-uom"
-              options={uomOptions}
-              value={form.unitOfMeasurement}
-              onChange={(v) => setForm({ ...form, unitOfMeasurement: v })}
-              placeholder="Search unit (e.g. kg, Pack)…"
-              emptyHint="No matching unit"
-            />
-          </div>
-          <div>
-            <label htmlFor="prod-category" className="mb-1 block text-sm font-medium text-gray-700">
-              Category <span className="text-red-500">*</span>
-            </label>
-            <SearchableSelect
-              id="prod-category"
-              options={categoryOptions}
-              value={form.categoryId}
-              onChange={(id) => setForm({ ...form, categoryId: id, subCategoryId: null })}
-              placeholder="Search category…"
-              disabled={categoryOptions.length === 0}
-              emptyHint="No categories loaded"
-            />
-          </div>
-          <div>
-            <label htmlFor="prod-subcat" className="mb-1 block text-sm font-medium text-gray-700">
-              Subcategory
-            </label>
-            <SearchableSelect
-              id="prod-subcat"
-              options={subCategoryOptions}
-              value={form.subCategoryId ?? 0}
-              onChange={(id) =>
-                setForm({
-                  ...form,
-                  subCategoryId: id === 0 ? null : id,
-                })
-              }
-              placeholder={form.categoryId ? "Search subcategory…" : "Select a category first"}
-              disabled={!form.categoryId}
-              emptyHint="No subcategories for this category"
-            />
-          </div>
-          <div>
-            <label htmlFor="prod-brand" className="mb-1 block text-sm font-medium text-gray-700">
-              Brand <span className="text-red-500">*</span>
-            </label>
-            <SearchableSelect
-              id="prod-brand"
-              options={brandOptions}
-              value={form.brandId}
-              onChange={(id) => setForm({ ...form, brandId: id })}
-              placeholder="Search brand…"
-              disabled={brandOptions.length === 0}
-              emptyHint="No brands loaded"
-            />
-          </div>
-          <div>
-            <label htmlFor="prod-price-ex" className="mb-1 block text-sm font-medium text-gray-700">
-              Selling price (ex VAT)
-            </label>
-            <DecimalInput
-              id="prod-price-ex"
-              value={form.sellingPriceExVat}
-              onChange={(sellingPriceExVat) => setForm({ ...form, sellingPriceExVat })}
-              placeholder="0.00"
-            />
-          </div>
-          <div>
-            <label htmlFor="prod-vat" className="mb-1 block text-sm font-medium text-gray-700">
-              VAT rate
-            </label>
-            <SearchableSelect
-              id="prod-vat"
-              options={vatOptions}
-              value={form.vatRate}
-              onChange={(v) => setForm({ ...form, vatRate: v })}
-              placeholder="Search VAT rate…"
-              emptyHint="No rate"
-            />
-          </div>
-          <div>
-            <label htmlFor="prod-stock-alert" className="mb-1 block text-sm font-medium text-gray-700">
-              Stock alert level
-            </label>
-            <DecimalInput
-              id="prod-stock-alert"
-              value={form.stockAlertLevel}
-              onChange={(stockAlertLevel) => setForm({ ...form, stockAlertLevel })}
-              placeholder="0"
-            />
-          </div>
-          <div>
-            <label htmlFor="prod-reorder" className="mb-1 block text-sm font-medium text-gray-700">
-              Reorder level
-            </label>
-            <DecimalInput
-              id="prod-reorder"
-              value={form.reorderLevel}
-              onChange={(reorderLevel) => setForm({ ...form, reorderLevel })}
-              placeholder="0"
-            />
-          </div>
-          <div className="lg:col-span-3">
-            <label htmlFor="prod-desc" className="mb-1 block text-sm font-medium text-gray-700">
-              Description
-            </label>
-            <textarea
-              id="prod-desc"
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              rows={2}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-            />
-          </div>
-          <div className="flex items-center lg:col-span-3">
-            <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-700">
-              <input
-                type="checkbox"
-                checked={form.isActive}
-                onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
-                className="rounded border-gray-300"
-              />
-              Active
-            </label>
-          </div>
-        </div>
+          </ProductFormSection>
+
+          <ProductFormSection title="Barcode">
+            <div>
+              <label htmlFor="prod-barcode" className={productLabelClass}>
+                Barcode
+                {isInternalBarcode(form.barcode) ? (
+                  <span className="ml-2 normal-case tracking-normal text-emerald-600">
+                    · internal
+                  </span>
+                ) : null}
+              </label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  ref={barcodeInputRef}
+                  id="prod-barcode"
+                  name="barcode"
+                  defaultValue={form.barcode}
+                  onInput={(e) => {
+                    const v = (e.currentTarget as HTMLInputElement).value;
+                    setForm((f) => (f.barcode === v ? f : { ...f, barcode: v }));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === "Tab") {
+                      e.preventDefault();
+                    }
+                  }}
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="Scan or type barcode"
+                  className={cn(productFieldClass, "min-w-0 flex-1 font-mono")}
+                />
+                <button
+                  type="button"
+                  onClick={handleGenerateInternalBarcode}
+                  className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-800 hover:bg-emerald-100 sm:min-w-[9.5rem]"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Generate
+                </button>
+              </div>
+            </div>
+          </ProductFormSection>
+
+          <ProductFormSection title="Classification">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="prod-category" className={productLabelClass}>
+                  Category <span className="text-red-500">*</span>
+                </label>
+                <SearchableSelect
+                  id="prod-category"
+                  options={categoryOptions}
+                  value={form.categoryId}
+                  onChange={(id) => setForm({ ...form, categoryId: id, subCategoryId: null })}
+                  placeholder="Search category…"
+                  disabled={categoryOptions.length === 0}
+                  emptyHint="No categories loaded"
+                />
+              </div>
+              <div>
+                <label htmlFor="prod-subcat" className={productLabelClass}>
+                  Subcategory
+                </label>
+                <SearchableSelect
+                  id="prod-subcat"
+                  options={subCategoryOptions}
+                  value={form.subCategoryId ?? 0}
+                  onChange={(id) =>
+                    setForm({
+                      ...form,
+                      subCategoryId: id === 0 ? null : id,
+                    })
+                  }
+                  placeholder={form.categoryId ? "Search subcategory…" : "Pick category first"}
+                  disabled={!form.categoryId}
+                  emptyHint="No subcategories"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label htmlFor="prod-brand" className={productLabelClass}>
+                  Brand <span className="text-red-500">*</span>
+                </label>
+                <SearchableSelect
+                  id="prod-brand"
+                  options={brandOptions}
+                  value={form.brandId}
+                  onChange={(id) => setForm({ ...form, brandId: id })}
+                  placeholder="Search brand…"
+                  disabled={brandOptions.length === 0}
+                  emptyHint="No brands loaded"
+                />
+              </div>
+            </div>
+          </ProductFormSection>
+
+          <ProductFormSection title="Pricing">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="prod-price-ex" className={productLabelClass}>
+                  Selling price (ex VAT)
+                </label>
+                <DecimalInput
+                  id="prod-price-ex"
+                  value={form.sellingPriceExVat}
+                  onChange={(sellingPriceExVat) => setForm({ ...form, sellingPriceExVat })}
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label htmlFor="prod-vat" className={productLabelClass}>
+                  VAT rate
+                </label>
+                <SearchableSelect
+                  id="prod-vat"
+                  options={vatOptions}
+                  value={form.vatRate}
+                  onChange={(v) => setForm({ ...form, vatRate: v })}
+                  placeholder="0%, 5%, 20%…"
+                  emptyHint="No rate"
+                />
+              </div>
+            </div>
+            {form.sellingPriceExVat > 0 ? (
+              <p className="mt-3 rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-900">
+                Price inc VAT:{" "}
+                {formatCurrency(form.sellingPriceExVat * (1 + (form.vatRate || 0) / 100))}
+                {form.unitOfMeasurement &&
+                !["each", "piece"].includes(form.unitOfMeasurement.toLowerCase())
+                  ? ` per ${form.unitOfMeasurement}`
+                  : ""}
+              </p>
+            ) : null}
+          </ProductFormSection>
+
+          <ProductFormSection title="Stock alerts">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="prod-stock-alert" className={productLabelClass}>
+                  Low stock alert
+                </label>
+                <DecimalInput
+                  id="prod-stock-alert"
+                  value={form.stockAlertLevel}
+                  onChange={(stockAlertLevel) => setForm({ ...form, stockAlertLevel })}
+                  placeholder="10"
+                />
+              </div>
+              <div>
+                <label htmlFor="prod-reorder" className={productLabelClass}>
+                  Reorder level
+                </label>
+                <DecimalInput
+                  id="prod-reorder"
+                  value={form.reorderLevel}
+                  onChange={(reorderLevel) => setForm({ ...form, reorderLevel })}
+                  placeholder="20"
+                />
+              </div>
+            </div>
+          </ProductFormSection>
+
+          <ProductFormSection title="Other" className="lg:col-span-2">
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="prod-desc" className={productLabelClass}>
+                  Description
+                </label>
+                <textarea
+                  id="prod-desc"
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  rows={3}
+                  className={cn(productFieldClass, "resize-y min-h-[4.5rem]")}
+                  placeholder="Optional notes"
+                />
+              </div>
+              <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <input
+                  type="checkbox"
+                  checked={form.isActive}
+                  onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+                  className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                />
+                <span className="text-sm font-medium text-slate-800">Active</span>
+              </label>
+            </div>
+          </ProductFormSection>
+        </form>
       </Modal>
 
       <Modal
