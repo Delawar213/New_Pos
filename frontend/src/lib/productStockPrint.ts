@@ -128,7 +128,7 @@ function buildStockPrintHtml(kind: StockPrintKind, products: Product[]): string 
 </html>`;
 }
 
-function printHtmlDocument(html: string, iframeTitle: string): void {
+export function printHtmlDocument(html: string, iframeTitle: string): void {
   if (typeof document === "undefined") return;
 
   const iframe = document.createElement("iframe");

@@ -14,6 +14,9 @@ import {
   AlertTriangle,
   Archive,
   Tag,
+  Barcode,
+  Printer,
+  Sparkles,
 } from "lucide-react";
 import {
   PageHeader,
@@ -33,6 +36,7 @@ import { printProductStockReport, type StockPrintKind } from "@/lib/productStock
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   fetchProducts,
+  fetchAllProducts,
   fetchProductsByCategory,
   fetchProductsByBrand,
   fetchProductsOutOfStock,
@@ -48,6 +52,12 @@ import {
   type StockFilterValue,
 } from "@/components/products/ProductFiltersBar";
 import { ProductPriceUpdateModal } from "@/components/products/ProductPriceUpdateModal";
+import { ProductBarcodeLabelModal } from "@/components/products/ProductBarcodeLabelModal";
+import {
+  suggestNextInternalBarcode,
+  barcodeUsedByOther,
+  isInternalBarcode,
+} from "@/lib/internalBarcode";
 import { fetchCategories } from "@/store/slices/category/category.slice";
 import { fetchBrands } from "@/store/slices/brand/brand.slice";
 import { fetchSubCategories } from "@/store/slices/subCategory/subCategory.slice";
@@ -150,6 +160,7 @@ export default function ProductsPage() {
     totalPages,
     listMode,
     listFilterLabel,
+    allProducts,
   } = useAppSelector((s) => s.product);
   const { categories } = useAppSelector((s) => s.category);
   const { brands } = useAppSelector((s) => s.brand);
@@ -159,6 +170,7 @@ export default function ProductsPage() {
   const [viewProduct, setViewProduct] = useState<Product | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [priceUpdateProduct, setPriceUpdateProduct] = useState<Product | null>(null);
+  const [labelPrintProducts, setLabelPrintProducts] = useState<Product[]>([]);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [form, setForm] = useState<CreateProductRequest>(emptyForm());
   const barcodeInputRef = useRef<HTMLInputElement>(null);
@@ -279,7 +291,45 @@ export default function ProductsPage() {
     dispatch(fetchCategories({ pageNumber: 1, pageSize: 200 }));
     dispatch(fetchBrands({ pageNumber: 1, pageSize: 200 }));
     dispatch(fetchSubCategories());
+    void dispatch(fetchAllProducts());
   }, [dispatch]);
+
+  const barcodeCatalog = useMemo(() => {
+    const map = new Map<number, Product>();
+    for (const p of allProducts) map.set(p.productId, p);
+    for (const p of products) map.set(p.productId, p);
+    return Array.from(map.values());
+  }, [allProducts, products]);
+
+  const productsWithBarcodeOnPage = useMemo(
+    () => products.filter((p) => (p.barcode ?? "").trim().length > 0),
+    [products]
+  );
+
+  const handleGenerateInternalBarcode = () => {
+    const next = suggestNextInternalBarcode(barcodeCatalog);
+    if (
+      barcodeUsedByOther(next, barcodeCatalog, editingProduct?.productId)
+    ) {
+      dispatch(
+        addToast({
+          type: "warning",
+          title: "Barcode in use",
+          message: `${next} is already assigned to another product.`,
+        })
+      );
+      return;
+    }
+    commitBarcodeValue(next);
+    dispatch(
+      addToast({
+        type: "success",
+        title: "Internal barcode",
+        message: `Assigned ${next} — save the product, then print a shelf label.`,
+        duration: 4000,
+      })
+    );
+  };
 
   const loadCatalogPage = useCallback(
     (page = currentPage, size = pageSize) => {
@@ -651,14 +701,16 @@ export default function ProductsPage() {
       brandId: firstBrand,
     });
     setModalOpen(true);
+    requestAnimationFrame(() => commitBarcodeValue(""));
   };
 
   const openEditModal = (item: Product) => {
     setEditingProduct(item);
+    const bc = item.barcode ?? "";
     setForm({
       productCode: item.productCode,
       productName: item.productName,
-      barcode: item.barcode ?? "",
+      barcode: bc,
       description: item.description ?? "",
       categoryId: item.categoryId,
       subCategoryId: item.subCategoryId ?? null,
@@ -671,6 +723,7 @@ export default function ProductsPage() {
       isActive: item.isActive,
     });
     setModalOpen(true);
+    requestAnimationFrame(() => commitBarcodeValue(bc));
   };
 
   const resetModal = () => {
@@ -825,9 +878,28 @@ export default function ProductsPage() {
     {
       key: "actions",
       label: "",
-      className: "w-36",
+      className: "w-44",
       render: (item) => (
         <div className="flex items-center justify-end gap-1">
+          {(item.barcode ?? "").trim() ? (
+            <button
+              type="button"
+              onClick={() => setLabelPrintProducts([item])}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-violet-50 hover:text-violet-600"
+              title="Print shelf label"
+            >
+              <Printer className="h-4 w-4" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => openEditModal(item)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-emerald-50 hover:text-emerald-600"
+              title="Edit product to add barcode"
+            >
+              <Barcode className="h-4 w-4" />
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setPriceUpdateProduct(item)}
@@ -927,6 +999,19 @@ export default function ProductsPage() {
         printDisabled={loading}
       />
 
+      {productsWithBarcodeOnPage.length > 0 ? (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setLabelPrintProducts(productsWithBarcodeOnPage)}
+            className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-800 hover:bg-violet-100"
+          >
+            <Printer className="h-4 w-4" />
+            Print shelf labels ({productsWithBarcodeOnPage.length} on this page)
+          </button>
+        </div>
+      ) : null}
+
       <DataTable
         columns={columns}
         data={products}
@@ -969,23 +1054,58 @@ export default function ProductsPage() {
         size="full"
         scrollableContent={false}
         footer={
-          <div className="flex justify-end gap-2">
+          <div className="flex w-full flex-wrap items-center justify-between gap-2">
             <button
               type="button"
-              onClick={resetModal}
-              disabled={actionLoading}
-              className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+              disabled={!form.barcode.trim() && !(barcodeInputRef.current?.value ?? "").trim()}
+              onClick={() => {
+                const bc = (barcodeInputRef.current?.value ?? form.barcode).trim();
+                if (!bc) return;
+                const inc = form.sellingPriceExVat * (1 + (form.vatRate || 0) / 100);
+                setLabelPrintProducts([
+                  {
+                    ...(editingProduct ?? {}),
+                    productId: editingProduct?.productId ?? 0,
+                    productCode: form.productCode,
+                    productName: form.productName,
+                    barcode: bc,
+                    categoryId: form.categoryId,
+                    brandId: form.brandId,
+                    unitOfMeasurement: form.unitOfMeasurement,
+                    sellingPrice: form.sellingPriceExVat,
+                    sellingPriceIncVat: inc,
+                    vatRate: form.vatRate,
+                    qtyInStock: editingProduct?.qtyInStock ?? 0,
+                    stockAlertLevel: form.stockAlertLevel,
+                    reorderLevel: form.reorderLevel,
+                    isActive: form.isActive,
+                    createdDatetime: editingProduct?.createdDatetime ?? "",
+                  } as Product,
+                ]);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
             >
-              Cancel
+              <Printer className="h-4 w-4" />
+              Print label
             </button>
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={actionLoading}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-            >
-              {actionLoading ? "Saving..." : editingProduct ? "Update Product" : "Save Product"}
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={resetModal}
+                disabled={actionLoading}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={actionLoading}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {actionLoading ? "Saving..." : editingProduct ? "Update Product" : "Save Product"}
+              </button>
+            </div>
           </div>
         }
       >
@@ -1012,29 +1132,46 @@ export default function ProductsPage() {
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
             />
           </div>
-          <div>
+          <div className="lg:col-span-2">
             <label htmlFor="prod-barcode" className="mb-1 block text-sm font-medium text-gray-700">
               Barcode
+              {isInternalBarcode(form.barcode) ? (
+                <span className="ml-2 text-xs font-normal text-emerald-600">Internal shelf code</span>
+              ) : null}
             </label>
-            <input
-              ref={barcodeInputRef}
-              id="prod-barcode"
-              name="barcode"
-              defaultValue={form.barcode}
-              onInput={(e) => {
-                const v = (e.currentTarget as HTMLInputElement).value;
-                setForm((f) => (f.barcode === v ? f : { ...f, barcode: v }));
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === "Tab") {
-                  e.preventDefault();
-                }
-              }}
-              autoComplete="off"
-              spellCheck={false}
-              placeholder="Scan barcode (USB scanner) or type here"
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-            />
+            <div className="flex gap-2">
+              <input
+                ref={barcodeInputRef}
+                id="prod-barcode"
+                name="barcode"
+                defaultValue={form.barcode}
+                onInput={(e) => {
+                  const v = (e.currentTarget as HTMLInputElement).value;
+                  setForm((f) => (f.barcode === v ? f : { ...f, barcode: v }));
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === "Tab") {
+                    e.preventDefault();
+                  }
+                }}
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="Supplier barcode or generate internal (200001…)"
+                className="min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm"
+              />
+              <button
+                type="button"
+                onClick={handleGenerateInternalBarcode}
+                title="Assign next free code 200001–299999 for shelf labels"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Generate
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              For tomato, chicken, fruit, etc.: generate → save → print label → scan at POS.
+            </p>
           </div>
           <div>
             <label htmlFor="prod-uom" className="mb-1 block text-sm font-medium text-gray-700">
@@ -1174,11 +1311,38 @@ export default function ProductsPage() {
         title="Product details"
         description={viewProduct?.productCode}
         size="sm"
+        footer={
+          viewProduct && (viewProduct.barcode ?? "").trim() ? (
+            <div className="flex w-full justify-end">
+              <button
+                type="button"
+                onClick={() => setLabelPrintProducts([viewProduct])}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              >
+                <Printer className="h-4 w-4" />
+                Print shelf label
+              </button>
+            </div>
+          ) : undefined
+        }
       >
         {viewProduct && (
           <div className="space-y-2 text-sm text-slate-600">
             <p>
               <span className="font-medium text-slate-800">Name:</span> {viewProduct.productName}
+            </p>
+            <p>
+              <span className="font-medium text-slate-800">Barcode:</span>{" "}
+              {viewProduct.barcode?.trim() ? (
+                <span className="font-mono">
+                  {viewProduct.barcode}
+                  {isInternalBarcode(viewProduct.barcode) ? (
+                    <span className="ml-1 text-emerald-600">(internal)</span>
+                  ) : null}
+                </span>
+              ) : (
+                <span className="text-amber-700">None — edit product and use Generate</span>
+              )}
             </p>
             <p>
               <span className="font-medium text-slate-800">Category:</span>{" "}
@@ -1234,6 +1398,12 @@ export default function ProductsPage() {
         open={!!priceUpdateProduct}
         onClose={() => setPriceUpdateProduct(null)}
         onSaved={() => void refreshProductList()}
+      />
+
+      <ProductBarcodeLabelModal
+        open={labelPrintProducts.length > 0}
+        onClose={() => setLabelPrintProducts([])}
+        products={labelPrintProducts}
       />
     </div>
   );
